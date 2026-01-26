@@ -15,7 +15,7 @@
 ## Quick Reference
 
 ### Issue Tracking (Beads)
-```bash
+```bashbv --robot-triage 
 bd ready              # Find available work (no blockers)
 bd show <id>          # View issue details
 bd update <id> --status in_progress  # Claim work
@@ -44,7 +44,7 @@ go fmt ./...                # Format code
 ## Development Workflow
 
 ### Starting Work
-1. Run `bd ready` to find available tasks
+1. Run `bv --robot-triage` to find available tasks
 2. Read the task with `bd show <id>`
 3. Claim it: `bd update <id> --status in_progress`
 4. Check dependencies - some tasks block others
@@ -63,7 +63,6 @@ go fmt ./...                # Format code
   - `docs:` documentation
   - `test:` test additions
   - `chore:` maintenance
-- Include `Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>`
 
 ### Completing Work
 1. Ensure tests pass: `go test ./...`
