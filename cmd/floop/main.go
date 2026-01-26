@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/spf13/cobra"
 )
 
@@ -126,16 +127,26 @@ Example:
 			task, _ := cmd.Flags().GetString("task")
 			root, _ := cmd.Flags().GetString("root")
 
-			// Create correction record
-			correction := map[string]interface{}{
-				"timestamp":        time.Now().Format(time.RFC3339),
-				"agent_action":     wrong,
-				"corrected_action": right,
-				"context": map[string]string{
-					"file": file,
-					"task": task,
-				},
-				"processed": false,
+			// Build context snapshot
+			now := time.Now()
+			ctx := models.ContextSnapshot{
+				Timestamp: now,
+				FilePath:  file,
+				Task:      task,
+			}
+			if file != "" {
+				ctx.FileLanguage = models.InferLanguage(file)
+				ctx.FileExt = filepath.Ext(file)
+			}
+
+			// Create correction using models.Correction
+			correction := models.Correction{
+				ID:              fmt.Sprintf("c-%d", now.UnixNano()),
+				Timestamp:       now,
+				Context:         ctx,
+				AgentAction:     wrong,
+				CorrectedAction: right,
+				Processed:       false,
 			}
 
 			// Append to corrections log
@@ -164,13 +175,13 @@ Example:
 				})
 			} else {
 				fmt.Println("Correction captured:")
-				fmt.Printf("  Wrong: %s\n", wrong)
-				fmt.Printf("  Right: %s\n", right)
-				if file != "" {
-					fmt.Printf("  File:  %s\n", file)
+				fmt.Printf("  Wrong: %s\n", correction.AgentAction)
+				fmt.Printf("  Right: %s\n", correction.CorrectedAction)
+				if correction.Context.FilePath != "" {
+					fmt.Printf("  File:  %s\n", correction.Context.FilePath)
 				}
-				if task != "" {
-					fmt.Printf("  Task:  %s\n", task)
+				if correction.Context.Task != "" {
+					fmt.Printf("  Task:  %s\n", correction.Context.Task)
 				}
 				fmt.Println("\nRun 'floop list --corrections' to see captured corrections.")
 			}
@@ -244,7 +255,7 @@ func listCorrections(root string, jsonOut bool) error {
 		if os.IsNotExist(err) {
 			if jsonOut {
 				json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
-					"corrections": []interface{}{},
+					"corrections": []models.Correction{},
 					"count":       0,
 				})
 			} else {
@@ -255,14 +266,14 @@ func listCorrections(root string, jsonOut bool) error {
 		return err
 	}
 
-	// Parse JSONL
-	var corrections []map[string]interface{}
+	// Parse JSONL into models.Correction
+	var corrections []models.Correction
 	lines := splitLines(string(data))
 	for _, line := range lines {
 		if line == "" {
 			continue
 		}
-		var c map[string]interface{}
+		var c models.Correction
 		if err := json.Unmarshal([]byte(line), &c); err != nil {
 			continue
 		}
@@ -281,13 +292,11 @@ func listCorrections(root string, jsonOut bool) error {
 		}
 		fmt.Printf("Captured corrections (%d):\n\n", len(corrections))
 		for i, c := range corrections {
-			fmt.Printf("%d. [%s]\n", i+1, c["timestamp"])
-			fmt.Printf("   Wrong: %s\n", c["agent_action"])
-			fmt.Printf("   Right: %s\n", c["corrected_action"])
-			if ctx, ok := c["context"].(map[string]interface{}); ok {
-				if file, ok := ctx["file"].(string); ok && file != "" {
-					fmt.Printf("   File:  %s\n", file)
-				}
+			fmt.Printf("%d. [%s]\n", i+1, c.Timestamp.Format(time.RFC3339))
+			fmt.Printf("   Wrong: %s\n", c.AgentAction)
+			fmt.Printf("   Right: %s\n", c.CorrectedAction)
+			if c.Context.FilePath != "" {
+				fmt.Printf("   File:  %s\n", c.Context.FilePath)
 			}
 			fmt.Println()
 		}
