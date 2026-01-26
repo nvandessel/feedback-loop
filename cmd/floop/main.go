@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/nvandessel/feedback-loop/internal/learning"
 	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/feedback-loop/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -112,11 +115,12 @@ created: %s
 func newLearnCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "learn",
-		Short: "Capture a correction for learning",
-		Long: `Capture a correction from a human-agent interaction.
+		Short: "Capture a correction and extract behavior",
+		Long: `Capture a correction from a human-agent interaction and extract a behavior.
 
 This command is called by agents when they receive a correction.
-It records the correction for later processing into behaviors.
+It records the correction, extracts a candidate behavior, and determines
+whether the behavior can be auto-accepted or requires human review.
 
 Example:
   floop learn --wrong "used os.path" --right "use pathlib.Path instead"`,
@@ -129,34 +133,34 @@ Example:
 
 			// Build context snapshot
 			now := time.Now()
-			ctx := models.ContextSnapshot{
+			ctxSnapshot := models.ContextSnapshot{
 				Timestamp: now,
 				FilePath:  file,
 				Task:      task,
 			}
 			if file != "" {
-				ctx.FileLanguage = models.InferLanguage(file)
-				ctx.FileExt = filepath.Ext(file)
+				ctxSnapshot.FileLanguage = models.InferLanguage(file)
+				ctxSnapshot.FileExt = filepath.Ext(file)
 			}
 
 			// Create correction using models.Correction
 			correction := models.Correction{
 				ID:              fmt.Sprintf("c-%d", now.UnixNano()),
 				Timestamp:       now,
-				Context:         ctx,
+				Context:         ctxSnapshot,
 				AgentAction:     wrong,
 				CorrectedAction: right,
 				Processed:       false,
 			}
 
-			// Append to corrections log
-			correctionsPath := filepath.Join(root, ".floop", "corrections.jsonl")
-
 			// Ensure .floop exists
-			if _, err := os.Stat(filepath.Join(root, ".floop")); os.IsNotExist(err) {
+			floopDir := filepath.Join(root, ".floop")
+			if _, err := os.Stat(floopDir); os.IsNotExist(err) {
 				return fmt.Errorf(".floop not initialized. Run 'floop init' first")
 			}
 
+			// Append to corrections log
+			correctionsPath := filepath.Join(floopDir, "corrections.jsonl")
 			f, err := os.OpenFile(correctionsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
 				return fmt.Errorf("failed to open corrections log: %w", err)
@@ -167,14 +171,34 @@ Example:
 				return fmt.Errorf("failed to write correction: %w", err)
 			}
 
+			// Process through learning loop
+			graphStore := store.NewInMemoryGraphStore()
+			loop := learning.NewLearningLoop(graphStore, nil)
+			ctx := context.Background()
+
+			result, err := loop.ProcessCorrection(ctx, correction)
+			if err != nil {
+				return fmt.Errorf("failed to process correction: %w", err)
+			}
+
+			// Mark correction as processed
+			correction.Processed = true
+			processedAt := time.Now()
+			correction.ProcessedAt = &processedAt
+
 			jsonOut, _ := cmd.Flags().GetBool("json")
 			if jsonOut {
 				json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
-					"status":     "captured",
-					"correction": correction,
+					"status":          "processed",
+					"correction":      correction,
+					"behavior":        result.CandidateBehavior,
+					"placement":       result.Placement,
+					"auto_accepted":   result.AutoAccepted,
+					"requires_review": result.RequiresReview,
+					"review_reasons":  result.ReviewReasons,
 				})
 			} else {
-				fmt.Println("Correction captured:")
+				fmt.Println("Correction captured and processed:")
 				fmt.Printf("  Wrong: %s\n", correction.AgentAction)
 				fmt.Printf("  Right: %s\n", correction.CorrectedAction)
 				if correction.Context.FilePath != "" {
@@ -183,7 +207,20 @@ Example:
 				if correction.Context.Task != "" {
 					fmt.Printf("  Task:  %s\n", correction.Context.Task)
 				}
-				fmt.Println("\nRun 'floop list --corrections' to see captured corrections.")
+				fmt.Println()
+				fmt.Println("Extracted behavior:")
+				fmt.Printf("  ID:   %s\n", result.CandidateBehavior.ID)
+				fmt.Printf("  Name: %s\n", result.CandidateBehavior.Name)
+				fmt.Printf("  Kind: %s\n", result.CandidateBehavior.Kind)
+				fmt.Println()
+				if result.AutoAccepted {
+					fmt.Println("Status: Auto-accepted")
+				} else if result.RequiresReview {
+					fmt.Println("Status: Requires review")
+					for _, reason := range result.ReviewReasons {
+						fmt.Printf("  - %s\n", reason)
+					}
+				}
 			}
 
 			return nil

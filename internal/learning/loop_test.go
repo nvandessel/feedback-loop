@@ -1,0 +1,353 @@
+package learning
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/feedback-loop/internal/store"
+)
+
+func TestNewLearningLoop(t *testing.T) {
+	s := store.NewInMemoryGraphStore()
+	loop := NewLearningLoop(s, nil)
+	if loop == nil {
+		t.Error("NewLearningLoop returned nil")
+	}
+}
+
+func TestNewLearningLoop_WithConfig(t *testing.T) {
+	s := store.NewInMemoryGraphStore()
+	cfg := &LearningLoopConfig{AutoAcceptThreshold: 0.5}
+	loop := NewLearningLoop(s, cfg)
+	if loop == nil {
+		t.Error("NewLearningLoop returned nil")
+	}
+}
+
+func TestLearningLoop_ProcessCorrection(t *testing.T) {
+	s := store.NewInMemoryGraphStore()
+	loop := NewLearningLoop(s, nil)
+	ctx := context.Background()
+
+	correction := models.Correction{
+		ID:              "test-correction-1",
+		Timestamp:       time.Now(),
+		AgentAction:     "used pip install",
+		CorrectedAction: "use uv instead of pip for package management",
+		Context: models.ContextSnapshot{
+			Timestamp:    time.Now(),
+			FileLanguage: "python",
+			FilePath:     "requirements.txt",
+		},
+	}
+
+	result, err := loop.ProcessCorrection(ctx, correction)
+	if err != nil {
+		t.Fatalf("ProcessCorrection failed: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("ProcessCorrection returned nil result")
+	}
+
+	// Check the correction is preserved
+	if result.Correction.ID != correction.ID {
+		t.Errorf("expected correction ID %s, got %s", correction.ID, result.Correction.ID)
+	}
+
+	// Check a behavior was extracted
+	if result.CandidateBehavior.ID == "" {
+		t.Error("expected non-empty behavior ID")
+	}
+
+	// Check placement decision was made
+	if result.Placement.Action == "" {
+		t.Error("expected non-empty placement action")
+	}
+}
+
+func TestLearningLoop_ProcessCorrection_ConstraintRequiresReview(t *testing.T) {
+	s := store.NewInMemoryGraphStore()
+	loop := NewLearningLoop(s, nil)
+	ctx := context.Background()
+
+	// A correction that will be detected as a constraint
+	correction := models.Correction{
+		ID:              "test-correction-constraint",
+		Timestamp:       time.Now(),
+		AgentAction:     "committed directly to main",
+		CorrectedAction: "never commit directly to main branch",
+		Context: models.ContextSnapshot{
+			Timestamp: time.Now(),
+		},
+	}
+
+	result, err := loop.ProcessCorrection(ctx, correction)
+	if err != nil {
+		t.Fatalf("ProcessCorrection failed: %v", err)
+	}
+
+	// Constraints should require review
+	if !result.RequiresReview {
+		t.Error("expected constraint to require review")
+	}
+
+	// Should not be auto-accepted
+	if result.AutoAccepted {
+		t.Error("expected constraint to not be auto-accepted")
+	}
+
+	// Check that "Constraints require human review" is in reasons
+	found := false
+	for _, reason := range result.ReviewReasons {
+		if reason == "Constraints require human review" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected constraint review reason, got: %v", result.ReviewReasons)
+	}
+}
+
+func TestLearningLoop_ProcessCorrection_AutoAccept(t *testing.T) {
+	s := store.NewInMemoryGraphStore()
+	// Lower threshold to ensure auto-accept
+	cfg := &LearningLoopConfig{AutoAcceptThreshold: 0.5}
+	loop := NewLearningLoop(s, cfg)
+	ctx := context.Background()
+
+	// A simple directive that should auto-accept
+	correction := models.Correction{
+		ID:              "test-correction-autoaccept",
+		Timestamp:       time.Now(),
+		AgentAction:     "used fmt.Println",
+		CorrectedAction: "use log.Printf for logging",
+		Context: models.ContextSnapshot{
+			Timestamp:    time.Now(),
+			FileLanguage: "go",
+		},
+	}
+
+	result, err := loop.ProcessCorrection(ctx, correction)
+	if err != nil {
+		t.Fatalf("ProcessCorrection failed: %v", err)
+	}
+
+	// Should be auto-accepted (high confidence placement, not a constraint)
+	if !result.AutoAccepted {
+		t.Errorf("expected auto-accept, got RequiresReview=%v, reasons=%v",
+			result.RequiresReview, result.ReviewReasons)
+	}
+
+	// Verify it was stored
+	node, err := s.GetNode(ctx, result.CandidateBehavior.ID)
+	if err != nil {
+		t.Fatalf("GetNode failed: %v", err)
+	}
+	if node == nil {
+		t.Error("expected behavior to be stored after auto-accept")
+	}
+}
+
+func TestLearningLoop_ApprovePending(t *testing.T) {
+	s := store.NewInMemoryGraphStore()
+	ctx := context.Background()
+
+	// Add a pending behavior node
+	node := store.Node{
+		ID:   "behavior-pending-1",
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"name": "test-behavior",
+			"provenance": map[string]interface{}{
+				"source_type": "learned",
+			},
+		},
+		Metadata: map[string]interface{}{
+			"confidence": 0.6,
+		},
+	}
+	s.AddNode(ctx, node)
+
+	loop := NewLearningLoop(s, nil)
+	err := loop.ApprovePending(ctx, "behavior-pending-1", "test-user")
+	if err != nil {
+		t.Fatalf("ApprovePending failed: %v", err)
+	}
+
+	// Verify the node was updated
+	updated, err := s.GetNode(ctx, "behavior-pending-1")
+	if err != nil {
+		t.Fatalf("GetNode failed: %v", err)
+	}
+
+	// Check confidence was increased
+	conf, ok := updated.Metadata["confidence"].(float64)
+	if !ok {
+		t.Error("expected confidence in metadata")
+	} else if conf != 0.8 {
+		t.Errorf("expected confidence 0.8, got %v", conf)
+	}
+}
+
+func TestLearningLoop_ApprovePending_NotFound(t *testing.T) {
+	s := store.NewInMemoryGraphStore()
+	loop := NewLearningLoop(s, nil)
+	ctx := context.Background()
+
+	err := loop.ApprovePending(ctx, "nonexistent", "test-user")
+	if err == nil {
+		t.Error("expected error for nonexistent behavior")
+	}
+}
+
+func TestLearningLoop_RejectPending(t *testing.T) {
+	s := store.NewInMemoryGraphStore()
+	ctx := context.Background()
+
+	// Add a pending behavior node
+	node := store.Node{
+		ID:   "behavior-pending-2",
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"name": "test-behavior",
+		},
+		Metadata: map[string]interface{}{
+			"confidence": 0.6,
+		},
+	}
+	s.AddNode(ctx, node)
+
+	loop := NewLearningLoop(s, nil)
+	err := loop.RejectPending(ctx, "behavior-pending-2", "test-user", "not applicable")
+	if err != nil {
+		t.Fatalf("RejectPending failed: %v", err)
+	}
+
+	// Verify the node was updated
+	updated, err := s.GetNode(ctx, "behavior-pending-2")
+	if err != nil {
+		t.Fatalf("GetNode failed: %v", err)
+	}
+
+	// Check kind was changed
+	if updated.Kind != "rejected-behavior" {
+		t.Errorf("expected kind 'rejected-behavior', got %s", updated.Kind)
+	}
+
+	// Check rejection metadata
+	if updated.Metadata["rejected_by"] != "test-user" {
+		t.Errorf("expected rejected_by 'test-user', got %v", updated.Metadata["rejected_by"])
+	}
+	if updated.Metadata["rejection_reason"] != "not applicable" {
+		t.Errorf("expected rejection_reason 'not applicable', got %v", updated.Metadata["rejection_reason"])
+	}
+}
+
+func TestLearningLoop_RejectPending_NotFound(t *testing.T) {
+	s := store.NewInMemoryGraphStore()
+	loop := NewLearningLoop(s, nil)
+	ctx := context.Background()
+
+	err := loop.RejectPending(ctx, "nonexistent", "test-user", "reason")
+	if err == nil {
+		t.Error("expected error for nonexistent behavior")
+	}
+}
+
+func TestLearningLoop_NeedsReview_LowConfidence(t *testing.T) {
+	s := store.NewInMemoryGraphStore()
+	loop := NewLearningLoop(s, nil).(*learningLoop)
+
+	candidate := &models.Behavior{
+		ID:   "test-behavior",
+		Kind: models.BehaviorKindDirective,
+	}
+	placement := &PlacementDecision{
+		Action:     "create",
+		Confidence: 0.4, // Low confidence
+	}
+
+	needsReview, reasons := loop.needsReview(candidate, placement)
+	if !needsReview {
+		t.Error("expected low confidence to require review")
+	}
+
+	found := false
+	for _, r := range reasons {
+		if r == "Low placement confidence: 0.40" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected low confidence reason, got: %v", reasons)
+	}
+}
+
+func TestLearningLoop_NeedsReview_HighSimilarity(t *testing.T) {
+	s := store.NewInMemoryGraphStore()
+	loop := NewLearningLoop(s, nil).(*learningLoop)
+
+	candidate := &models.Behavior{
+		ID:   "test-behavior",
+		Kind: models.BehaviorKindDirective,
+	}
+	placement := &PlacementDecision{
+		Action:     "create",
+		Confidence: 0.9,
+		SimilarBehaviors: []SimilarityMatch{
+			{ID: "existing-1", Score: 0.90},
+		},
+	}
+
+	needsReview, reasons := loop.needsReview(candidate, placement)
+	if !needsReview {
+		t.Error("expected high similarity to require review")
+	}
+
+	found := false
+	for _, r := range reasons {
+		if r == "Very similar to existing: existing-1 (0.90)" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected high similarity reason, got: %v", reasons)
+	}
+}
+
+func TestLearningLoop_NeedsReview_MergeAction(t *testing.T) {
+	s := store.NewInMemoryGraphStore()
+	loop := NewLearningLoop(s, nil).(*learningLoop)
+
+	candidate := &models.Behavior{
+		ID:   "test-behavior",
+		Kind: models.BehaviorKindDirective,
+	}
+	placement := &PlacementDecision{
+		Action:     "merge",
+		TargetID:   "existing-behavior",
+		Confidence: 0.9,
+	}
+
+	needsReview, reasons := loop.needsReview(candidate, placement)
+	if !needsReview {
+		t.Error("expected merge action to require review")
+	}
+
+	found := false
+	for _, r := range reasons {
+		if r == "Would merge into existing behavior: existing-behavior" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected merge reason, got: %v", reasons)
+	}
+}

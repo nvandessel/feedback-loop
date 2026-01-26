@@ -2,6 +2,8 @@ package learning
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/store"
@@ -86,18 +88,162 @@ type learningLoop struct {
 
 // ProcessCorrection implements LearningLoop.
 func (l *learningLoop) ProcessCorrection(ctx context.Context, correction models.Correction) (*LearningResult, error) {
-	// Implementation will be added after component implementations are complete
-	panic("not implemented - waiting for component implementations")
+	// Step 1: Extract candidate behavior
+	candidate, err := l.extractor.Extract(correction)
+	if err != nil {
+		return nil, fmt.Errorf("extraction failed: %w", err)
+	}
+
+	// Step 2: Determine graph placement
+	placement, err := l.placer.Place(ctx, candidate)
+	if err != nil {
+		return nil, fmt.Errorf("placement failed: %w", err)
+	}
+
+	// Step 3: Decide if auto-accept or needs review
+	requiresReview, reasons := l.needsReview(candidate, placement)
+	autoAccepted := !requiresReview && placement.Confidence >= l.autoAcceptThreshold
+
+	// Step 4: If auto-accepted, commit to graph
+	if autoAccepted {
+		if err := l.commitBehavior(ctx, candidate, placement); err != nil {
+			return nil, fmt.Errorf("commit failed: %w", err)
+		}
+	}
+
+	return &LearningResult{
+		Correction:        correction,
+		CandidateBehavior: *candidate,
+		Placement:         *placement,
+		AutoAccepted:      autoAccepted,
+		RequiresReview:    requiresReview,
+		ReviewReasons:     reasons,
+	}, nil
+}
+
+// needsReview determines if human review is required.
+func (l *learningLoop) needsReview(candidate *models.Behavior, placement *PlacementDecision) (bool, []string) {
+	var reasons []string
+
+	// Constraints always need review
+	if candidate.Kind == models.BehaviorKindConstraint {
+		reasons = append(reasons, "Constraints require human review")
+	}
+
+	// Merging into existing behavior needs review
+	if placement.Action == "merge" {
+		reasons = append(reasons, fmt.Sprintf("Would merge into existing behavior: %s", placement.TargetID))
+	}
+
+	// Conflicts need review
+	if len(candidate.Conflicts) > 0 {
+		reasons = append(reasons, fmt.Sprintf("Conflicts with: %v", candidate.Conflicts))
+	}
+
+	// Low confidence placements need review
+	if placement.Confidence < 0.6 {
+		reasons = append(reasons, fmt.Sprintf("Low placement confidence: %.2f", placement.Confidence))
+	}
+
+	// High similarity to existing might be duplicate
+	for _, sim := range placement.SimilarBehaviors {
+		if sim.Score > 0.85 {
+			reasons = append(reasons, fmt.Sprintf("Very similar to existing: %s (%.2f)", sim.ID, sim.Score))
+		}
+	}
+
+	return len(reasons) > 0, reasons
+}
+
+// commitBehavior saves the behavior to the graph.
+func (l *learningLoop) commitBehavior(ctx context.Context, behavior *models.Behavior, placement *PlacementDecision) error {
+	// Convert behavior to node
+	node := store.Node{
+		ID:   behavior.ID,
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"name":       behavior.Name,
+			"kind":       string(behavior.Kind),
+			"when":       behavior.When,
+			"content":    behavior.Content,
+			"provenance": behavior.Provenance,
+			"requires":   behavior.Requires,
+			"overrides":  behavior.Overrides,
+			"conflicts":  behavior.Conflicts,
+		},
+		Metadata: map[string]interface{}{
+			"confidence": behavior.Confidence,
+			"priority":   behavior.Priority,
+			"stats":      behavior.Stats,
+		},
+	}
+
+	// Add the node
+	if _, err := l.store.AddNode(ctx, node); err != nil {
+		return err
+	}
+
+	// Add edges
+	for _, e := range placement.ProposedEdges {
+		edge := store.Edge{
+			Source: e.From,
+			Target: e.To,
+			Kind:   e.Kind,
+		}
+		if err := l.store.AddEdge(ctx, edge); err != nil {
+			return err
+		}
+	}
+
+	return l.store.Sync(ctx)
 }
 
 // ApprovePending implements LearningLoop.
 func (l *learningLoop) ApprovePending(ctx context.Context, behaviorID, approver string) error {
-	// Implementation will be added after component implementations are complete
-	panic("not implemented - waiting for component implementations")
+	node, err := l.store.GetNode(ctx, behaviorID)
+	if err != nil {
+		return err
+	}
+	if node == nil {
+		return fmt.Errorf("behavior not found: %s", behaviorID)
+	}
+
+	// Update provenance
+	if prov, ok := node.Content["provenance"].(map[string]interface{}); ok {
+		now := time.Now()
+		prov["approved_by"] = approver
+		prov["approved_at"] = now
+	}
+
+	// Increase confidence
+	if conf, ok := node.Metadata["confidence"].(float64); ok {
+		node.Metadata["confidence"] = minFloat(1.0, conf+0.2)
+	}
+
+	return l.store.UpdateNode(ctx, *node)
 }
 
 // RejectPending implements LearningLoop.
 func (l *learningLoop) RejectPending(ctx context.Context, behaviorID, rejector, reason string) error {
-	// Implementation will be added after component implementations are complete
-	panic("not implemented - waiting for component implementations")
+	node, err := l.store.GetNode(ctx, behaviorID)
+	if err != nil {
+		return err
+	}
+	if node == nil {
+		return fmt.Errorf("behavior not found: %s", behaviorID)
+	}
+
+	node.Kind = "rejected-behavior"
+	node.Metadata["rejected_by"] = rejector
+	node.Metadata["rejected_at"] = time.Now()
+	node.Metadata["rejection_reason"] = reason
+
+	return l.store.UpdateNode(ctx, *node)
+}
+
+func minFloat(a, b float64) float64 {
+	if a < b {
+		return a
+	}
+	return b
 }
