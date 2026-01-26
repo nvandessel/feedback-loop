@@ -14,6 +14,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// behaviorsCache holds cached behaviors derived from corrections
+type behaviorsCache struct {
+	Version   string            `json:"version"`
+	BuiltAt   time.Time         `json:"built_at"`
+	Behaviors []models.Behavior `json:"behaviors"`
+}
+
 var version = "0.1.0-dev"
 
 func main() {
@@ -171,6 +178,11 @@ Example:
 				return fmt.Errorf("failed to write correction: %w", err)
 			}
 
+			// Invalidate behaviors cache (will be rebuilt on next read)
+			if err := invalidateCache(floopDir); err != nil {
+				return fmt.Errorf("failed to invalidate cache: %w", err)
+			}
+
 			// Process through learning loop
 			graphStore := store.NewInMemoryGraphStore()
 			loop := learning.NewLearningLoop(graphStore, nil)
@@ -262,17 +274,33 @@ func newListCmd() *cobra.Command {
 				return listCorrections(root, jsonOut)
 			}
 
-			// List behaviors (stub for now)
+			// Load behaviors from cache (rebuilds if stale)
+			behaviors, err := loadBehaviors(floopDir)
+			if err != nil {
+				return fmt.Errorf("failed to load behaviors: %w", err)
+			}
+
 			if jsonOut {
 				json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
-					"behaviors": []interface{}{},
-					"count":     0,
-					"note":      "Behavior extraction not yet implemented. Use --corrections to see captured corrections.",
+					"behaviors": behaviors,
+					"count":     len(behaviors),
 				})
 			} else {
-				fmt.Println("Behaviors: (none yet)")
-				fmt.Println("\nUse 'floop list --corrections' to see captured corrections.")
-				fmt.Println("Behavior extraction coming in Phase 2.")
+				if len(behaviors) == 0 {
+					fmt.Println("No behaviors learned yet.")
+					fmt.Println("\nUse 'floop learn --wrong \"X\" --right \"Y\"' to capture corrections.")
+					return nil
+				}
+				fmt.Printf("Learned behaviors (%d):\n\n", len(behaviors))
+				for i, b := range behaviors {
+					fmt.Printf("%d. [%s] %s\n", i+1, b.Kind, b.Name)
+					fmt.Printf("   %s\n", b.Content.Canonical)
+					if len(b.When) > 0 {
+						fmt.Printf("   When: %v\n", b.When)
+					}
+					fmt.Printf("   Confidence: %.2f\n", b.Confidence)
+					fmt.Println()
+				}
 			}
 
 			return nil
@@ -355,4 +383,140 @@ func splitLines(s string) []string {
 		lines = append(lines, s[start:])
 	}
 	return lines
+}
+
+// Cache file paths
+const behaviorsCacheFile = "behaviors.json"
+
+// isCacheStale checks if the behaviors cache needs to be rebuilt
+func isCacheStale(floopDir string) bool {
+	cachePath := filepath.Join(floopDir, behaviorsCacheFile)
+	correctionsPath := filepath.Join(floopDir, "corrections.jsonl")
+
+	cacheInfo, err := os.Stat(cachePath)
+	if err != nil {
+		return true // Cache doesn't exist
+	}
+
+	correctionsInfo, err := os.Stat(correctionsPath)
+	if err != nil {
+		return false // No corrections, cache is fine
+	}
+
+	// Cache is stale if corrections were modified after cache was built
+	return correctionsInfo.ModTime().After(cacheInfo.ModTime())
+}
+
+// invalidateCache removes the behaviors cache file
+func invalidateCache(floopDir string) error {
+	cachePath := filepath.Join(floopDir, behaviorsCacheFile)
+	err := os.Remove(cachePath)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+// loadBehaviors loads behaviors from cache, rebuilding if stale
+func loadBehaviors(floopDir string) ([]models.Behavior, error) {
+	if !isCacheStale(floopDir) {
+		// Load from cache
+		cachePath := filepath.Join(floopDir, behaviorsCacheFile)
+		data, err := os.ReadFile(cachePath)
+		if err == nil {
+			var cache behaviorsCache
+			if err := json.Unmarshal(data, &cache); err == nil {
+				return cache.Behaviors, nil
+			}
+		}
+	}
+
+	// Rebuild cache from corrections
+	behaviors, err := rebuildBehaviorsCache(floopDir)
+	if err != nil {
+		return nil, err
+	}
+
+	return behaviors, nil
+}
+
+// rebuildBehaviorsCache processes all corrections and rebuilds the cache
+func rebuildBehaviorsCache(floopDir string) ([]models.Behavior, error) {
+	correctionsPath := filepath.Join(floopDir, "corrections.jsonl")
+
+	data, err := os.ReadFile(correctionsPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// No corrections, return empty and write empty cache
+			if err := writeBehaviorsCache(floopDir, nil); err != nil {
+				return nil, err
+			}
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	// Parse corrections
+	var corrections []models.Correction
+	lines := splitLines(string(data))
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		var c models.Correction
+		if err := json.Unmarshal([]byte(line), &c); err != nil {
+			continue
+		}
+		corrections = append(corrections, c)
+	}
+
+	if len(corrections) == 0 {
+		if err := writeBehaviorsCache(floopDir, nil); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+
+	// Process corrections through learning loop
+	graphStore := store.NewInMemoryGraphStore()
+	loop := learning.NewLearningLoop(graphStore, nil)
+	ctx := context.Background()
+
+	var behaviors []models.Behavior
+	for _, correction := range corrections {
+		result, err := loop.ProcessCorrection(ctx, correction)
+		if err != nil {
+			continue // Skip failed corrections
+		}
+		behaviors = append(behaviors, result.CandidateBehavior)
+	}
+
+	// Write cache
+	if err := writeBehaviorsCache(floopDir, behaviors); err != nil {
+		return nil, err
+	}
+
+	return behaviors, nil
+}
+
+// writeBehaviorsCache writes behaviors to the cache file
+func writeBehaviorsCache(floopDir string, behaviors []models.Behavior) error {
+	cachePath := filepath.Join(floopDir, behaviorsCacheFile)
+
+	if behaviors == nil {
+		behaviors = []models.Behavior{}
+	}
+
+	cache := behaviorsCache{
+		Version:   "1",
+		BuiltAt:   time.Now(),
+		Behaviors: behaviors,
+	}
+
+	data, err := json.MarshalIndent(cache, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(cachePath, data, 0644)
 }
