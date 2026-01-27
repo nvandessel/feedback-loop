@@ -142,7 +142,7 @@ func (p *graphPlacer) findRelatedBehaviors(ctx context.Context, behavior *models
 
 		// Check for overlapping conditions
 		if p.hasOverlappingConditions(behavior.When, node.Content) {
-			b := p.nodeToBehavior(node)
+			b := NodeToBehavior(node)
 			related = append(related, b)
 		}
 	}
@@ -369,8 +369,9 @@ func (p *graphPlacer) isMoreSpecific(a, b map[string]interface{}) bool {
 	return true
 }
 
-// nodeToBehavior converts a store.Node to a models.Behavior.
-func (p *graphPlacer) nodeToBehavior(node store.Node) models.Behavior {
+// NodeToBehavior converts a store.Node to a models.Behavior.
+// This is exported for use by CLI commands that need to load behaviors from the store.
+func NodeToBehavior(node store.Node) models.Behavior {
 	b := models.Behavior{
 		ID: node.ID,
 	}

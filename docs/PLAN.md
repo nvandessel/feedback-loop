@@ -6,8 +6,8 @@ This document tracks the implementation plan for `floop`, broken down into phase
 
 ## Current Status
 
-**Phase**: Persistence (Phase 4)
-**Goal**: Behaviors persist using Beads storage backend.
+**Phase**: Assembly (Phase 5)
+**Goal**: Compile behaviors into prompt-ready format with token optimization.
 
 ## Phase 1: Foundation ✅ COMPLETE
 
@@ -121,13 +121,36 @@ floop why behavior-xxx --file "setup.py"  # Explains why active
 
 ---
 
-## Phase 4: Persistence (Future)
+## Phase 4: Persistence ✅ COMPLETE
 
 Dependencies: Phase 3 complete
 
 **Tasks**:
-- `internal/store/beads.go` - BeadsGraphStore implementation
-- Switch default storage from memory to Beads
+- [x] `internal/store/beads.go` - BeadsGraphStore implementation
+- [x] `internal/store/beads_test.go` - Test coverage (85.4%)
+- [x] Switch CLI from InMemoryGraphStore to BeadsGraphStore
+- [x] Behaviors persist to `.floop/nodes.jsonl`
+- [x] Edges persist to `.floop/edges.jsonl`
+
+**Success Criteria**: ✅
+```bash
+floop learn --wrong "used print" --right "use logger" --file "test.py"
+floop list  # Shows the learned behavior
+# Restart CLI - behavior still exists
+floop list  # Still shows the learned behavior
+floop active --file "test.py"  # Shows behavior (python context)
+```
+
+---
+
+## Phase 5: Assembly (Future)
+
+Dependencies: Phase 4 complete
+
+**Tasks**:
+- `internal/assembly/compile.go` - Behavior compilation for prompts
+- `internal/assembly/optimize.go` - Token budget optimization
+- `floop prompt` command - Generate agent prompt section
 
 ---
 

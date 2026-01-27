@@ -477,10 +477,7 @@ func TestGraphPlacer_hasOverlappingConditions(t *testing.T) {
 	}
 }
 
-func TestGraphPlacer_nodeToBehavior(t *testing.T) {
-	s := store.NewInMemoryGraphStore()
-	gp := NewGraphPlacer(s).(*graphPlacer)
-
+func TestNodeToBehavior(t *testing.T) {
 	node := store.Node{
 		ID:   "test-id",
 		Kind: "behavior",
@@ -501,7 +498,7 @@ func TestGraphPlacer_nodeToBehavior(t *testing.T) {
 		},
 	}
 
-	b := gp.nodeToBehavior(node)
+	b := NodeToBehavior(node)
 
 	if b.ID != "test-id" {
 		t.Errorf("nodeToBehavior() ID = %v, want test-id", b.ID)
