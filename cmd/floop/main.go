@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/nvandessel/feedback-loop/internal/activation"
 	"github.com/nvandessel/feedback-loop/internal/learning"
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/store"
@@ -43,6 +44,9 @@ context-aware behavior activation for consistent agent operation.`,
 		newInitCmd(),
 		newLearnCmd(),
 		newListCmd(),
+		newActiveCmd(),
+		newShowCmd(),
+		newWhyCmd(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {
@@ -519,4 +523,356 @@ func writeBehaviorsCache(floopDir string, behaviors []models.Behavior) error {
 	}
 
 	return os.WriteFile(cachePath, data, 0644)
+}
+
+func newActiveCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "active",
+		Short: "Show behaviors active in current context",
+		Long: `List all behaviors that are currently active based on the
+current context (file, task, language, etc.).
+
+Use --json for machine-readable output suitable for agent consumption.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			root, _ := cmd.Flags().GetString("root")
+			file, _ := cmd.Flags().GetString("file")
+			task, _ := cmd.Flags().GetString("task")
+			env, _ := cmd.Flags().GetString("env")
+			jsonOut, _ := cmd.Flags().GetBool("json")
+
+			floopDir := filepath.Join(root, ".floop")
+			if _, err := os.Stat(floopDir); os.IsNotExist(err) {
+				if jsonOut {
+					json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+						"error": ".floop not initialized",
+					})
+				} else {
+					fmt.Println("Not initialized. Run 'floop init' first.")
+				}
+				return nil
+			}
+
+			// Load all behaviors
+			behaviors, err := loadBehaviors(floopDir)
+			if err != nil {
+				return fmt.Errorf("failed to load behaviors: %w", err)
+			}
+
+			// Build context
+			ctxBuilder := activation.NewContextBuilder().
+				WithFile(file).
+				WithTask(task).
+				WithEnvironment(env).
+				WithRepoRoot(root)
+			ctx := ctxBuilder.Build()
+
+			// Evaluate which behaviors are active
+			evaluator := activation.NewEvaluator()
+			matches := evaluator.Evaluate(ctx, behaviors)
+
+			// Resolve conflicts
+			resolver := activation.NewResolver()
+			result := resolver.Resolve(matches)
+
+			if jsonOut {
+				json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+					"context":    ctx,
+					"active":     result.Active,
+					"overridden": result.Overridden,
+					"excluded":   result.Excluded,
+					"count":      len(result.Active),
+				})
+			} else {
+				fmt.Printf("Context:\n")
+				if ctx.FilePath != "" {
+					fmt.Printf("  File: %s\n", ctx.FilePath)
+				}
+				if ctx.FileLanguage != "" {
+					fmt.Printf("  Language: %s\n", ctx.FileLanguage)
+				}
+				if ctx.Task != "" {
+					fmt.Printf("  Task: %s\n", ctx.Task)
+				}
+				if ctx.Branch != "" {
+					fmt.Printf("  Branch: %s\n", ctx.Branch)
+				}
+				fmt.Println()
+
+				if len(result.Active) == 0 {
+					fmt.Println("No active behaviors for this context.")
+					if len(behaviors) > 0 {
+						fmt.Printf("\n(%d behaviors exist but none match current context)\n", len(behaviors))
+					}
+					return nil
+				}
+
+				fmt.Printf("Active behaviors (%d):\n\n", len(result.Active))
+				for i, b := range result.Active {
+					fmt.Printf("%d. [%s] %s\n", i+1, b.Kind, b.Name)
+					fmt.Printf("   %s\n", b.Content.Canonical)
+					if len(b.When) > 0 {
+						fmt.Printf("   When: %v\n", b.When)
+					}
+					fmt.Println()
+				}
+
+				if len(result.Overridden) > 0 {
+					fmt.Printf("Overridden behaviors (%d):\n", len(result.Overridden))
+					for _, o := range result.Overridden {
+						fmt.Printf("  - %s (by %s)\n", o.Behavior.Name, o.OverrideBy)
+					}
+					fmt.Println()
+				}
+
+				if len(result.Excluded) > 0 {
+					fmt.Printf("Excluded due to conflicts (%d):\n", len(result.Excluded))
+					for _, e := range result.Excluded {
+						fmt.Printf("  - %s (conflicts with %s)\n", e.Behavior.Name, e.ConflictsWith)
+					}
+				}
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().String("file", "", "Current file path")
+	cmd.Flags().String("task", "", "Current task type")
+	cmd.Flags().String("env", "", "Environment (dev, staging, prod)")
+
+	return cmd
+}
+
+func newShowCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "show [behavior-id]",
+		Short: "Show details of a behavior",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			root, _ := cmd.Flags().GetString("root")
+			jsonOut, _ := cmd.Flags().GetBool("json")
+			id := args[0]
+
+			floopDir := filepath.Join(root, ".floop")
+			if _, err := os.Stat(floopDir); os.IsNotExist(err) {
+				if jsonOut {
+					json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+						"error": ".floop not initialized",
+					})
+				} else {
+					fmt.Println("Not initialized. Run 'floop init' first.")
+				}
+				return nil
+			}
+
+			// Load all behaviors
+			behaviors, err := loadBehaviors(floopDir)
+			if err != nil {
+				return fmt.Errorf("failed to load behaviors: %w", err)
+			}
+
+			// Find the behavior
+			var found *models.Behavior
+			for _, b := range behaviors {
+				if b.ID == id || b.Name == id {
+					found = &b
+					break
+				}
+			}
+
+			if found == nil {
+				if jsonOut {
+					json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+						"error": "behavior not found",
+						"id":    id,
+					})
+				} else {
+					fmt.Printf("Behavior not found: %s\n", id)
+				}
+				return nil
+			}
+
+			if jsonOut {
+				json.NewEncoder(os.Stdout).Encode(found)
+			} else {
+				fmt.Printf("Behavior: %s\n", found.ID)
+				fmt.Printf("Name: %s\n", found.Name)
+				fmt.Printf("Kind: %s\n", found.Kind)
+				fmt.Printf("Confidence: %.2f\n", found.Confidence)
+				fmt.Printf("Priority: %d\n", found.Priority)
+				fmt.Println()
+
+				fmt.Println("Content:")
+				fmt.Printf("  Canonical: %s\n", found.Content.Canonical)
+				if found.Content.Expanded != "" {
+					fmt.Printf("  Expanded: %s\n", found.Content.Expanded)
+				}
+				if len(found.Content.Structured) > 0 {
+					fmt.Printf("  Structured: %v\n", found.Content.Structured)
+				}
+				fmt.Println()
+
+				if len(found.When) > 0 {
+					fmt.Println("Activation conditions:")
+					for k, v := range found.When {
+						fmt.Printf("  %s: %v\n", k, v)
+					}
+					fmt.Println()
+				}
+
+				fmt.Println("Provenance:")
+				fmt.Printf("  Source: %s\n", found.Provenance.SourceType)
+				fmt.Printf("  Created: %s\n", found.Provenance.CreatedAt.Format(time.RFC3339))
+				if found.Provenance.CorrectionID != "" {
+					fmt.Printf("  Correction: %s\n", found.Provenance.CorrectionID)
+				}
+				if found.Provenance.ApprovedBy != "" {
+					fmt.Printf("  Approved by: %s\n", found.Provenance.ApprovedBy)
+				}
+				fmt.Println()
+
+				if len(found.Requires) > 0 {
+					fmt.Printf("Requires: %v\n", found.Requires)
+				}
+				if len(found.Overrides) > 0 {
+					fmt.Printf("Overrides: %v\n", found.Overrides)
+				}
+				if len(found.Conflicts) > 0 {
+					fmt.Printf("Conflicts: %v\n", found.Conflicts)
+				}
+			}
+
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+func newWhyCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "why [behavior-id]",
+		Short: "Explain why a behavior is or isn't active",
+		Long: `Show the activation status of a behavior and explain why.
+
+This helps debug when a behavior isn't being applied as expected.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			root, _ := cmd.Flags().GetString("root")
+			file, _ := cmd.Flags().GetString("file")
+			task, _ := cmd.Flags().GetString("task")
+			env, _ := cmd.Flags().GetString("env")
+			jsonOut, _ := cmd.Flags().GetBool("json")
+			id := args[0]
+
+			floopDir := filepath.Join(root, ".floop")
+			if _, err := os.Stat(floopDir); os.IsNotExist(err) {
+				if jsonOut {
+					json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+						"error": ".floop not initialized",
+					})
+				} else {
+					fmt.Println("Not initialized. Run 'floop init' first.")
+				}
+				return nil
+			}
+
+			// Load all behaviors
+			behaviors, err := loadBehaviors(floopDir)
+			if err != nil {
+				return fmt.Errorf("failed to load behaviors: %w", err)
+			}
+
+			// Find the behavior
+			var found *models.Behavior
+			for _, b := range behaviors {
+				if b.ID == id || b.Name == id {
+					found = &b
+					break
+				}
+			}
+
+			if found == nil {
+				if jsonOut {
+					json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+						"error": "behavior not found",
+						"id":    id,
+					})
+				} else {
+					fmt.Printf("Behavior not found: %s\n", id)
+				}
+				return nil
+			}
+
+			// Build context
+			ctxBuilder := activation.NewContextBuilder().
+				WithFile(file).
+				WithTask(task).
+				WithEnvironment(env).
+				WithRepoRoot(root)
+			ctx := ctxBuilder.Build()
+
+			// Get explanation
+			evaluator := activation.NewEvaluator()
+			explanation := evaluator.WhyActive(ctx, *found)
+
+			if jsonOut {
+				json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+					"behavior":    found,
+					"context":     ctx,
+					"explanation": explanation,
+				})
+			} else {
+				fmt.Printf("Behavior: %s\n", found.Name)
+				fmt.Printf("ID: %s\n", found.ID)
+				fmt.Println()
+
+				if explanation.IsActive {
+					fmt.Println("Status: ACTIVE")
+				} else {
+					fmt.Println("Status: NOT ACTIVE")
+				}
+				fmt.Printf("Reason: %s\n", explanation.Reason)
+				fmt.Println()
+
+				if len(explanation.Conditions) > 0 {
+					fmt.Println("Condition evaluation:")
+					for _, c := range explanation.Conditions {
+						status := "✓"
+						if !c.Matched {
+							status = "✗"
+						}
+						fmt.Printf("  %s %s: required=%v, actual=%v\n",
+							status, c.Field, c.Required, c.Actual)
+					}
+					fmt.Println()
+				}
+
+				fmt.Println("Current context:")
+				if ctx.FilePath != "" {
+					fmt.Printf("  file_path: %s\n", ctx.FilePath)
+				}
+				if ctx.FileLanguage != "" {
+					fmt.Printf("  language: %s\n", ctx.FileLanguage)
+				}
+				if ctx.Task != "" {
+					fmt.Printf("  task: %s\n", ctx.Task)
+				}
+				if ctx.Branch != "" {
+					fmt.Printf("  branch: %s\n", ctx.Branch)
+				}
+				if ctx.Environment != "" {
+					fmt.Printf("  environment: %s\n", ctx.Environment)
+				}
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().String("file", "", "Current file path")
+	cmd.Flags().String("task", "", "Current task type")
+	cmd.Flags().String("env", "", "Environment (dev, staging, prod)")
+
+	return cmd
 }

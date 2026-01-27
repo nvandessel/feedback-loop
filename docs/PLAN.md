@@ -6,8 +6,8 @@ This document tracks the implementation plan for `floop`, broken down into phase
 
 ## Current Status
 
-**Phase**: Activation (Phase 3)
-**Goal**: Query which behaviors are active for a given context.
+**Phase**: Persistence (Phase 4)
+**Goal**: Behaviors persist using Beads storage backend.
 
 ## Phase 1: Foundation ✅ COMPLETE
 
@@ -101,15 +101,23 @@ floop list  # Shows the learned behavior
 
 ---
 
-## Phase 3: Activation (CURRENT)
+## Phase 3: Activation ✅ COMPLETE
 
 Dependencies: Phase 2 complete
 
 **Tasks**:
-- `internal/activation/context.go` - ContextBuilder
-- `internal/activation/evaluate.go` - Predicate evaluation
-- `internal/activation/resolve.go` - Conflict resolution
-- `floop active`, `floop show`, `floop why` commands
+- [x] `internal/activation/context.go` - ContextBuilder
+- [x] `internal/activation/evaluate.go` - Predicate evaluation
+- [x] `internal/activation/resolve.go` - Conflict resolution
+- [x] `floop active`, `floop show`, `floop why` commands
+
+**Success Criteria**: ✅
+```bash
+floop learn --wrong "used pip" --right "use uv instead" --file "setup.py"
+floop active --file "setup.py"  # Shows the behavior (python context)
+floop active --file "main.go"   # No behaviors (go context doesn't match)
+floop why behavior-xxx --file "setup.py"  # Explains why active
+```
 
 ---
 
