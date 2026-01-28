@@ -143,6 +143,7 @@ Example:
 			file, _ := cmd.Flags().GetString("file")
 			task, _ := cmd.Flags().GetString("task")
 			root, _ := cmd.Flags().GetString("root")
+			scope, _ := cmd.Flags().GetString("scope")
 
 			// Build context snapshot
 			now := time.Now()
@@ -184,8 +185,21 @@ Example:
 				return fmt.Errorf("failed to write correction: %w", err)
 			}
 
-			// Use persistent graph store
-			graphStore, err := store.NewBeadsGraphStore(root)
+			// Parse scope and convert to StoreScope
+			storeScope := store.ScopeLocal
+			switch scope {
+			case "global":
+				storeScope = store.ScopeGlobal
+			case "both":
+				storeScope = store.ScopeBoth
+			case "local":
+				storeScope = store.ScopeLocal
+			default:
+				return fmt.Errorf("invalid scope: %s (must be local, global, or both)", scope)
+			}
+
+			// Use persistent graph store with MultiGraphStore
+			graphStore, err := store.NewMultiGraphStore(root, storeScope)
 			if err != nil {
 				return fmt.Errorf("failed to open graph store: %w", err)
 			}
@@ -250,6 +264,7 @@ Example:
 	cmd.Flags().String("right", "", "What should have been done (required)")
 	cmd.Flags().String("file", "", "Current file path")
 	cmd.Flags().String("task", "", "Current task type")
+	cmd.Flags().String("scope", "local", "Where to save: local (project), global (user), or both")
 	cmd.MarkFlagRequired("wrong")
 	cmd.MarkFlagRequired("right")
 
