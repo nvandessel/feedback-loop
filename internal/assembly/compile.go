@@ -1,0 +1,267 @@
+package assembly
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/nvandessel/feedback-loop/internal/models"
+)
+
+// Format specifies the output format for compiled prompts
+type Format string
+
+const (
+	FormatMarkdown Format = "markdown"
+	FormatXML      Format = "xml"
+	FormatPlain    Format = "plain"
+)
+
+// CompiledPrompt represents the final assembled prompt section
+type CompiledPrompt struct {
+	// The formatted prompt text ready for injection
+	Text string `json:"text"`
+
+	// Sections organized by behavior kind
+	Sections []PromptSection `json:"sections"`
+
+	// Token statistics
+	TotalTokens int `json:"total_tokens"`
+
+	// Format used
+	Format Format `json:"format"`
+
+	// Behaviors included (for debugging/tracing)
+	IncludedBehaviors []string `json:"included_behaviors"`
+
+	// Behaviors excluded due to token limits
+	ExcludedBehaviors []string `json:"excluded_behaviors,omitempty"`
+}
+
+// PromptSection groups behaviors by kind
+type PromptSection struct {
+	Kind       models.BehaviorKind `json:"kind"`
+	Title      string              `json:"title"`
+	Content    string              `json:"content"`
+	TokenCount int                 `json:"token_count"`
+	Behaviors  []string            `json:"behaviors"` // IDs of included behaviors
+}
+
+// Compiler transforms active behaviors into prompt-ready format
+type Compiler struct {
+	format      Format
+	useExpanded bool // Use expanded content when available
+}
+
+// NewCompiler creates a new behavior compiler
+func NewCompiler() *Compiler {
+	return &Compiler{
+		format:      FormatMarkdown,
+		useExpanded: false, // Default to canonical (token-efficient)
+	}
+}
+
+// WithFormat sets the output format
+func (c *Compiler) WithFormat(format Format) *Compiler {
+	c.format = format
+	return c
+}
+
+// WithExpanded uses expanded content when available
+func (c *Compiler) WithExpanded(useExpanded bool) *Compiler {
+	c.useExpanded = useExpanded
+	return c
+}
+
+// Compile transforms active behaviors into a prompt-ready format
+func (c *Compiler) Compile(behaviors []models.Behavior) *CompiledPrompt {
+	if len(behaviors) == 0 {
+		return &CompiledPrompt{
+			Text:              "",
+			Sections:          []PromptSection{},
+			TotalTokens:       0,
+			Format:            c.format,
+			IncludedBehaviors: []string{},
+		}
+	}
+
+	// Group behaviors by kind
+	grouped := c.groupByKind(behaviors)
+
+	// Build sections
+	sections := c.buildSections(grouped)
+
+	// Assemble final text
+	text := c.assembleText(sections)
+
+	// Collect behavior IDs
+	var includedIDs []string
+	for _, b := range behaviors {
+		includedIDs = append(includedIDs, b.ID)
+	}
+
+	return &CompiledPrompt{
+		Text:              text,
+		Sections:          sections,
+		TotalTokens:       estimateTokens(text),
+		Format:            c.format,
+		IncludedBehaviors: includedIDs,
+	}
+}
+
+// groupByKind organizes behaviors by their kind
+func (c *Compiler) groupByKind(behaviors []models.Behavior) map[models.BehaviorKind][]models.Behavior {
+	grouped := make(map[models.BehaviorKind][]models.Behavior)
+
+	for _, b := range behaviors {
+		grouped[b.Kind] = append(grouped[b.Kind], b)
+	}
+
+	// Sort within each group by priority (descending) then confidence (descending)
+	for kind := range grouped {
+		sort.Slice(grouped[kind], func(i, j int) bool {
+			if grouped[kind][i].Priority != grouped[kind][j].Priority {
+				return grouped[kind][i].Priority > grouped[kind][j].Priority
+			}
+			return grouped[kind][i].Confidence > grouped[kind][j].Confidence
+		})
+	}
+
+	return grouped
+}
+
+// buildSections creates prompt sections from grouped behaviors
+func (c *Compiler) buildSections(grouped map[models.BehaviorKind][]models.Behavior) []PromptSection {
+	// Define order of sections (constraints first as they're most important)
+	kindOrder := []models.BehaviorKind{
+		models.BehaviorKindConstraint,
+		models.BehaviorKindDirective,
+		models.BehaviorKindPreference,
+		models.BehaviorKindProcedure,
+	}
+
+	var sections []PromptSection
+
+	for _, kind := range kindOrder {
+		behaviors, exists := grouped[kind]
+		if !exists || len(behaviors) == 0 {
+			continue
+		}
+
+		section := PromptSection{
+			Kind:      kind,
+			Title:     c.kindTitle(kind),
+			Behaviors: make([]string, 0, len(behaviors)),
+		}
+
+		var contentParts []string
+		for _, b := range behaviors {
+			content := c.formatBehavior(b)
+			contentParts = append(contentParts, content)
+			section.Behaviors = append(section.Behaviors, b.ID)
+		}
+
+		section.Content = strings.Join(contentParts, "\n")
+		section.TokenCount = estimateTokens(section.Content)
+		sections = append(sections, section)
+	}
+
+	return sections
+}
+
+// kindTitle returns a human-readable title for a behavior kind
+func (c *Compiler) kindTitle(kind models.BehaviorKind) string {
+	switch kind {
+	case models.BehaviorKindConstraint:
+		return "Constraints"
+	case models.BehaviorKindDirective:
+		return "Directives"
+	case models.BehaviorKindPreference:
+		return "Preferences"
+	case models.BehaviorKindProcedure:
+		return "Procedures"
+	default:
+		return "Behaviors"
+	}
+}
+
+// formatBehavior formats a single behavior for the prompt
+func (c *Compiler) formatBehavior(b models.Behavior) string {
+	// Choose content based on settings
+	content := b.Content.Canonical
+	if c.useExpanded && b.Content.Expanded != "" {
+		content = b.Content.Expanded
+	}
+
+	switch c.format {
+	case FormatXML:
+		return c.formatBehaviorXML(b, content)
+	case FormatPlain:
+		return c.formatBehaviorPlain(b, content)
+	default: // FormatMarkdown
+		return c.formatBehaviorMarkdown(b, content)
+	}
+}
+
+func (c *Compiler) formatBehaviorMarkdown(b models.Behavior, content string) string {
+	// Format with bullet point
+	return fmt.Sprintf("- %s", content)
+}
+
+func (c *Compiler) formatBehaviorXML(b models.Behavior, content string) string {
+	return fmt.Sprintf("<behavior kind=\"%s\">%s</behavior>", b.Kind, content)
+}
+
+func (c *Compiler) formatBehaviorPlain(b models.Behavior, content string) string {
+	return content
+}
+
+// assembleText combines sections into final prompt text
+func (c *Compiler) assembleText(sections []PromptSection) string {
+	if len(sections) == 0 {
+		return ""
+	}
+
+	var parts []string
+
+	switch c.format {
+	case FormatXML:
+		parts = append(parts, "<learned-behaviors>")
+		for _, s := range sections {
+			parts = append(parts, fmt.Sprintf("<%s>", strings.ToLower(s.Title)))
+			parts = append(parts, s.Content)
+			parts = append(parts, fmt.Sprintf("</%s>", strings.ToLower(s.Title)))
+		}
+		parts = append(parts, "</learned-behaviors>")
+
+	case FormatPlain:
+		for i, s := range sections {
+			if i > 0 {
+				parts = append(parts, "")
+			}
+			parts = append(parts, s.Title+":")
+			parts = append(parts, s.Content)
+		}
+
+	default: // FormatMarkdown
+		parts = append(parts, "## Learned Behaviors")
+		parts = append(parts, "")
+		for _, s := range sections {
+			parts = append(parts, fmt.Sprintf("### %s", s.Title))
+			parts = append(parts, s.Content)
+			parts = append(parts, "")
+		}
+	}
+
+	return strings.TrimSpace(strings.Join(parts, "\n"))
+}
+
+// estimateTokens provides a rough token count estimate
+// Uses the common heuristic of ~4 characters per token
+func estimateTokens(text string) int {
+	if text == "" {
+		return 0
+	}
+	// Rough estimate: 1 token ≈ 4 characters for English text
+	return (len(text) + 3) / 4
+}

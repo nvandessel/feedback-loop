@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nvandessel/feedback-loop/internal/activation"
+	"github.com/nvandessel/feedback-loop/internal/assembly"
 	"github.com/nvandessel/feedback-loop/internal/learning"
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/store"
@@ -40,6 +41,7 @@ context-aware behavior activation for consistent agent operation.`,
 		newActiveCmd(),
 		newShowCmd(),
 		newWhyCmd(),
+		newPromptCmd(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {
@@ -760,6 +762,142 @@ This helps debug when a behavior isn't being applied as expected.`,
 	cmd.Flags().String("file", "", "Current file path")
 	cmd.Flags().String("task", "", "Current task type")
 	cmd.Flags().String("env", "", "Environment (dev, staging, prod)")
+
+	return cmd
+}
+
+func newPromptCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "prompt",
+		Short: "Generate prompt section from active behaviors",
+		Long: `Generate a prompt section containing all active behaviors for the current context.
+
+This command compiles active behaviors into a format suitable for injection into
+agent system prompts. Use --max-tokens to limit output size.
+
+Examples:
+  floop prompt --file main.go
+  floop prompt --file main.go --format xml --max-tokens 500
+  floop prompt --file main.go --json`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			root, _ := cmd.Flags().GetString("root")
+			file, _ := cmd.Flags().GetString("file")
+			task, _ := cmd.Flags().GetString("task")
+			env, _ := cmd.Flags().GetString("env")
+			format, _ := cmd.Flags().GetString("format")
+			maxTokens, _ := cmd.Flags().GetInt("max-tokens")
+			expanded, _ := cmd.Flags().GetBool("expanded")
+			jsonOut, _ := cmd.Flags().GetBool("json")
+
+			floopDir := filepath.Join(root, ".floop")
+			if _, err := os.Stat(floopDir); os.IsNotExist(err) {
+				if jsonOut {
+					json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+						"error": ".floop not initialized",
+					})
+				} else {
+					fmt.Println("Not initialized. Run 'floop init' first.")
+				}
+				return nil
+			}
+
+			// Load all behaviors
+			behaviors, err := loadBehaviors(floopDir)
+			if err != nil {
+				return fmt.Errorf("failed to load behaviors: %w", err)
+			}
+
+			// Build context
+			ctxBuilder := activation.NewContextBuilder().
+				WithFile(file).
+				WithTask(task).
+				WithEnvironment(env).
+				WithRepoRoot(root)
+			ctx := ctxBuilder.Build()
+
+			// Evaluate which behaviors are active
+			evaluator := activation.NewEvaluator()
+			matches := evaluator.Evaluate(ctx, behaviors)
+
+			// Resolve conflicts
+			resolver := activation.NewResolver()
+			resolved := resolver.Resolve(matches)
+
+			// Optimize if token limit specified
+			var activeBehaviors []models.Behavior
+			var excluded []models.Behavior
+
+			if maxTokens > 0 {
+				optimizer := assembly.NewOptimizer(maxTokens)
+				optResult := optimizer.Optimize(resolved.Active)
+				activeBehaviors = optResult.Included
+				excluded = optResult.Excluded
+			} else {
+				activeBehaviors = resolved.Active
+			}
+
+			// Compile into prompt format
+			var outputFormat assembly.Format
+			switch format {
+			case "xml":
+				outputFormat = assembly.FormatXML
+			case "plain":
+				outputFormat = assembly.FormatPlain
+			default:
+				outputFormat = assembly.FormatMarkdown
+			}
+
+			compiler := assembly.NewCompiler().
+				WithFormat(outputFormat).
+				WithExpanded(expanded)
+
+			compiled := compiler.Compile(activeBehaviors)
+
+			// Add excluded behaviors info
+			for _, e := range excluded {
+				compiled.ExcludedBehaviors = append(compiled.ExcludedBehaviors, e.ID)
+			}
+
+			if jsonOut {
+				json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+					"context":            ctx,
+					"prompt":             compiled.Text,
+					"format":             compiled.Format,
+					"total_tokens":       compiled.TotalTokens,
+					"included_behaviors": compiled.IncludedBehaviors,
+					"excluded_behaviors": compiled.ExcludedBehaviors,
+					"sections":           compiled.Sections,
+				})
+			} else {
+				if len(activeBehaviors) == 0 {
+					fmt.Println("No active behaviors for this context.")
+					return nil
+				}
+
+				// Print the prompt text directly (for easy copy/paste)
+				fmt.Println(compiled.Text)
+
+				// Print stats to stderr so they don't interfere with prompt output
+				fmt.Fprintln(os.Stderr)
+				fmt.Fprintf(os.Stderr, "---\n")
+				fmt.Fprintf(os.Stderr, "Behaviors: %d included", len(compiled.IncludedBehaviors))
+				if len(compiled.ExcludedBehaviors) > 0 {
+					fmt.Fprintf(os.Stderr, ", %d excluded (token limit)", len(compiled.ExcludedBehaviors))
+				}
+				fmt.Fprintln(os.Stderr)
+				fmt.Fprintf(os.Stderr, "Tokens: ~%d\n", compiled.TotalTokens)
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().String("file", "", "Current file path")
+	cmd.Flags().String("task", "", "Current task type")
+	cmd.Flags().String("env", "", "Environment (dev, staging, prod)")
+	cmd.Flags().String("format", "markdown", "Output format (markdown, xml, plain)")
+	cmd.Flags().Int("max-tokens", 0, "Maximum tokens (0 = unlimited)")
+	cmd.Flags().Bool("expanded", false, "Use expanded content when available")
 
 	return cmd
 }

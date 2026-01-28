@@ -6,8 +6,8 @@ This document tracks the implementation plan for `floop`, broken down into phase
 
 ## Current Status
 
-**Phase**: Assembly (Phase 5)
-**Goal**: Compile behaviors into prompt-ready format with token optimization.
+**Phase**: Complete (Phases 1-5 done)
+**Next**: Additional features (curation commands, package import/export)
 
 ## Phase 1: Foundation ✅ COMPLETE
 
@@ -143,14 +143,23 @@ floop active --file "test.py"  # Shows behavior (python context)
 
 ---
 
-## Phase 5: Assembly (Future)
+## Phase 5: Assembly ✅ COMPLETE
 
 Dependencies: Phase 4 complete
 
 **Tasks**:
-- `internal/assembly/compile.go` - Behavior compilation for prompts
-- `internal/assembly/optimize.go` - Token budget optimization
-- `floop prompt` command - Generate agent prompt section
+- [x] `internal/assembly/compile.go` - BehaviorCompiler with markdown/xml/plain formats
+- [x] `internal/assembly/optimize.go` - TokenOptimizer with priority-based inclusion
+- [x] `floop prompt` command - Generate agent prompt section
+
+**Success Criteria**: ✅
+```bash
+floop learn --wrong "used pip" --right "use uv instead" --file "test.py"
+floop prompt --file "test.py"           # Outputs markdown prompt section
+floop prompt --file "test.py" --format xml  # XML format
+floop prompt --file "test.py" --max-tokens 500  # Token-limited output
+floop prompt --file "test.py" --json    # JSON for agent consumption
+```
 
 ---
 
