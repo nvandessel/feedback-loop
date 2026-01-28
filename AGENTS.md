@@ -1,5 +1,18 @@
 # Feedback Loop - Agent Instructions
 
+## ⚠️ CRITICAL: Read This First
+
+**You MUST read `docs/FLOOP_USAGE.md` before starting any work.**
+
+This project uses floop (the tool you're building) to learn from corrections. You are required to:
+- Capture corrections with `./floop learn` immediately when they occur
+- Check active behaviors with `./floop active` before working on files
+- Build your knowledge base proactively during all sessions
+
+**This is mandatory, not optional.** Floop is how you improve.
+
+---
+
 ## Project Overview
 
 **feedback-loop** (`floop`) is a CLI tool that enables AI agents to learn from corrections and maintain consistent behavior across sessions.
@@ -8,9 +21,10 @@
 
 ## Essential Reading
 
-1. `docs/SPEC.md` - Full technical specification
-2. `docs/GO_GUIDELINES.md` - Go coding standards (read before writing code)
-3. `docs/PLAN.md` - Current implementation plan and task breakdown
+1. **`docs/FLOOP_USAGE.md`** - **READ FIRST** - How to use floop while building floop (dogfooding)
+2. `docs/SPEC.md` - Full technical specification
+3. `docs/GO_GUIDELINES.md` - Go coding standards (read before writing code)
+4. `docs/PLAN.md` - Current implementation plan and task breakdown
 
 ## Quick Reference
 
@@ -24,13 +38,26 @@ bd create "Title" --type task --priority 2 --description "..."
 bd sync               # Sync changes
 ```
 
-### Feedback Loop (Dogfooding)
+### Feedback Loop (Dogfooding) ⭐
+
+**See `docs/FLOOP_USAGE.md` for complete guide.**
+
+Quick reference:
 ```bash
-floop learn --wrong "what you did" --right "what should be done" --file "path"
-floop list --corrections    # View captured corrections
+# Before working on a file:
+./floop active --file "path/to/file.go"
+
+# When you receive a correction (DO THIS IMMEDIATELY):
+./floop learn --wrong "what you did" --right "what should be done" --file "path"
+
+# Review what you've learned:
+./floop list
+
+# Generate prompt from active behaviors:
+./floop prompt --file "path/to/file.go" --format markdown
 ```
 
-**Use floop when you make mistakes!** Capture corrections to build the learning dataset.
+**Critical**: Don't wait for permission. Capture corrections automatically as they happen.
 
 ### Development
 ```bash
