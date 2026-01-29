@@ -93,6 +93,18 @@ func TestNewListCmd(t *testing.T) {
 	if correctionsFlag == nil {
 		t.Error("missing --corrections flag")
 	}
+
+	// Check global flag exists
+	globalFlag := cmd.Flags().Lookup("global")
+	if globalFlag == nil {
+		t.Error("missing --global flag")
+	}
+
+	// Check all flag exists
+	allFlag := cmd.Flags().Lookup("all")
+	if allFlag == nil {
+		t.Error("missing --all flag")
+	}
 }
 
 func TestInitCmdCreatesDirectory(t *testing.T) {
@@ -232,6 +244,104 @@ func TestListCorrectionsNotInitialized(t *testing.T) {
 	err := listCorrections(tmpDir, false)
 	if err != nil {
 		t.Fatalf("listCorrections failed: %v", err)
+	}
+}
+
+func TestListCmdGlobalAndAllFlagsConflict(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Initialize local
+	rootCmd := newTestRootCmd()
+	rootCmd.AddCommand(newInitCmd())
+	rootCmd.SetArgs([]string{"init", "--root", tmpDir})
+	rootCmd.SetOut(&bytes.Buffer{})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Try to list with both --global and --all
+	rootCmd2 := newTestRootCmd()
+	rootCmd2.AddCommand(newListCmd())
+	rootCmd2.SetArgs([]string{"list", "--global", "--all", "--root", tmpDir})
+	rootCmd2.SetOut(&bytes.Buffer{})
+	err := rootCmd2.Execute()
+	if err == nil {
+		t.Error("expected error when both --global and --all are specified")
+	}
+	if !strings.Contains(err.Error(), "cannot specify both") {
+		t.Errorf("expected 'cannot specify both' error, got: %v", err)
+	}
+}
+
+func TestListCmdWithGlobalFlag(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Initialize local
+	rootCmd := newTestRootCmd()
+	rootCmd.AddCommand(newInitCmd())
+	rootCmd.SetArgs([]string{"init", "--root", tmpDir})
+	rootCmd.SetOut(&bytes.Buffer{})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Initialize global
+	rootCmd1 := newTestRootCmd()
+	rootCmd1.AddCommand(newInitCmd())
+	rootCmd1.SetArgs([]string{"init", "--global"})
+	rootCmd1.SetOut(&bytes.Buffer{})
+	if err := rootCmd1.Execute(); err != nil {
+		t.Fatalf("global init failed: %v", err)
+	}
+
+	// List with --global should work
+	rootCmd2 := newTestRootCmd()
+	rootCmd2.AddCommand(newListCmd())
+	rootCmd2.SetArgs([]string{"list", "--global", "--root", tmpDir})
+	var out bytes.Buffer
+	rootCmd2.SetOut(&out)
+	if err := rootCmd2.Execute(); err != nil {
+		t.Fatalf("list --global failed: %v", err)
+	}
+
+	output := out.String()
+	if !strings.Contains(output, "global") {
+		t.Errorf("expected output to mention 'global', got: %s", output)
+	}
+}
+
+func TestListCmdWithAllFlag(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Initialize local
+	rootCmd := newTestRootCmd()
+	rootCmd.AddCommand(newInitCmd())
+	rootCmd.SetArgs([]string{"init", "--root", tmpDir})
+	rootCmd.SetOut(&bytes.Buffer{})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Initialize global (optional for this test)
+	rootCmd1 := newTestRootCmd()
+	rootCmd1.AddCommand(newInitCmd())
+	rootCmd1.SetArgs([]string{"init", "--global"})
+	rootCmd1.SetOut(&bytes.Buffer{})
+	_ = rootCmd1.Execute() // Ignore error if already exists
+
+	// List with --all should work
+	rootCmd2 := newTestRootCmd()
+	rootCmd2.AddCommand(newListCmd())
+	rootCmd2.SetArgs([]string{"list", "--all", "--root", tmpDir})
+	var out bytes.Buffer
+	rootCmd2.SetOut(&out)
+	if err := rootCmd2.Execute(); err != nil {
+		t.Fatalf("list --all failed: %v", err)
+	}
+
+	output := out.String()
+	if !strings.Contains(output, "all") {
+		t.Errorf("expected output to mention 'all', got: %s", output)
 	}
 }
 

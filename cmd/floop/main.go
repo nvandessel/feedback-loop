@@ -307,49 +307,102 @@ func newListCmd() *cobra.Command {
 			root, _ := cmd.Flags().GetString("root")
 			jsonOut, _ := cmd.Flags().GetBool("json")
 			showCorrections, _ := cmd.Flags().GetBool("corrections")
+			globalFlag, _ := cmd.Flags().GetBool("global")
+			allFlag, _ := cmd.Flags().GetBool("all")
 
-			floopDir := filepath.Join(root, ".floop")
-			if _, err := os.Stat(floopDir); os.IsNotExist(err) {
-				if jsonOut {
-					json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
-						"error": ".floop not initialized",
-					})
-				} else {
-					fmt.Println("Not initialized. Run 'floop init' first.")
+			// Validate flag combinations
+			if globalFlag && allFlag {
+				return fmt.Errorf("cannot specify both --global and --all")
+			}
+
+			// Determine scope
+			scope := store.ScopeLocal
+			if globalFlag {
+				scope = store.ScopeGlobal
+			} else if allFlag {
+				scope = store.ScopeBoth
+			}
+
+			// Check initialization based on scope
+			if scope == store.ScopeLocal || scope == store.ScopeBoth {
+				floopDir := filepath.Join(root, ".floop")
+				if _, err := os.Stat(floopDir); os.IsNotExist(err) {
+					if jsonOut {
+						json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]interface{}{
+							"error": "local .floop not initialized",
+						})
+					} else {
+						fmt.Fprintln(cmd.OutOrStdout(), "Local .floop not initialized. Run 'floop init' first.")
+					}
+					return nil
 				}
-				return nil
+			}
+
+			if scope == store.ScopeGlobal || scope == store.ScopeBoth {
+				globalPath, err := store.GlobalFloopPath()
+				if err == nil {
+					if _, err := os.Stat(globalPath); os.IsNotExist(err) {
+						if scope == store.ScopeGlobal {
+							if jsonOut {
+								json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]interface{}{
+									"error": "global .floop not initialized",
+								})
+							} else {
+								fmt.Fprintln(cmd.OutOrStdout(), "Global .floop not initialized. Run 'floop init --global' first.")
+							}
+							return nil
+						}
+					}
+				}
 			}
 
 			if showCorrections {
 				return listCorrections(root, jsonOut)
 			}
 
-			// Load behaviors from cache (rebuilds if stale)
-			behaviors, err := loadBehaviors(floopDir)
+			// Load behaviors from appropriate store(s)
+			behaviors, err := loadBehaviorsWithScope(root, scope)
 			if err != nil {
 				return fmt.Errorf("failed to load behaviors: %w", err)
 			}
 
 			if jsonOut {
-				json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+				result := map[string]interface{}{
 					"behaviors": behaviors,
 					"count":     len(behaviors),
-				})
+				}
+				if globalFlag {
+					result["scope"] = "global"
+				} else if allFlag {
+					result["scope"] = "all"
+				} else {
+					result["scope"] = "local"
+				}
+				json.NewEncoder(cmd.OutOrStdout()).Encode(result)
 			} else {
 				if len(behaviors) == 0 {
-					fmt.Println("No behaviors learned yet.")
-					fmt.Println("\nUse 'floop learn --wrong \"X\" --right \"Y\"' to capture corrections.")
+					fmt.Fprintln(cmd.OutOrStdout(), "No behaviors learned yet.")
+					fmt.Fprintln(cmd.OutOrStdout(), "\nUse 'floop learn --wrong \"X\" --right \"Y\"' to capture corrections.")
 					return nil
 				}
-				fmt.Printf("Learned behaviors (%d):\n\n", len(behaviors))
+
+				// Show scope in header
+				scopeStr := "local"
+				if globalFlag {
+					scopeStr = "global"
+				} else if allFlag {
+					scopeStr = "all (local + global)"
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "Learned behaviors - %s (%d):\n\n", scopeStr, len(behaviors))
+
 				for i, b := range behaviors {
-					fmt.Printf("%d. [%s] %s\n", i+1, b.Kind, b.Name)
-					fmt.Printf("   %s\n", b.Content.Canonical)
+					fmt.Fprintf(cmd.OutOrStdout(), "%d. [%s] %s\n", i+1, b.Kind, b.Name)
+					fmt.Fprintf(cmd.OutOrStdout(), "   %s\n", b.Content.Canonical)
 					if len(b.When) > 0 {
-						fmt.Printf("   When: %v\n", b.When)
+						fmt.Fprintf(cmd.OutOrStdout(), "   When: %v\n", b.When)
 					}
-					fmt.Printf("   Confidence: %.2f\n", b.Confidence)
-					fmt.Println()
+					fmt.Fprintf(cmd.OutOrStdout(), "   Confidence: %.2f\n", b.Confidence)
+					fmt.Fprintln(cmd.OutOrStdout())
 				}
 			}
 
@@ -358,6 +411,8 @@ func newListCmd() *cobra.Command {
 	}
 
 	cmd.Flags().Bool("corrections", false, "Show captured corrections instead of behaviors")
+	cmd.Flags().Bool("global", false, "Show behaviors from global user store (~/.floop/) only")
+	cmd.Flags().Bool("all", false, "Show behaviors from both local and global stores")
 
 	return cmd
 }
@@ -449,6 +504,60 @@ func loadBehaviors(floopDir string) ([]models.Behavior, error) {
 
 	// Query all behavior nodes
 	ctx := context.Background()
+	nodes, err := graphStore.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
+	if err != nil {
+		return nil, fmt.Errorf("failed to query behaviors: %w", err)
+	}
+
+	// Convert nodes to behaviors
+	behaviors := make([]models.Behavior, 0, len(nodes))
+	for _, node := range nodes {
+		b := learning.NodeToBehavior(node)
+		behaviors = append(behaviors, b)
+	}
+
+	return behaviors, nil
+}
+
+// loadBehaviorsWithScope loads behaviors from the specified scope (local, global, or both).
+func loadBehaviorsWithScope(projectRoot string, scope store.StoreScope) ([]models.Behavior, error) {
+	ctx := context.Background()
+	var graphStore store.GraphStore
+	var err error
+
+	switch scope {
+	case store.ScopeLocal:
+		// Load from local store only
+		graphStore, err = store.NewBeadsGraphStore(projectRoot)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open local store: %w", err)
+		}
+
+	case store.ScopeGlobal:
+		// Load from global store only
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get home directory: %w", err)
+		}
+		graphStore, err = store.NewBeadsGraphStore(homeDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open global store: %w", err)
+		}
+
+	case store.ScopeBoth:
+		// Load from both stores using MultiGraphStore
+		graphStore, err = store.NewMultiGraphStore(projectRoot, store.ScopeLocal)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open multi-store: %w", err)
+		}
+
+	default:
+		return nil, fmt.Errorf("invalid scope: %s", scope)
+	}
+
+	defer graphStore.Close()
+
+	// Query all behavior nodes
 	nodes, err := graphStore.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
 	if err != nil {
 		return nil, fmt.Errorf("failed to query behaviors: %w", err)
