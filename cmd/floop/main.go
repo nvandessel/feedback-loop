@@ -600,8 +600,8 @@ Use --json for machine-readable output suitable for agent consumption.`,
 				return nil
 			}
 
-			// Load all behaviors
-			behaviors, err := loadBehaviors(floopDir)
+			// Load all behaviors from both local and global stores
+			behaviors, err := loadBehaviorsWithScope(root, store.ScopeBoth)
 			if err != nil {
 				return fmt.Errorf("failed to load behaviors: %w", err)
 			}
@@ -713,8 +713,8 @@ func newShowCmd() *cobra.Command {
 				return nil
 			}
 
-			// Load all behaviors
-			behaviors, err := loadBehaviors(floopDir)
+			// Load all behaviors from both local and global stores
+			behaviors, err := loadBehaviorsWithScope(root, store.ScopeBoth)
 			if err != nil {
 				return fmt.Errorf("failed to load behaviors: %w", err)
 			}
@@ -825,8 +825,8 @@ This helps debug when a behavior isn't being applied as expected.`,
 				return nil
 			}
 
-			// Load all behaviors
-			behaviors, err := loadBehaviors(floopDir)
+			// Load all behaviors from both local and global stores
+			behaviors, err := loadBehaviorsWithScope(root, store.ScopeBoth)
 			if err != nil {
 				return fmt.Errorf("failed to load behaviors: %w", err)
 			}
@@ -960,8 +960,8 @@ Examples:
 				return nil
 			}
 
-			// Load all behaviors
-			behaviors, err := loadBehaviors(floopDir)
+			// Load all behaviors from both local and global stores
+			behaviors, err := loadBehaviorsWithScope(root, store.ScopeBoth)
 			if err != nil {
 				return fmt.Errorf("failed to load behaviors: %w", err)
 			}
