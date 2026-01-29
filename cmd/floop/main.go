@@ -44,6 +44,7 @@ context-aware behavior activation for consistent agent operation.`,
 		newShowCmd(),
 		newWhyCmd(),
 		newPromptCmd(),
+		newMCPServerCmd(),
 		// Curation commands
 		newForgetCmd(),
 		newDeprecateCmd(),
