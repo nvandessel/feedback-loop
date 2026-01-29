@@ -1,157 +1,140 @@
-# Session Handoff - 2026-01-28
+# Session Handoff - 2026-01-28 (Evening)
 
 ## What We Accomplished ✅
 
-### 1. Completed Tasks (Parallel Workflow!)
-- **feedback-loop-ek2.5**: Added `--global` and `--all` flags to `floop list` command
-- **feedback-loop-ek2.6**: Updated query commands (active, show, why, prompt) to use MultiGraphStore
-- **feedback-loop-ek2.8**: Updated curation commands (forget, deprecate, restore, merge) to use MultiGraphStore
+### 1. Fixed Critical Bug in Learning Loop (feedback-loop-ek2.9)
 
-All three completed in parallel using git worktrees - wall time ~3 minutes for 2 tasks!
+**Issue**: Behaviors with placement confidence between 0.6 and 0.8 were falling through the cracks - neither auto-accepted nor flagged for review, causing them to be lost (not saved to the store).
 
-### 2. Established Parallel Worktree Workflow
-Created and documented a workflow for running multiple agents simultaneously:
-- Created worktrees as siblings: `git worktree add -b branch ../sibling-dir main`
-- Generated detailed TASK.md files with line numbers, success criteria, commit templates
-- Spawned background agents that worked autonomously
-- Reviewed and cherry-picked commits back to main
-- All changes pushed to origin
+**Root Cause**: `ProcessCorrection` only saved behaviors when `autoAccepted == true`, but behaviors with confidence 0.6-0.8 had both `autoAccepted == false` AND `requiresReview == false`.
 
-### 3. Enhanced Agent Learning System
-- Updated AGENTS.md to instruct agents to run `floop prompt --task development` at session start
-- Captured 4+ new behaviors about parallel workflows, task selection, worktree patterns
-- Kept CLAUDE.md minimal (just "Read AGENTS.md") - open format principle
+**Fix**: Modified `internal/learning/loop.go:103-117` to:
+- Save ALL learned behaviors to the store (not just auto-accepted)
+- Auto-accepted behaviors get `ApprovedBy="auto"` in provenance
+- Behaviors requiring review are saved as pending with `ApprovedBy=""`
 
-## Critical Bug Discovered 🐛
+**Verification**: All integration test scenarios passed:
+- ✅ Global learn saves behaviors correctly
+- ✅ Local learn saves behaviors correctly (was failing before!)
+- ✅ `--scope both` saves to both stores
+- ✅ List commands work (`--global`, `--all`, default)
+- ✅ All unit tests pass (learning + store packages)
 
-**Issue**: `floop learn --scope global` and `--scope both` are **not saving behaviors to the global store**
+**Commits**:
+- `942f541`: fix(learning): save all learned behaviors, not just auto-accepted ones
+- `ca71e30`: chore(beads): close ek2.9 integration testing task
 
-**Evidence**:
-- Corrections ARE captured to corrections.jsonl ✅
-- Behaviors ARE extracted (shows "Auto-accepted") ✅
-- But behaviors NOT appearing in `~/.floop/nodes.jsonl` ❌
-- Running `floop list --global` doesn't show recently learned behaviors ❌
+### 2. Cleaned Up Completed Tasks
 
-**Impact**:
-- Global learnings aren't persisting across projects
-- The feedback loop is broken for cross-project behaviors
-- AGENTS.md instruction to load behaviors won't work until this is fixed
+Closed 4 tasks that were already done but still marked open:
 
-## Next Task: feedback-loop-ek2.9 (IN PROGRESS)
+1. **feedback-loop-ek2.3** - MultiGraphStore tests (568 lines, 35 test cases, all passing)
+2. **feedback-loop-acx** - Curation commands (forget/merge/deprecate/restore all working)
+3. **feedback-loop-ek2** - Global+Local Storage Epic (9/9 implementation tasks complete)
+4. **feedback-loop-72j** - Static file generation (deprioritized in favor of MCP server)
 
-**Task**: Integration testing for global/local storage
-**Status**: Claimed, ready to work
-**Estimate**: 1 hour
-**Priority**: P1 (blocks documentation)
+### 3. Strategic Decision: MCP Server Over Static Files
 
-### Test Scenarios (from beads task)
-1. ✅ Initialize both scopes: `floop init && floop init --global`
-2. ❌ Learn globally: `floop learn --scope global --wrong X --right Y` (FAILING - this will expose the bug!)
-3. Learn locally (override): `floop learn --scope local --wrong Y --right Z`
-4. Verify local wins: `floop active --file test.py`
-5. Test list commands: `floop list`, `floop list --global`, `floop list --all`
-6. Test backwards compatibility: existing .floop/ works unchanged
-7. Test edge cases: missing global dir, partial failures, concurrent access
+**Question**: Should we build `floop generate` (static file generation) or `floop mcp-server` first?
 
-### ⚠️ CRITICAL: Safe Testing Approach
+**Decision**: Prioritize MCP server because:
+- **Primary users are AI agents** who need bidirectional, automatic integration
+- **Static files are read-only** - can't capture corrections automatically
+- **MCP provides real feedback loop** - tools can query behaviors AND write learnings
+- **Modern tools support MCP** - Continue, Cursor, Cline, Windsurf all work today
+- **Static files solve wrong problem** - reading behaviors is trivial (`floop prompt`), the hard part is automatic correction capture
 
-**DO NOT test against real `~/.floop/`!** That's production data.
-
-Instead, use environment variable override:
-```bash
-# Option 1: Test in isolated directory
-export HOME=/tmp/floop-integration-test
-mkdir -p $HOME
-floop init --global  # Creates /tmp/floop-integration-test/.floop/
-
-# Option 2: Mock the global path (if supported)
-# Check internal/store/store.go for GlobalFloopPath() implementation
-```
-
-Or modify the test to use `--root` for both local and a test global dir.
-
-### Debugging the Bug
-
-When you run test scenario #2 and it fails, investigate:
-
-1. **Check if behavior is created**:
-   ```bash
-   cat $HOME/.floop/nodes.jsonl | wc -l  # Before
-   floop learn --scope global --wrong "test" --right "test2" --task "test"
-   cat $HOME/.floop/nodes.jsonl | wc -l  # After - should increment
-   ```
-
-2. **Check MultiGraphStore.AddNode** (internal/store/multi.go):
-   - Line 63-94: Does it actually write to globalStore when scope=global?
-   - Is Sync() being called?
-   - Are there silent errors?
-
-3. **Check LearningLoop** (internal/learning/loop.go):
-   - Does it call graphStore.AddNode()?
-   - Is the returned error being checked?
-
-4. **Add debug logging**:
-   ```go
-   fmt.Fprintf(os.Stderr, "DEBUG: Writing to scope=%s, nodeID=%s\n", scope, nodeID)
-   ```
-
-## Learnings Captured This Session
-
-1. **Parallel worktree automation** - create setup/cleanup scripts
-2. **Task selection criteria** - verify no deps, different functions, similar scope
-3. **Worktree location** - use `../sibling` not `subdir`
-4. **Agent instructions** - detailed TASK.md with line numbers and templates
-5. **CLAUDE.md minimalism** - keep minimal, use AGENTS.md (open format)
+Static file generation closed with rationale that it can be revisited if specific tool integration requires it.
 
 ## State of the Repo
 
 ```
 Latest commits:
+ca71e30 chore(beads): close ek2.9 integration testing task
+942f541 fix(learning): save all learned behaviors, not just auto-accepted ones
+fc86ec6 docs: add session handoff for ek2.9 integration testing
 e3044ef docs: add behavior loading instruction to AGENTS.md
-789b61a chore(beads): close ek2.6 and ek2.8 tasks
-43430d6 feat(cli): update curation commands to use MultiGraphStore
-d4fd3ad feat(cli): update query commands to use MultiGraphStore
-f23ca93 feat(cli): add --global and --all flags to list command
 ```
 
 All tests passing: `go test ./...`
 All changes pushed to origin ✅
 
+**Project Health**:
+- 27 issues closed (was 23 at start of session)
+- 12 issues open (was 16)
+- 0 blocked tasks
+- Strong velocity: 0.36 days avg time to close
+
+## Remaining Work
+
+### Technical Tasks (Priority Order)
+
+1. **feedback-loop-ol7** - Implement floop MCP server [P2]
+   - Enable deep integration with Continue/Cursor/Cline/Windsurf
+   - Bidirectional: read behaviors + capture corrections automatically
+   - ~2-3 hours, independent work
+   - This is the REAL automation unlock
+
+2. **feedback-loop-ek2.10** - Document global/local storage [P2]
+   - Technical docs for the system we just built
+   - ~1 hour, straightforward
+
+### Documentation Tasks (Can be parallelized)
+
+All P1 integration guides:
+- feedback-loop-2vt: Create documentation structure
+- feedback-loop-aq1: Claude Code integration guide
+- feedback-loop-dgv: OpenAI Codex CLI integration guide
+- feedback-loop-9cq: Aider integration guide
+
+Plus P2 guides for Cursor, Cline, Continue.dev, Windsurf.
+
+## Next Steps
+
+**Recommended**: Build the MCP server (feedback-loop-ol7)
+- This is the technical unlock that makes floop truly automatic
+- Once MCP is working, the integration guides can reference it
+- MCP-compatible tools (Continue, Cursor, etc.) will have richer examples
+
+**Alternative**: Knock out documentation first if you prefer
+- Can be parallelized across multiple worktrees
+- But examples will be less powerful without MCP integration
+
 ## Quick Start for Next Agent
 
 ```bash
-# 1. Load learned behaviors (once AGENTS.md is read)
+# 1. Load learned behaviors
 ./floop prompt --task development --format markdown
 
-# 2. Check current task
-bd show feedback-loop-ek2.9
+# 2. Check MCP server task
+bd show feedback-loop-ol7
 
-# 3. Set up safe test environment (DON'T use real ~/.floop/)
-export HOME=/tmp/floop-test-$(date +%s)
-mkdir -p $HOME
+# 3. Review MCP protocol spec
+# https://modelcontextprotocol.io/
 
-# 4. Run integration tests from task description
-# 5. Find and fix the bug
-# 6. Verify fix works
-# 7. Close task and push
+# 4. Implement cmd/floop/mcp.go
+# Expose: floop_active(), floop_learn(), floop_list()
+
+# 5. Test with Continue.dev or Cursor
 ```
 
-## Questions to Resolve
+## Key Learnings
 
-1. Why isn't MultiGraphStore.AddNode() saving to global when scope=global?
-2. Is there error handling swallowing failures?
-3. Should we add integration tests as actual Go test files?
-4. Do we need a dry-run or test mode for floop commands?
+1. **Design for the real user** - AI agents, not humans with manual workflows
+2. **Bidirectional beats read-only** - True feedback loop requires write capability
+3. **Auto > Manual** - Tools that integrate deeply (MCP) beat static snapshots
+4. **Clean beads as you go** - Close completed tasks to keep ready list accurate
+5. **Test with safe HOME** - Use `/tmp/floop-test-$(date +%s)` for integration testing
 
 ## Resources
 
-- Task details: `bd show feedback-loop-ek2.9`
-- MultiGraphStore code: `internal/store/multi.go`
-- Learn command: `cmd/floop/main.go` lines 156-300
-- Test all commands: `go test ./cmd/floop -v`
+- MCP Protocol: https://modelcontextprotocol.io/
+- MCP Servers: https://github.com/modelcontextprotocol/servers
+- MCP Go Library: Check for github.com/mark3labs/mcp-go or similar
+- Task details: `bd show feedback-loop-ol7`
 
 ---
 
-**Context**: 142k/200k tokens used (71%)
-**Time**: ~2 hours productive work
-**Mood**: Excited about parallel workflows, concerned about global storage bug 🐛
+**Context**: 80k/200k tokens used (40%)
+**Time**: ~1.5 hours productive work
+**Mood**: Beads cleaned, bug fixed, ready for MCP server! 🚀
