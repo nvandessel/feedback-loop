@@ -73,12 +73,28 @@ func newVersionCmd() *cobra.Command {
 }
 
 func newInitCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize feedback loop tracking in current directory",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root, _ := cmd.Flags().GetString("root")
-			floopDir := filepath.Join(root, ".floop")
+			globalInit, _ := cmd.Flags().GetBool("global")
+
+			var floopDir string
+			if globalInit {
+				// Initialize global directory
+				if err := store.EnsureGlobalFloopDir(); err != nil {
+					return fmt.Errorf("failed to initialize global directory: %w", err)
+				}
+				var err error
+				floopDir, err = store.GlobalFloopPath()
+				if err != nil {
+					return fmt.Errorf("failed to get global path: %w", err)
+				}
+			} else {
+				// Initialize local directory (default)
+				floopDir = filepath.Join(root, ".floop")
+			}
 
 			// Create .floop directory
 			if err := os.MkdirAll(floopDir, 0755); err != nil {
@@ -112,17 +128,29 @@ created: %s
 
 			jsonOut, _ := cmd.Flags().GetBool("json")
 			if jsonOut {
-				json.NewEncoder(os.Stdout).Encode(map[string]string{
+				result := map[string]string{
 					"status": "initialized",
 					"path":   floopDir,
-				})
+				}
+				if globalInit {
+					result["scope"] = "global"
+				}
+				json.NewEncoder(os.Stdout).Encode(result)
 			} else {
-				fmt.Printf("Initialized .floop/ in %s\n", root)
+				if globalInit {
+					fmt.Printf("Initialized global .floop/ at %s\n", floopDir)
+				} else {
+					fmt.Printf("Initialized .floop/ in %s\n", root)
+				}
 			}
 
 			return nil
 		},
 	}
+
+	cmd.Flags().Bool("global", false, "Initialize global user directory (~/.floop/) instead of local project directory")
+
+	return cmd
 }
 
 func newLearnCmd() *cobra.Command {
