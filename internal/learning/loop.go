@@ -104,11 +104,17 @@ func (l *learningLoop) ProcessCorrection(ctx context.Context, correction models.
 	requiresReview, reasons := l.needsReview(candidate, placement)
 	autoAccepted := !requiresReview && placement.Confidence >= l.autoAcceptThreshold
 
-	// Step 4: If auto-accepted, commit to graph
+	// Step 4: Always commit to graph (either as approved or pending)
+	// Auto-accepted behaviors will have ApprovedBy set to "auto"
+	// Behaviors requiring review will be saved as pending (ApprovedBy="")
 	if autoAccepted {
-		if err := l.commitBehavior(ctx, candidate, placement); err != nil {
-			return nil, fmt.Errorf("commit failed: %w", err)
-		}
+		// Set auto-approval in provenance
+		candidate.Provenance.ApprovedBy = "auto"
+		now := time.Now()
+		candidate.Provenance.ApprovedAt = &now
+	}
+	if err := l.commitBehavior(ctx, candidate, placement); err != nil {
+		return nil, fmt.Errorf("commit failed: %w", err)
 	}
 
 	return &LearningResult{
