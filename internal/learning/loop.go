@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/nvandessel/feedback-loop/internal/dedup"
+	"github.com/nvandessel/feedback-loop/internal/llm"
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/store"
 )
@@ -28,6 +30,15 @@ type LearningResult struct {
 
 	// ReviewReasons explains why review is required
 	ReviewReasons []string
+
+	// MergedIntoExisting indicates whether the behavior was merged into an existing one
+	MergedIntoExisting bool
+
+	// MergedBehaviorID is the ID of the merged behavior (if merge occurred)
+	MergedBehaviorID string
+
+	// MergeSimilarity is the similarity score with the merged behavior
+	MergeSimilarity float64
 }
 
 // LearningLoop orchestrates the correction -> behavior pipeline.
@@ -52,12 +63,31 @@ type LearningLoopConfig struct {
 	// Behaviors with confidence >= this threshold and no review flags are auto-accepted.
 	// Default: 0.8
 	AutoAcceptThreshold float64
+
+	// AutoMerge enables automatic merging of duplicate behaviors.
+	// When enabled, new behaviors that are highly similar to existing ones
+	// are automatically merged instead of creating duplicates.
+	AutoMerge bool
+
+	// AutoMergeThreshold is the minimum similarity score for auto-merging.
+	// Behaviors with similarity >= this threshold are merged.
+	// Default: 0.9
+	AutoMergeThreshold float64
+
+	// LLMClient is the optional LLM client for semantic comparison and merging.
+	LLMClient llm.Client
+
+	// Deduplicator is the optional deduplicator for finding duplicates.
+	// If nil, auto-merge is disabled regardless of AutoMerge setting.
+	Deduplicator dedup.Deduplicator
 }
 
 // DefaultLearningLoopConfig returns sensible defaults for the learning loop.
 func DefaultLearningLoopConfig() LearningLoopConfig {
 	return LearningLoopConfig{
 		AutoAcceptThreshold: 0.8,
+		AutoMerge:           false,
+		AutoMergeThreshold:  0.9,
 	}
 }
 
@@ -68,12 +98,28 @@ func NewLearningLoop(s store.GraphStore, config *LearningLoopConfig) LearningLoo
 	if config != nil {
 		cfg = *config
 	}
+
+	// Create placer with optional LLM support
+	var placer GraphPlacer
+	if cfg.LLMClient != nil {
+		placer = NewGraphPlacerWithConfig(s, &GraphPlacerConfig{
+			LLMClient:              cfg.LLMClient,
+			UseLLMForSimilarity:    true,
+			LLMSimilarityThreshold: 0.5,
+		})
+	} else {
+		placer = NewGraphPlacer(s)
+	}
+
 	return &learningLoop{
 		store:               s,
 		capturer:            NewCorrectionCapture(),
 		extractor:           NewBehaviorExtractor(),
-		placer:              NewGraphPlacer(s),
+		placer:              placer,
 		autoAcceptThreshold: cfg.AutoAcceptThreshold,
+		autoMerge:           cfg.AutoMerge,
+		autoMergeThreshold:  cfg.AutoMergeThreshold,
+		deduplicator:        cfg.Deduplicator,
 	}
 }
 
@@ -84,6 +130,9 @@ type learningLoop struct {
 	extractor           BehaviorExtractor
 	placer              GraphPlacer
 	autoAcceptThreshold float64
+	autoMerge           bool
+	autoMergeThreshold  float64
+	deduplicator        dedup.Deduplicator
 }
 
 // ProcessCorrection implements LearningLoop.
@@ -94,17 +143,26 @@ func (l *learningLoop) ProcessCorrection(ctx context.Context, correction models.
 		return nil, fmt.Errorf("extraction failed: %w", err)
 	}
 
-	// Step 2: Determine graph placement
+	// Step 2: Check for duplicates and auto-merge if enabled
+	if l.autoMerge && l.deduplicator != nil {
+		mergeResult, err := l.tryAutoMerge(ctx, candidate)
+		if err == nil && mergeResult != nil {
+			return mergeResult, nil
+		}
+		// Continue with normal flow if auto-merge didn't happen
+	}
+
+	// Step 3: Determine graph placement
 	placement, err := l.placer.Place(ctx, candidate)
 	if err != nil {
 		return nil, fmt.Errorf("placement failed: %w", err)
 	}
 
-	// Step 3: Decide if auto-accept or needs review
+	// Step 4: Decide if auto-accept or needs review
 	requiresReview, reasons := l.needsReview(candidate, placement)
 	autoAccepted := !requiresReview && placement.Confidence >= l.autoAcceptThreshold
 
-	// Step 4: Always commit to graph (either as approved or pending)
+	// Step 5: Always commit to graph (either as approved or pending)
 	// Auto-accepted behaviors will have ApprovedBy set to "auto"
 	// Behaviors requiring review will be saved as pending (ApprovedBy="")
 	if autoAccepted {
@@ -124,6 +182,54 @@ func (l *learningLoop) ProcessCorrection(ctx context.Context, correction models.
 		AutoAccepted:      autoAccepted,
 		RequiresReview:    requiresReview,
 		ReviewReasons:     reasons,
+	}, nil
+}
+
+// tryAutoMerge attempts to merge the candidate with existing duplicates.
+// Returns a LearningResult if merge occurred, nil otherwise.
+func (l *learningLoop) tryAutoMerge(ctx context.Context, candidate *models.Behavior) (*LearningResult, error) {
+	// Find duplicates
+	duplicates, err := l.deduplicator.FindDuplicates(ctx, candidate)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if any duplicate exceeds the merge threshold
+	var bestMatch *dedup.DuplicateMatch
+	for i := range duplicates {
+		if duplicates[i].Similarity >= l.autoMergeThreshold {
+			if bestMatch == nil || duplicates[i].Similarity > bestMatch.Similarity {
+				bestMatch = &duplicates[i]
+			}
+		}
+	}
+
+	if bestMatch == nil {
+		return nil, nil // No suitable duplicate found
+	}
+
+	// Perform the merge
+	merged, err := l.deduplicator.MergeDuplicates(ctx, []dedup.DuplicateMatch{*bestMatch}, candidate)
+	if err != nil {
+		return nil, fmt.Errorf("merge failed: %w", err)
+	}
+
+	// Create placement for the merged behavior
+	placement := &PlacementDecision{
+		Action:     "merge",
+		TargetID:   bestMatch.Behavior.ID,
+		Confidence: bestMatch.Similarity,
+	}
+
+	return &LearningResult{
+		Correction:         models.Correction{}, // Original correction not needed for merge
+		CandidateBehavior:  *merged,
+		Placement:          *placement,
+		AutoAccepted:       true,
+		RequiresReview:     false,
+		MergedIntoExisting: true,
+		MergedBehaviorID:   bestMatch.Behavior.ID,
+		MergeSimilarity:    bestMatch.Similarity,
 	}, nil
 }
 
