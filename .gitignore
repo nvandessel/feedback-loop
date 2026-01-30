@@ -3,3 +3,6 @@
 
 # Built binaries
 /floop
+
+# Git worktrees for parallel agent work
+.worktrees/
