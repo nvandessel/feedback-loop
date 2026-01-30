@@ -299,7 +299,7 @@ func TestGraphPlacer_computeSimilarity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := gp.computeSimilarity(tt.a, tt.b)
+			got := gp.computeSimilarity(context.Background(), tt.a, tt.b)
 			if got < tt.wantMin || got > tt.wantMax {
 				t.Errorf("computeSimilarity() = %v, want between %v and %v", got, tt.wantMin, tt.wantMax)
 			}
@@ -583,7 +583,7 @@ func TestGraphPlacer_determineEdges(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			edges := gp.determineEdges(tt.behavior, tt.existing)
+			edges := gp.determineEdges(context.Background(), tt.behavior, tt.existing)
 
 			gotKinds := make(map[string]bool)
 			for _, e := range edges {
