@@ -181,6 +181,14 @@ Example:
 			root, _ := cmd.Flags().GetString("root")
 			scope, _ := cmd.Flags().GetString("scope")
 
+			// Validate required parameters
+			if wrong == "" {
+				return fmt.Errorf("--wrong is required and cannot be empty")
+			}
+			if right == "" {
+				return fmt.Errorf("--right is required and cannot be empty")
+			}
+
 			// Build context snapshot
 			now := time.Now()
 			ctxSnapshot := models.ContextSnapshot{
