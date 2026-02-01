@@ -14,30 +14,45 @@ import (
 )
 
 const (
-	openAIEndpoint     = "https://api.openai.com/v1/chat/completions"
-	openAIDefaultModel = "gpt-4o-mini"
+	openAIDefaultEndpoint = "https://api.openai.com/v1"
+	openAIDefaultModel    = "gpt-4o-mini"
+	ollamaDefaultModel    = "llama3.2"
 )
 
 // OpenAIClient implements the Client interface using the OpenAI API.
+// It also works with OpenAI-compatible APIs like Ollama.
 type OpenAIClient struct {
-	apiKey  string
-	model   string
-	timeout time.Duration
-	client  *http.Client
+	provider string
+	apiKey   string
+	baseURL  string
+	model    string
+	timeout  time.Duration
+	client   *http.Client
 }
 
 // NewOpenAIClient creates a new OpenAIClient with the given configuration.
 // If config.APIKey is empty, it falls back to the OPENAI_API_KEY environment variable.
-// If config.Model is empty, it defaults to gpt-4o-mini.
+// If config.BaseURL is empty, it defaults to the OpenAI API endpoint.
+// If config.Model is empty, it defaults to gpt-4o-mini (or llama3.2 for ollama).
 func NewOpenAIClient(config ClientConfig) *OpenAIClient {
 	apiKey := config.APIKey
 	if apiKey == "" {
 		apiKey = os.Getenv("OPENAI_API_KEY")
 	}
 
+	baseURL := config.BaseURL
+	if baseURL == "" {
+		baseURL = openAIDefaultEndpoint
+	}
+
 	model := config.Model
 	if model == "" {
-		model = openAIDefaultModel
+		// Use appropriate default based on provider
+		if config.Provider == "ollama" {
+			model = ollamaDefaultModel
+		} else {
+			model = openAIDefaultModel
+		}
 	}
 
 	timeout := config.Timeout
@@ -46,10 +61,12 @@ func NewOpenAIClient(config ClientConfig) *OpenAIClient {
 	}
 
 	return &OpenAIClient{
-		apiKey:  apiKey,
-		model:   model,
-		timeout: timeout,
-		client:  &http.Client{Timeout: timeout},
+		provider: config.Provider,
+		apiKey:   apiKey,
+		baseURL:  baseURL,
+		model:    model,
+		timeout:  timeout,
+		client:   &http.Client{Timeout: timeout},
 	}
 }
 
@@ -121,12 +138,16 @@ func (c *OpenAIClient) MergeBehaviors(ctx context.Context, behaviors []*models.B
 	return result, nil
 }
 
-// Available returns true if the OpenAI API key is present.
+// Available returns true if the client is ready to make requests.
+// For OpenAI, this requires an API key. For Ollama, no key is needed.
 func (c *OpenAIClient) Available() bool {
+	if c.provider == "ollama" {
+		return true // Ollama doesn't require API key
+	}
 	return c.apiKey != ""
 }
 
-// callAPI makes a request to the OpenAI chat completions API.
+// callAPI makes a request to the OpenAI-compatible chat completions API.
 func (c *OpenAIClient) callAPI(ctx context.Context, prompt string) (string, error) {
 	reqBody := openAIChatRequest{
 		Model: c.model,
@@ -140,13 +161,16 @@ func (c *OpenAIClient) callAPI(ctx context.Context, prompt string) (string, erro
 		return "", fmt.Errorf("marshaling request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", openAIEndpoint, bytes.NewReader(jsonBody))
+	endpoint := c.baseURL + "/chat/completions"
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(jsonBody))
 	if err != nil {
 		return "", fmt.Errorf("creating request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	if c.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
 
 	resp, err := c.client.Do(req)
 	if err != nil {

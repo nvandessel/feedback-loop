@@ -171,7 +171,7 @@ func (d *StoreDeduplicator) DeduplicateStore(ctx context.Context, s store.GraphS
 			report.MergedBehaviors = append(report.MergedBehaviors, merged)
 
 			// Update the store with the merged behavior
-			node := behaviorToNode(merged)
+			node := BehaviorToNode(merged)
 			if _, err := s.AddNode(ctx, node); err != nil {
 				report.Errors = append(report.Errors, fmt.Sprintf("failed to save merged behavior %s: %v", merged.ID, err))
 			}
@@ -260,8 +260,8 @@ func (d *StoreDeduplicator) computeContentSimilarity(a, b string) float64 {
 	return float64(intersection) / float64(union)
 }
 
-// behaviorToNode converts a models.Behavior to a store.Node.
-func behaviorToNode(b *models.Behavior) store.Node {
+// BehaviorToNode converts a models.Behavior to a store.Node.
+func BehaviorToNode(b *models.Behavior) store.Node {
 	return store.Node{
 		ID:   b.ID,
 		Kind: "behavior",

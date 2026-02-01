@@ -24,11 +24,16 @@ type FloopConfig struct {
 
 // LLMConfig configures LLM-based behavior comparison and merging.
 type LLMConfig struct {
-	// Provider identifies the LLM backend: "anthropic", "openai", "subagent", or "" for disabled.
+	// Provider identifies the LLM backend: "anthropic", "openai", "ollama", "subagent", or "" for disabled.
 	Provider string `json:"provider" yaml:"provider"`
 
 	// APIKey is the API key for the provider. Supports ${VAR} syntax for env vars.
+	// Not required for ollama.
 	APIKey string `json:"api_key,omitempty" yaml:"api_key,omitempty"`
+
+	// BaseURL is the API endpoint URL. Used for ollama or custom OpenAI-compatible endpoints.
+	// Defaults: ollama=http://localhost:11434/v1, openai=https://api.openai.com/v1
+	BaseURL string `json:"base_url,omitempty" yaml:"base_url,omitempty"`
 
 	// ComparisonModel is the model to use for behavior comparison.
 	ComparisonModel string `json:"comparison_model,omitempty" yaml:"comparison_model,omitempty"`
@@ -128,9 +133,9 @@ func (c *FloopConfig) Validate() error {
 		return fmt.Errorf("timeout must be non-negative, got %v", c.LLM.Timeout)
 	}
 
-	validProviders := map[string]bool{"": true, "anthropic": true, "openai": true, "subagent": true}
+	validProviders := map[string]bool{"": true, "anthropic": true, "openai": true, "ollama": true, "subagent": true}
 	if !validProviders[c.LLM.Provider] {
-		return fmt.Errorf("invalid provider: %s (valid: anthropic, openai, subagent, or empty)", c.LLM.Provider)
+		return fmt.Errorf("invalid provider: %s (valid: anthropic, openai, ollama, subagent, or empty)", c.LLM.Provider)
 	}
 
 	return nil
@@ -152,6 +157,15 @@ func applyEnvOverrides(config *FloopConfig) {
 
 	if v := os.Getenv("OPENAI_API_KEY"); v != "" && config.LLM.Provider == "openai" {
 		config.LLM.APIKey = v
+	}
+
+	// Ollama uses OLLAMA_HOST for base URL (no API key needed)
+	if config.LLM.Provider == "ollama" {
+		if v := os.Getenv("OLLAMA_HOST"); v != "" {
+			config.LLM.BaseURL = v
+		} else if config.LLM.BaseURL == "" {
+			config.LLM.BaseURL = "http://localhost:11434/v1"
+		}
 	}
 
 	if v := os.Getenv("FLOOP_AUTO_MERGE"); v != "" {

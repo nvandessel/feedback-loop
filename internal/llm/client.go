@@ -41,11 +41,14 @@ type MergeResult struct {
 
 // ClientConfig configures an LLM client.
 type ClientConfig struct {
-	// Provider identifies the LLM backend: "anthropic", "openai", "subagent", "fallback"
+	// Provider identifies the LLM backend: "anthropic", "openai", "ollama", "subagent", "fallback"
 	Provider string `json:"provider" yaml:"provider"`
 
-	// APIKey is the API key for the provider (not used for subagent or fallback).
+	// APIKey is the API key for the provider (not used for subagent, fallback, or ollama).
 	APIKey string `json:"api_key,omitempty" yaml:"api_key,omitempty"`
+
+	// BaseURL is the API endpoint URL. Used for ollama or custom OpenAI-compatible endpoints.
+	BaseURL string `json:"base_url,omitempty" yaml:"base_url,omitempty"`
 
 	// Model is the model identifier to use for requests.
 	Model string `json:"model,omitempty" yaml:"model,omitempty"`

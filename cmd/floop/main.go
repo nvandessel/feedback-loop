@@ -15,11 +15,37 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/config"
 	"github.com/nvandessel/feedback-loop/internal/dedup"
 	"github.com/nvandessel/feedback-loop/internal/learning"
+	"github.com/nvandessel/feedback-loop/internal/llm"
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/store"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
+
+// createLLMClient creates an LLM client based on config settings.
+// Returns nil if LLM is not enabled or configured.
+func createLLMClient(cfg *config.FloopConfig) llm.Client {
+	if cfg == nil || !cfg.LLM.Enabled || cfg.LLM.Provider == "" {
+		return nil
+	}
+
+	clientCfg := llm.ClientConfig{
+		Provider: cfg.LLM.Provider,
+		APIKey:   cfg.LLM.APIKey,
+		BaseURL:  cfg.LLM.BaseURL,
+		Model:    cfg.LLM.ComparisonModel,
+		Timeout:  cfg.LLM.Timeout,
+	}
+
+	switch cfg.LLM.Provider {
+	case "ollama", "openai":
+		return llm.NewOpenAIClient(clientCfg)
+	case "anthropic":
+		return llm.NewAnthropicClient(clientCfg)
+	default:
+		return llm.NewFallbackClient()
+	}
+}
 
 var version = "0.1.0-dev"
 
@@ -1949,11 +1975,15 @@ Examples:
 
 			ctx := context.Background()
 
+			// Load config to check for LLM settings
+			floopCfg, _ := config.Load()
+			useLLM := floopCfg != nil && floopCfg.LLM.Enabled && floopCfg.LLM.Provider != ""
+
 			// Configure deduplication
 			dedupConfig := dedup.DeduplicatorConfig{
 				SimilarityThreshold: threshold,
 				AutoMerge:           !dryRun,
-				UseLLM:              false,
+				UseLLM:              useLLM,
 				MaxBatchSize:        100,
 			}
 
@@ -2022,8 +2052,16 @@ func runSingleStoreDedup(ctx context.Context, root string, scope store.StoreScop
 		Similarity float64
 	}
 
+	// Create LLM client for similarity comparison
+	floopCfg, _ := config.Load()
+	llmClient := createLLMClient(floopCfg)
+
 	var duplicates []duplicatePair
-	deduplicator := &crossStoreHelper{threshold: cfg.SimilarityThreshold}
+	deduplicator := &crossStoreHelper{
+		threshold: cfg.SimilarityThreshold,
+		llmClient: llmClient,
+		useLLM:    cfg.UseLLM && llmClient != nil,
+	}
 
 	for i := 0; i < len(behaviors); i++ {
 		for j := i + 1; j < len(behaviors); j++ {
@@ -2092,7 +2130,13 @@ func runSingleStoreDedup(ctx context.Context, root string, scope store.StoreScop
 		}
 
 		// Use the existing merge command logic (behavior A survives, B is merged into A)
-		merger := dedup.NewBehaviorMerger(dedup.MergerConfig{UseLLM: false})
+		// Create LLM client if configured
+		floopCfg, _ := config.Load()
+		llmClient := createLLMClient(floopCfg)
+		merger := dedup.NewBehaviorMerger(dedup.MergerConfig{
+			UseLLM:    llmClient != nil,
+			LLMClient: llmClient,
+		})
 		mergedBehavior, err := merger.Merge(ctx, []*models.Behavior{dup.BehaviorA, dup.BehaviorB})
 		if err != nil {
 			if !jsonOut {
@@ -2100,6 +2144,25 @@ func runSingleStoreDedup(ctx context.Context, root string, scope store.StoreScop
 					dup.BehaviorA.ID, dup.BehaviorB.ID, err)
 			}
 			continue
+		}
+
+		// Update behavior A with merged content
+		mergedNode := dedup.BehaviorToNode(mergedBehavior)
+		mergedNode.ID = dup.BehaviorA.ID // Keep original ID
+		if err := graphStore.UpdateNode(ctx, mergedNode); err != nil {
+			if !jsonOut {
+				fmt.Fprintf(os.Stderr, "Warning: failed to save merged behavior: %v\n", err)
+			}
+			continue
+		}
+
+		// Delete behavior B
+		if err := graphStore.DeleteNode(ctx, dup.BehaviorB.ID); err != nil {
+			if !jsonOut {
+				fmt.Fprintf(os.Stderr, "Warning: failed to delete merged behavior %s: %v\n",
+					dup.BehaviorB.ID, err)
+			}
+			// Continue anyway - merge was successful even if cleanup failed
 		}
 
 		// Mark B as merged
@@ -2150,8 +2213,13 @@ func runCrossStoreDedup(ctx context.Context, root string, cfg dedup.Deduplicator
 	}
 	defer globalStore.Close()
 
-	// Create merger
-	merger := dedup.NewBehaviorMerger(dedup.MergerConfig{UseLLM: cfg.UseLLM})
+	// Create merger with LLM client if configured
+	floopCfg, _ := config.Load()
+	llmClient := createLLMClient(floopCfg)
+	merger := dedup.NewBehaviorMerger(dedup.MergerConfig{
+		UseLLM:    cfg.UseLLM && llmClient != nil,
+		LLMClient: llmClient,
+	})
 
 	// Configure auto-merge based on dry-run
 	crossCfg := cfg
@@ -2234,10 +2302,26 @@ func loadBehaviorsFromStore(ctx context.Context, graphStore store.GraphStore) ([
 // crossStoreHelper provides similarity computation for deduplication.
 type crossStoreHelper struct {
 	threshold float64
+	llmClient llm.Client
+	useLLM    bool
 }
 
 // computeSimilarity calculates similarity between two behaviors.
+// Uses LLM-based comparison if available, otherwise falls back to Jaccard.
 func (h *crossStoreHelper) computeSimilarity(a, b *models.Behavior) float64 {
+	// Try LLM-based comparison first
+	if h.useLLM && h.llmClient != nil && h.llmClient.Available() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		result, err := h.llmClient.CompareBehaviors(ctx, a, b)
+		if err == nil && result != nil {
+			return result.SemanticSimilarity
+		}
+		// Fall through to Jaccard on error
+	}
+
+	// Fallback: weighted Jaccard similarity
 	score := 0.0
 
 	// Check 'when' overlap (40% weight)
@@ -2381,6 +2465,7 @@ func newConfigListCmd() *cobra.Command {
 				} else {
 					fmt.Printf("  llm.api_key:           (not set)\n")
 				}
+				fmt.Printf("  llm.base_url:          %s\n", valueOrDefault(cfg.LLM.BaseURL, "(default)"))
 				fmt.Printf("  llm.comparison_model:  %s\n", valueOrDefault(cfg.LLM.ComparisonModel, "(default)"))
 				fmt.Printf("  llm.merge_model:       %s\n", valueOrDefault(cfg.LLM.MergeModel, "(default)"))
 				fmt.Printf("  llm.timeout:           %v\n", cfg.LLM.Timeout)
@@ -2491,6 +2576,8 @@ func getConfigValue(cfg *config.FloopConfig, key string) (interface{}, bool) {
 		return cfg.LLM.Provider, true
 	case "llm.api_key":
 		return cfg.LLM.APIKey, true
+	case "llm.base_url":
+		return cfg.LLM.BaseURL, true
 	case "llm.comparison_model":
 		return cfg.LLM.ComparisonModel, true
 	case "llm.merge_model":
@@ -2514,13 +2601,15 @@ func getConfigValue(cfg *config.FloopConfig, key string) (interface{}, bool) {
 func setConfigValue(cfg *config.FloopConfig, key, value string) error {
 	switch key {
 	case "llm.provider":
-		validProviders := map[string]bool{"": true, "anthropic": true, "openai": true, "subagent": true}
+		validProviders := map[string]bool{"": true, "anthropic": true, "openai": true, "ollama": true, "subagent": true}
 		if !validProviders[value] {
-			return fmt.Errorf("invalid provider: %s (valid: anthropic, openai, subagent, or empty)", value)
+			return fmt.Errorf("invalid provider: %s (valid: anthropic, openai, ollama, subagent, or empty)", value)
 		}
 		cfg.LLM.Provider = value
 	case "llm.api_key":
 		cfg.LLM.APIKey = value
+	case "llm.base_url":
+		cfg.LLM.BaseURL = value
 	case "llm.comparison_model":
 		cfg.LLM.ComparisonModel = value
 	case "llm.merge_model":
