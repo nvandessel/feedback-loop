@@ -1,9 +1,5 @@
 # Feedback Loop - Agent Instructions
 
-## ⚠️ CRITICAL: Read @FLOOP.md
-
----
-
 ## Project Overview
 
 **feedback-loop** (`floop`) is a CLI tool that enables AI agents to learn from corrections and maintain consistent behavior across sessions.
