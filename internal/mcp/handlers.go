@@ -340,10 +340,11 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 	ctxBuilder.WithRepoRoot(s.root)
 	ctxSnapshot := ctxBuilder.Build()
 
-	// Create correction
+	// Create correction with nanosecond-precision ID for uniqueness
+	now := time.Now()
 	correction := models.Correction{
-		ID:              fmt.Sprintf("correction-%d", time.Now().Unix()),
-		Timestamp:       time.Now(),
+		ID:              fmt.Sprintf("c-%d", now.UnixNano()),
+		Timestamp:       now,
 		Context:         ctxSnapshot,
 		AgentAction:     args.Wrong,
 		CorrectedAction: args.Right,
@@ -351,22 +352,21 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 		Processed:       false,
 	}
 
-	// Configure learning loop with auto-merge if requested
+	// Configure learning loop - auto-merge is ON by default
+	// This prevents duplicate behaviors from accumulating
 	loopConfig := &learning.LearningLoopConfig{
 		AutoAcceptThreshold: 0.8,
-		AutoMerge:           args.AutoMerge,
+		AutoMerge:           true, // Always deduplicate
 		AutoMergeThreshold:  0.9,
 	}
 
-	// If auto-merge is enabled, create a deduplicator
-	if args.AutoMerge {
-		merger := dedup.NewBehaviorMerger(dedup.MergerConfig{}) // Empty config uses basic merge
-		dedupConfig := dedup.DeduplicatorConfig{
-			SimilarityThreshold: 0.9,
-			AutoMerge:           true,
-		}
-		loopConfig.Deduplicator = dedup.NewStoreDeduplicator(s.store, merger, dedupConfig)
+	// Create deduplicator for automatic merging
+	merger := dedup.NewBehaviorMerger(dedup.MergerConfig{})
+	dedupConfig := dedup.DeduplicatorConfig{
+		SimilarityThreshold: 0.9,
+		AutoMerge:           true,
 	}
+	loopConfig.Deduplicator = dedup.NewStoreDeduplicator(s.store, merger, dedupConfig)
 
 	// Process correction through learning loop
 	loop := learning.NewLearningLoop(s.store, loopConfig)
@@ -380,6 +380,18 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 	if err := s.store.Sync(ctx); err != nil {
 		return nil, FloopLearnOutput{}, fmt.Errorf("failed to sync store: %w", err)
 	}
+
+	// Mark correction as processed and write to corrections log for audit trail
+	correction.Processed = true
+	processedAt := time.Now()
+	correction.ProcessedAt = &processedAt
+
+	correctionsPath := filepath.Join(s.root, ".floop", "corrections.jsonl")
+	if f, err := os.OpenFile(correctionsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+		json.NewEncoder(f).Encode(correction)
+		f.Close()
+	}
+	// Note: We don't fail if corrections.jsonl write fails - the behavior is already saved
 
 	// Build result message
 	message := fmt.Sprintf("Learned behavior: %s", learningResult.CandidateBehavior.Name)
