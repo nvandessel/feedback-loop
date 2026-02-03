@@ -131,9 +131,9 @@ func TestNodeToBehavior(t *testing.T) {
 			Content: map[string]interface{}{},
 			Metadata: map[string]interface{}{
 				"stats": map[string]interface{}{
-					"times_activated": 10,
-					"times_followed":  8,
-					"times_confirmed": 5,
+					"times_activated":  10,
+					"times_followed":   8,
+					"times_confirmed":  5,
 					"times_overridden": 2,
 				},
 			},

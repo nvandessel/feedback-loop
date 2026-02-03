@@ -115,12 +115,12 @@ func TestExtractJSON(t *testing.T) {
 			want:  `[1, 2, 3]`,
 		},
 		{
-			name: "JSON in markdown code block with language",
+			name:  "JSON in markdown code block with language",
 			input: "```json\n{\"key\": \"value\"}\n```",
 			want:  `{"key": "value"}`,
 		},
 		{
-			name: "JSON in generic markdown code block",
+			name:  "JSON in generic markdown code block",
 			input: "```\n{\"key\": \"value\"}\n```",
 			want:  `{"key": "value"}`,
 		},
@@ -140,7 +140,7 @@ func TestExtractJSON(t *testing.T) {
 			want:  `{"key": "value"}`,
 		},
 		{
-			name: "markdown block with extra whitespace",
+			name:  "markdown block with extra whitespace",
 			input: "```json\n\n  {\"key\": \"value\"}  \n\n```",
 			want:  `{"key": "value"}`,
 		},

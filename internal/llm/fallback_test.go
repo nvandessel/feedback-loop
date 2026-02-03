@@ -26,10 +26,10 @@ func TestFallbackClient_CompareBehaviors(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name           string
-		a              *models.Behavior
-		b              *models.Behavior
-		wantHighSim    bool
+		name            string
+		a               *models.Behavior
+		b               *models.Behavior
+		wantHighSim     bool
 		wantIntentMatch bool
 	}{
 		{
@@ -42,7 +42,7 @@ func TestFallbackClient_CompareBehaviors(t *testing.T) {
 				Content: models.BehaviorContent{Canonical: "use pathlib.Path instead of os.path"},
 				When:    map[string]interface{}{"language": "python"},
 			},
-			wantHighSim:    true,
+			wantHighSim:     true,
 			wantIntentMatch: true,
 		},
 		{
@@ -55,7 +55,7 @@ func TestFallbackClient_CompareBehaviors(t *testing.T) {
 				Content: models.BehaviorContent{Canonical: "prefer pathlib over os.path for file paths"},
 				When:    map[string]interface{}{"language": "python"},
 			},
-			wantHighSim:    true,
+			wantHighSim:     true,
 			wantIntentMatch: false, // Jaccard similarity may not be high enough for intent match
 		},
 		{
@@ -68,7 +68,7 @@ func TestFallbackClient_CompareBehaviors(t *testing.T) {
 				Content: models.BehaviorContent{Canonical: "always run tests before committing"},
 				When:    map[string]interface{}{"task": "commit"},
 			},
-			wantHighSim:    false,
+			wantHighSim:     false,
 			wantIntentMatch: false,
 		},
 	}
