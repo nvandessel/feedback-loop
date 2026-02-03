@@ -1,5 +1,24 @@
 # Feedback Loop - Agent Instructions
 
+## Floop Integration (REQUIRED)
+
+You have persistent memory via floop. Your learned behaviors are auto-injected at session start via hooks.
+
+**When corrected, IMMEDIATELY capture it:**
+```
+mcp__floop__floop_learn(wrong="what you did", right="what to do instead")
+```
+
+Do NOT wait for permission. Capture learnings proactively. The hooks will also auto-detect corrections, but explicit capture is more reliable.
+
+**Available MCP tools:**
+- `floop_active` - See currently active behaviors for this context
+- `floop_learn` - Capture a correction (USE PROACTIVELY)
+- `floop_list` - List all stored behaviors
+- `floop_deduplicate` - Merge duplicate behaviors
+
+---
+
 ## Project Overview
 
 **feedback-loop** (`floop`) is a CLI tool that enables AI agents to learn from corrections and maintain consistent behavior across sessions.

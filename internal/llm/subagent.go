@@ -235,6 +235,27 @@ func (c *SubagentClient) runSubagent(ctx context.Context, prompt string) (string
 	return response, nil
 }
 
+// ExtractCorrection analyzes user text to determine if it contains a correction.
+// Returns the extraction result with wrong/right if a correction is detected.
+func (c *SubagentClient) ExtractCorrection(ctx context.Context, userText string) (*CorrectionExtractionResult, error) {
+	if !c.Available() {
+		return nil, fmt.Errorf("subagent client not available")
+	}
+
+	prompt := CorrectionExtractionPrompt(userText)
+	response, err := c.runSubagent(ctx, prompt)
+	if err != nil {
+		return nil, fmt.Errorf("running extraction subagent: %w", err)
+	}
+
+	result, err := ParseCorrectionExtractionResponse(response)
+	if err != nil {
+		return nil, fmt.Errorf("parsing extraction response: %w", err)
+	}
+
+	return result, nil
+}
+
 // DetectAndCreate attempts to create a SubagentClient if running in a CLI session.
 // Returns nil if not in a CLI session or if detection fails.
 func DetectAndCreate() *SubagentClient {

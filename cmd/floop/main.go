@@ -92,6 +92,8 @@ context-aware behavior activation for consistent agent operation.`,
 		// Token optimization commands
 		newSummarizeCmd(),
 		newStatsCmd(),
+		// Hook support commands
+		newDetectCorrectionCmd(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {
