@@ -172,8 +172,13 @@ func (s *SQLiteGraphStore) addBehavior(ctx context.Context, node Node) (string, 
 		behaviorContent = bc
 	} else if content["content"] != nil {
 		// Convert struct to map via JSON round-trip
-		b, _ := json.Marshal(content["content"])
-		json.Unmarshal(b, &behaviorContent)
+		b, err := json.Marshal(content["content"])
+		if err != nil {
+			return "", fmt.Errorf("marshal behavior content: %w", err)
+		}
+		if err := json.Unmarshal(b, &behaviorContent); err != nil {
+			return "", fmt.Errorf("unmarshal behavior content: %w", err)
+		}
 	}
 	if behaviorContent == nil {
 		behaviorContent = make(map[string]interface{})
@@ -215,8 +220,13 @@ func (s *SQLiteGraphStore) addBehavior(ctx context.Context, node Node) (string, 
 		provenance = p
 	} else if content["provenance"] != nil {
 		// Convert struct to map via JSON round-trip
-		b, _ := json.Marshal(content["provenance"])
-		json.Unmarshal(b, &provenance)
+		b, err := json.Marshal(content["provenance"])
+		if err != nil {
+			return "", fmt.Errorf("marshal provenance: %w", err)
+		}
+		if err := json.Unmarshal(b, &provenance); err != nil {
+			return "", fmt.Errorf("unmarshal provenance: %w", err)
+		}
 	}
 	if provenance == nil {
 		provenance = make(map[string]interface{})
@@ -232,13 +242,25 @@ func (s *SQLiteGraphStore) addBehavior(ctx context.Context, node Node) (string, 
 
 	var requiresJSON, overridesJSON, conflictsJSON []byte
 	if requiresRaw != nil {
-		requiresJSON, _ = json.Marshal(requiresRaw)
+		var err error
+		requiresJSON, err = json.Marshal(requiresRaw)
+		if err != nil {
+			return "", fmt.Errorf("marshal requires: %w", err)
+		}
 	}
 	if overridesRaw != nil {
-		overridesJSON, _ = json.Marshal(overridesRaw)
+		var err error
+		overridesJSON, err = json.Marshal(overridesRaw)
+		if err != nil {
+			return "", fmt.Errorf("marshal overrides: %w", err)
+		}
 	}
 	if conflictsRaw != nil {
-		conflictsJSON, _ = json.Marshal(conflictsRaw)
+		var err error
+		conflictsJSON, err = json.Marshal(conflictsRaw)
+		if err != nil {
+			return "", fmt.Errorf("marshal conflicts: %w", err)
+		}
 	}
 
 	// Metadata
@@ -267,7 +289,11 @@ func (s *SQLiteGraphStore) addBehavior(ctx context.Context, node Node) (string, 
 	}
 	var extraMetadataJSON []byte
 	if len(extraMetadata) > 0 {
-		extraMetadataJSON, _ = json.Marshal(extraMetadata)
+		var err error
+		extraMetadataJSON, err = json.Marshal(extraMetadata)
+		if err != nil {
+			return "", fmt.Errorf("marshal extra metadata: %w", err)
+		}
 	}
 
 	// Compute content hash for deduplication
@@ -298,7 +324,10 @@ func (s *SQLiteGraphStore) addBehavior(ctx context.Context, node Node) (string, 
 	// Insert when conditions
 	when, _ := content["when"].(map[string]interface{})
 	for field, value := range when {
-		valueStr, valueType := serializeWhenValue(value)
+		valueStr, valueType, err := serializeWhenValue(value)
+		if err != nil {
+			return "", fmt.Errorf("serialize when condition %s: %w", field, err)
+		}
 		_, err = s.db.ExecContext(ctx, `
 			INSERT OR REPLACE INTO behavior_when (behavior_id, field, value, value_type)
 			VALUES (?, ?, ?, ?)
@@ -314,8 +343,13 @@ func (s *SQLiteGraphStore) addBehavior(ctx context.Context, node Node) (string, 
 		stats = s
 	} else if metadata["stats"] != nil {
 		// Convert struct to map via JSON round-trip
-		b, _ := json.Marshal(metadata["stats"])
-		json.Unmarshal(b, &stats)
+		b, err := json.Marshal(metadata["stats"])
+		if err != nil {
+			return "", fmt.Errorf("marshal stats: %w", err)
+		}
+		if err := json.Unmarshal(b, &stats); err != nil {
+			return "", fmt.Errorf("unmarshal stats: %w", err)
+		}
 	}
 	if stats == nil {
 		stats = make(map[string]interface{})
@@ -409,17 +443,17 @@ func (s *SQLiteGraphStore) GetNode(ctx context.Context, id string) (*Node, error
 // getNodeUnlocked retrieves a node without locking (caller must hold lock).
 func (s *SQLiteGraphStore) getNodeUnlocked(ctx context.Context, id string) (*Node, error) {
 	var (
-		name, kind                                            string
-		behaviorType                                          sql.NullString
-		canonical, expanded, summary                          sql.NullString
-		structuredJSON, tagsJSON                              sql.NullString
-		sourceType, correctionID, provenanceCreatedAt         sql.NullString
-		requiresJSON, overridesJSON, conflictsJSON            sql.NullString
-		confidence                                            float64
-		priority                                              int
-		scope                                                 sql.NullString
-		metadataExtraJSON                                     sql.NullString
-		createdAt, updatedAt                                  string
+		name, kind                                    string
+		behaviorType                                  sql.NullString
+		canonical, expanded, summary                  sql.NullString
+		structuredJSON, tagsJSON                      sql.NullString
+		sourceType, correctionID, provenanceCreatedAt sql.NullString
+		requiresJSON, overridesJSON, conflictsJSON    sql.NullString
+		confidence                                    float64
+		priority                                      int
+		scope                                         sql.NullString
+		metadataExtraJSON                             sql.NullString
+		createdAt, updatedAt                          string
 	)
 
 	err := s.db.QueryRowContext(ctx, `
@@ -462,7 +496,11 @@ func (s *SQLiteGraphStore) getNodeUnlocked(ctx context.Context, id string) (*Nod
 		if err := whenRows.Scan(&field, &value, &valueType); err != nil {
 			return nil, fmt.Errorf("failed to scan when condition: %w", err)
 		}
-		when[field] = deserializeWhenValue(value, valueType)
+		deserializedValue, err := deserializeWhenValue(value, valueType)
+		if err != nil {
+			return nil, fmt.Errorf("deserialize when condition %s for %s: %w", field, id, err)
+		}
+		when[field] = deserializedValue
 	}
 
 	// Query stats
@@ -496,12 +534,16 @@ func (s *SQLiteGraphStore) getNodeUnlocked(ctx context.Context, id string) (*Nod
 	}
 	if structuredJSON.Valid {
 		var structured interface{}
-		json.Unmarshal([]byte(structuredJSON.String), &structured)
+		if err := json.Unmarshal([]byte(structuredJSON.String), &structured); err != nil {
+			return nil, fmt.Errorf("unmarshal structured content for %s: %w", id, err)
+		}
 		behaviorContent["structured"] = structured
 	}
 	if tagsJSON.Valid {
 		var tags interface{}
-		json.Unmarshal([]byte(tagsJSON.String), &tags)
+		if err := json.Unmarshal([]byte(tagsJSON.String), &tags); err != nil {
+			return nil, fmt.Errorf("unmarshal tags for %s: %w", id, err)
+		}
 		behaviorContent["tags"] = tags
 	}
 	content["content"] = behaviorContent
@@ -522,17 +564,23 @@ func (s *SQLiteGraphStore) getNodeUnlocked(ctx context.Context, id string) (*Nod
 	// Relationships
 	if requiresJSON.Valid {
 		var requires interface{}
-		json.Unmarshal([]byte(requiresJSON.String), &requires)
+		if err := json.Unmarshal([]byte(requiresJSON.String), &requires); err != nil {
+			return nil, fmt.Errorf("unmarshal requires for %s: %w", id, err)
+		}
 		content["requires"] = requires
 	}
 	if overridesJSON.Valid {
 		var overrides interface{}
-		json.Unmarshal([]byte(overridesJSON.String), &overrides)
+		if err := json.Unmarshal([]byte(overridesJSON.String), &overrides); err != nil {
+			return nil, fmt.Errorf("unmarshal overrides for %s: %w", id, err)
+		}
 		content["overrides"] = overrides
 	}
 	if conflictsJSON.Valid {
 		var conflicts interface{}
-		json.Unmarshal([]byte(conflictsJSON.String), &conflicts)
+		if err := json.Unmarshal([]byte(conflictsJSON.String), &conflicts); err != nil {
+			return nil, fmt.Errorf("unmarshal conflicts for %s: %w", id, err)
+		}
 		content["conflicts"] = conflicts
 	}
 
@@ -967,36 +1015,49 @@ func nullBytes(b []byte) sql.NullString {
 	return sql.NullString{String: string(b), Valid: true}
 }
 
-func serializeWhenValue(value interface{}) (string, string) {
+func serializeWhenValue(value interface{}) (string, string, error) {
 	switch v := value.(type) {
 	case string:
-		return v, "string"
+		return v, "string", nil
 	case []interface{}:
-		b, _ := json.Marshal(v)
-		return string(b), "array"
+		b, err := json.Marshal(v)
+		if err != nil {
+			return "", "", fmt.Errorf("marshal array when value: %w", err)
+		}
+		return string(b), "array", nil
 	case []string:
-		b, _ := json.Marshal(v)
-		return string(b), "array"
+		b, err := json.Marshal(v)
+		if err != nil {
+			return "", "", fmt.Errorf("marshal string array when value: %w", err)
+		}
+		return string(b), "array", nil
 	default:
-		b, _ := json.Marshal(v)
-		return string(b), "json"
+		b, err := json.Marshal(v)
+		if err != nil {
+			return "", "", fmt.Errorf("marshal when value: %w", err)
+		}
+		return string(b), "json", nil
 	}
 }
 
-func deserializeWhenValue(value, valueType string) interface{} {
+func deserializeWhenValue(value, valueType string) (interface{}, error) {
 	switch valueType {
 	case "string":
-		return value
+		return value, nil
 	case "array":
 		var arr []interface{}
-		json.Unmarshal([]byte(value), &arr)
-		return arr
+		if err := json.Unmarshal([]byte(value), &arr); err != nil {
+			return nil, fmt.Errorf("unmarshal array when value: %w", err)
+		}
+		return arr, nil
 	case "glob":
-		return value
+		return value, nil
 	default:
 		var v interface{}
-		json.Unmarshal([]byte(value), &v)
-		return v
+		if err := json.Unmarshal([]byte(value), &v); err != nil {
+			return nil, fmt.Errorf("unmarshal when value: %w", err)
+		}
+		return v, nil
 	}
 }
 
