@@ -18,6 +18,7 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/learning"
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/ranking"
+	"github.com/nvandessel/feedback-loop/internal/store"
 	"github.com/nvandessel/feedback-loop/internal/summarization"
 	"github.com/nvandessel/feedback-loop/internal/tiering"
 )
@@ -47,6 +48,12 @@ func (s *Server) registerTools() error {
 		Name:        "floop_deduplicate",
 		Description: "Find and merge duplicate behaviors in the store",
 	}, s.handleFloopDeduplicate)
+
+	// Register floop_validate tool
+	sdk.AddTool(s.server, &sdk.Tool{
+		Name:        "floop_validate",
+		Description: "Validate the behavior graph for consistency issues (dangling references, cycles, self-references)",
+	}, s.handleFloopValidate)
 
 	return nil
 }
@@ -573,5 +580,73 @@ func (s *Server) handleFloopDeduplicate(ctx context.Context, req *sdk.CallToolRe
 		Merged:          report.MergesPerformed,
 		Results:         results,
 		Message:         message,
+	}, nil
+}
+
+// handleFloopValidate implements the floop_validate tool.
+func (s *Server) handleFloopValidate(ctx context.Context, req *sdk.CallToolRequest, args FloopValidateInput) (*sdk.CallToolResult, FloopValidateOutput, error) {
+	// Check if the store supports validation (MultiGraphStore or SQLiteGraphStore)
+	type graphValidator interface {
+		ValidateBehaviorGraph(ctx context.Context) ([]store.ValidationError, error)
+	}
+
+	validator, ok := s.store.(graphValidator)
+	if !ok {
+		return nil, FloopValidateOutput{}, fmt.Errorf("store does not support graph validation")
+	}
+
+	// Perform validation
+	validationErrors, err := validator.ValidateBehaviorGraph(ctx)
+	if err != nil {
+		return nil, FloopValidateOutput{}, fmt.Errorf("validation failed: %w", err)
+	}
+
+	// Convert to output format
+	outputErrors := make([]ValidationErrorOutput, len(validationErrors))
+	for i, ve := range validationErrors {
+		outputErrors[i] = ValidationErrorOutput{
+			BehaviorID: ve.BehaviorID,
+			Field:      ve.Field,
+			RefID:      ve.RefID,
+			Issue:      ve.Issue,
+		}
+	}
+
+	// Build message
+	var message string
+	if len(validationErrors) == 0 {
+		message = "Behavior graph is valid - no issues found"
+	} else {
+		// Categorize errors
+		var dangling, cycles, selfRefs int
+		for _, ve := range validationErrors {
+			switch ve.Issue {
+			case "dangling":
+				dangling++
+			case "cycle":
+				cycles++
+			case "self-reference":
+				selfRefs++
+			}
+		}
+
+		parts := []string{}
+		if dangling > 0 {
+			parts = append(parts, fmt.Sprintf("%d dangling reference(s)", dangling))
+		}
+		if cycles > 0 {
+			parts = append(parts, fmt.Sprintf("%d cycle(s)", cycles))
+		}
+		if selfRefs > 0 {
+			parts = append(parts, fmt.Sprintf("%d self-reference(s)", selfRefs))
+		}
+		message = fmt.Sprintf("Found %d issue(s): %s", len(validationErrors), strings.Join(parts, ", "))
+	}
+
+	return nil, FloopValidateOutput{
+		Valid:      len(validationErrors) == 0,
+		ErrorCount: len(validationErrors),
+		Errors:     outputErrors,
+		Message:    message,
 	}, nil
 }

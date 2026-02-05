@@ -322,6 +322,43 @@ func (m *MultiGraphStore) Close() error {
 	return nil
 }
 
+// ValidateBehaviorGraph validates both stores and combines errors.
+// Errors from local store are prefixed with "local: " and global with "global: ".
+func (m *MultiGraphStore) ValidateBehaviorGraph(ctx context.Context) ([]ValidationError, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var allErrors []ValidationError
+
+	// Validate local store
+	if localStore, ok := m.localStore.(*SQLiteGraphStore); ok {
+		localErrors, err := localStore.ValidateBehaviorGraph(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to validate local store: %w", err)
+		}
+		for _, e := range localErrors {
+			// Add scope marker to behavior ID for clarity
+			e.BehaviorID = "local:" + e.BehaviorID
+			allErrors = append(allErrors, e)
+		}
+	}
+
+	// Validate global store
+	if globalStore, ok := m.globalStore.(*SQLiteGraphStore); ok {
+		globalErrors, err := globalStore.ValidateBehaviorGraph(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to validate global store: %w", err)
+		}
+		for _, e := range globalErrors {
+			// Add scope marker to behavior ID for clarity
+			e.BehaviorID = "global:" + e.BehaviorID
+			allErrors = append(allErrors, e)
+		}
+	}
+
+	return allErrors, nil
+}
+
 // mergeNodes merges two slices of nodes, with local winning on ID conflicts.
 func mergeNodes(local, global []Node) []Node {
 	// Build map of local IDs

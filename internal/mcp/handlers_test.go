@@ -380,3 +380,103 @@ func TestBehaviorContentToMap(t *testing.T) {
 		t.Errorf("len(structured) = %d, want 2", len(structured))
 	}
 }
+
+func TestHandleFloopValidate_EmptyStore(t *testing.T) {
+	server, _ := setupTestServer(t)
+	defer server.Close()
+
+	ctx := context.Background()
+	req := &sdk.CallToolRequest{}
+	args := FloopValidateInput{}
+
+	result, output, err := server.handleFloopValidate(ctx, req, args)
+
+	if err != nil {
+		t.Fatalf("handleFloopValidate failed: %v", err)
+	}
+
+	if result != nil {
+		t.Error("Expected nil result")
+	}
+
+	if !output.Valid {
+		t.Error("Expected Valid = true for empty store")
+	}
+
+	if output.ErrorCount != 0 {
+		t.Errorf("ErrorCount = %d, want 0", output.ErrorCount)
+	}
+
+	if len(output.Errors) != 0 {
+		t.Errorf("len(Errors) = %d, want 0", len(output.Errors))
+	}
+
+	if output.Message == "" {
+		t.Error("Message should not be empty")
+	}
+}
+
+func TestHandleFloopValidate_WithDanglingReference(t *testing.T) {
+	server, _ := setupTestServer(t)
+	defer server.Close()
+
+	ctx := context.Background()
+
+	// Add a behavior with a dangling reference
+	behaviorNode := store.Node{
+		ID:   "test-behavior-1",
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"name": "Test Behavior",
+			"kind": "directive",
+			"content": map[string]interface{}{
+				"canonical": "Test canonical content",
+			},
+			"requires": []string{"non-existent-behavior"},
+		},
+		Metadata: map[string]interface{}{
+			"confidence": 0.8,
+			"priority":   1,
+			"scope":      "local",
+		},
+	}
+
+	if _, err := server.store.AddNode(ctx, behaviorNode); err != nil {
+		t.Fatalf("Failed to add test behavior: %v", err)
+	}
+
+	// Validate
+	req := &sdk.CallToolRequest{}
+	args := FloopValidateInput{}
+
+	result, output, err := server.handleFloopValidate(ctx, req, args)
+
+	if err != nil {
+		t.Fatalf("handleFloopValidate failed: %v", err)
+	}
+
+	if result != nil {
+		t.Error("Expected nil result")
+	}
+
+	if output.Valid {
+		t.Error("Expected Valid = false for store with dangling reference")
+	}
+
+	if output.ErrorCount == 0 {
+		t.Error("Expected at least 1 error")
+	}
+
+	// Check for dangling error
+	foundDangling := false
+	for _, e := range output.Errors {
+		if e.Issue == "dangling" {
+			foundDangling = true
+			break
+		}
+	}
+
+	if !foundDangling {
+		t.Errorf("Expected dangling error, got: %v", output.Errors)
+	}
+}

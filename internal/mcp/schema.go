@@ -107,3 +107,24 @@ type DeduplicationResult struct {
 	MergedID     string  `json:"merged_id,omitempty" jsonschema:"ID of the merged behavior (if merge performed)"`
 	Error        string  `json:"error,omitempty" jsonschema:"Error message if operation failed"`
 }
+
+// FloopValidateInput defines the input for floop_validate tool.
+type FloopValidateInput struct {
+	// No required inputs - validates current store
+}
+
+// FloopValidateOutput defines the output for floop_validate tool.
+type FloopValidateOutput struct {
+	Valid      bool                    `json:"valid" jsonschema:"True if no validation errors found"`
+	ErrorCount int                     `json:"error_count" jsonschema:"Number of validation errors found"`
+	Errors     []ValidationErrorOutput `json:"errors,omitempty" jsonschema:"List of validation errors"`
+	Message    string                  `json:"message" jsonschema:"Human-readable summary"`
+}
+
+// ValidationErrorOutput describes a single validation error.
+type ValidationErrorOutput struct {
+	BehaviorID string `json:"behavior_id" jsonschema:"ID of the behavior with the issue"`
+	Field      string `json:"field" jsonschema:"Relationship field: requires, overrides, or conflicts"`
+	RefID      string `json:"ref_id" jsonschema:"The problematic referenced ID"`
+	Issue      string `json:"issue" jsonschema:"Issue type: dangling, cycle, or self-reference"`
+}

@@ -598,3 +598,124 @@ func TestMergeEdges(t *testing.T) {
 		})
 	}
 }
+
+func TestMultiGraphStore_ValidateBehaviorGraph(t *testing.T) {
+	localRoot, globalRoot, cleanup := setupTestStores(t)
+	defer cleanup()
+
+	originalHome := os.Getenv("HOME")
+	os.Setenv("HOME", globalRoot)
+	defer os.Setenv("HOME", originalHome)
+
+	store, err := NewMultiGraphStore(localRoot, ScopeLocal)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Add a behavior with dangling reference to local store
+	behaviorWithDangling := Node{
+		ID:   "behavior-with-dangling",
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"name": "Test Behavior",
+			"kind": "directive",
+			"content": map[string]interface{}{
+				"canonical": "Test content",
+			},
+			"requires": []string{"non-existent"},
+		},
+		Metadata: map[string]interface{}{
+			"scope": "local",
+		},
+	}
+
+	if _, err := store.AddNode(ctx, behaviorWithDangling); err != nil {
+		t.Fatalf("failed to add behavior: %v", err)
+	}
+
+	// Validate
+	errors, err := store.ValidateBehaviorGraph(ctx)
+	if err != nil {
+		t.Fatalf("ValidateBehaviorGraph() failed: %v", err)
+	}
+
+	// Should find the dangling reference
+	if len(errors) == 0 {
+		t.Error("expected validation errors, got none")
+	}
+
+	// Check that at least one error is from local store
+	foundLocalError := false
+	for _, e := range errors {
+		if len(e.BehaviorID) > 6 && e.BehaviorID[:6] == "local:" {
+			foundLocalError = true
+			break
+		}
+	}
+
+	if !foundLocalError {
+		t.Errorf("expected error with 'local:' prefix, got: %v", errors)
+	}
+}
+
+func TestMultiGraphStore_ValidateBehaviorGraph_Valid(t *testing.T) {
+	localRoot, globalRoot, cleanup := setupTestStores(t)
+	defer cleanup()
+
+	originalHome := os.Getenv("HOME")
+	os.Setenv("HOME", globalRoot)
+	defer os.Setenv("HOME", originalHome)
+
+	store, err := NewMultiGraphStore(localRoot, ScopeLocal)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Add valid behaviors with proper relationships
+	behaviorA := Node{
+		ID:   "behavior-a",
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"name": "Behavior A",
+			"kind": "directive",
+			"content": map[string]interface{}{
+				"canonical": "Test content A",
+			},
+			"requires": []string{"behavior-b"},
+		},
+	}
+	behaviorB := Node{
+		ID:   "behavior-b",
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"name": "Behavior B",
+			"kind": "directive",
+			"content": map[string]interface{}{
+				"canonical": "Test content B",
+			},
+		},
+	}
+
+	if _, err := store.AddNode(ctx, behaviorA); err != nil {
+		t.Fatalf("failed to add behavior A: %v", err)
+	}
+	if _, err := store.AddNode(ctx, behaviorB); err != nil {
+		t.Fatalf("failed to add behavior B: %v", err)
+	}
+
+	// Validate
+	errors, err := store.ValidateBehaviorGraph(ctx)
+	if err != nil {
+		t.Fatalf("ValidateBehaviorGraph() failed: %v", err)
+	}
+
+	if len(errors) != 0 {
+		t.Errorf("expected no validation errors, got %d: %v", len(errors), errors)
+	}
+}
