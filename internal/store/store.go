@@ -4,6 +4,7 @@ package store
 
 import (
 	"context"
+	"time"
 )
 
 // Node represents a node in the behavior graph.
@@ -16,10 +17,13 @@ type Node struct {
 
 // Edge represents a relationship between nodes.
 type Edge struct {
-	Source   string                 `json:"source"`
-	Target   string                 `json:"target"`
-	Kind     string                 `json:"kind"` // "requires", "overrides", "conflicts", "learned-from", "similar-to"
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Source        string                 `json:"source"`
+	Target        string                 `json:"target"`
+	Kind          string                 `json:"kind"`                     // "requires", "overrides", "conflicts", "learned-from", "similar-to"
+	Weight        float64                `json:"weight"`                   // 0.0-1.0, activation transmission factor
+	CreatedAt     time.Time              `json:"created_at"`               // when edge was created
+	LastActivated *time.Time             `json:"last_activated,omitempty"` // when activation last flowed through
+	Metadata      map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // Direction specifies edge traversal direction.

@@ -2,9 +2,13 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	_ "modernc.org/sqlite"
 )
 
 func TestNewSQLiteGraphStore(t *testing.T) {
@@ -884,5 +888,398 @@ func TestSQLiteGraphStore_ContentHashSameIDUpdate(t *testing.T) {
 	}
 	if got.Content["name"] != "Updated Name" {
 		t.Errorf("behavior name = %v, want Updated Name", got.Content["name"])
+	}
+}
+
+func TestSQLiteGraphStore_EdgeWeights(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := NewSQLiteGraphStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewSQLiteGraphStore() error = %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+	now := time.Now()
+	activated := now.Add(-1 * time.Hour)
+
+	tests := []struct {
+		name          string
+		edge          Edge
+		wantWeight    float64
+		wantCreatedAt bool
+		wantActivated bool
+	}{
+		{
+			name: "edge with explicit weight and timestamps",
+			edge: Edge{
+				Source:        "a",
+				Target:        "b",
+				Kind:          "requires",
+				Weight:        0.75,
+				CreatedAt:     now,
+				LastActivated: &activated,
+			},
+			wantWeight:    0.75,
+			wantCreatedAt: true,
+			wantActivated: true,
+		},
+		{
+			name: "edge with zero weight (caller did not set it)",
+			edge: Edge{
+				Source:    "a",
+				Target:    "c",
+				Kind:      "overrides",
+				Weight:    0,
+				CreatedAt: now,
+			},
+			wantWeight:    0,
+			wantCreatedAt: true,
+			wantActivated: false,
+		},
+		{
+			name: "edge with zero CreatedAt (caller did not set it)",
+			edge: Edge{
+				Source: "a",
+				Target: "d",
+				Kind:   "similar-to",
+				Weight: 0.5,
+			},
+			wantWeight:    0.5,
+			wantCreatedAt: false,
+			wantActivated: false,
+		},
+		{
+			name: "edge with full weight",
+			edge: Edge{
+				Source:    "b",
+				Target:    "c",
+				Kind:      "requires",
+				Weight:    1.0,
+				CreatedAt: now,
+			},
+			wantWeight:    1.0,
+			wantCreatedAt: true,
+			wantActivated: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := store.AddEdge(ctx, tt.edge)
+			if err != nil {
+				t.Fatalf("AddEdge() error = %v", err)
+			}
+
+			// Read back edges
+			edges, err := store.GetEdges(ctx, tt.edge.Source, DirectionOutbound, tt.edge.Kind)
+			if err != nil {
+				t.Fatalf("GetEdges() error = %v", err)
+			}
+
+			// Find our specific edge
+			var found *Edge
+			for _, e := range edges {
+				if e.Target == tt.edge.Target {
+					found = &e
+					break
+				}
+			}
+			if found == nil {
+				t.Fatal("edge not found after AddEdge")
+			}
+
+			// Check weight
+			if found.Weight != tt.wantWeight {
+				t.Errorf("Weight = %v, want %v", found.Weight, tt.wantWeight)
+			}
+
+			// Check created_at
+			if tt.wantCreatedAt && found.CreatedAt.IsZero() {
+				t.Error("CreatedAt is zero, want non-zero")
+			}
+			if !tt.wantCreatedAt && !found.CreatedAt.IsZero() {
+				t.Errorf("CreatedAt = %v, want zero", found.CreatedAt)
+			}
+
+			// Check last_activated
+			if tt.wantActivated && found.LastActivated == nil {
+				t.Error("LastActivated is nil, want non-nil")
+			}
+			if !tt.wantActivated && found.LastActivated != nil {
+				t.Errorf("LastActivated = %v, want nil", found.LastActivated)
+			}
+		})
+	}
+}
+
+func TestSQLiteGraphStore_SchemaV3Migration(t *testing.T) {
+	tmpDir := t.TempDir()
+	floopDir := filepath.Join(tmpDir, ".floop")
+	if err := os.MkdirAll(floopDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+
+	dbPath := filepath.Join(floopDir, "floop.db")
+
+	// Create a v2 database manually
+	db, err := sql.Open("sqlite", dbPath+"?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)")
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Create the v1 schema but with only the original edges columns
+	_, err = db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS behaviors (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			kind TEXT NOT NULL,
+			behavior_type TEXT,
+			content_canonical TEXT NOT NULL,
+			content_expanded TEXT,
+			content_summary TEXT,
+			content_structured TEXT,
+			content_tags TEXT,
+			provenance_source_type TEXT,
+			provenance_correction_id TEXT,
+			provenance_created_at TEXT,
+			requires TEXT,
+			overrides TEXT,
+			conflicts TEXT,
+			confidence REAL DEFAULT 0.6,
+			priority INTEGER DEFAULT 0,
+			scope TEXT DEFAULT 'local',
+			metadata_extra TEXT,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			content_hash TEXT UNIQUE
+		)
+	`)
+	if err != nil {
+		t.Fatalf("create behaviors table: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS edges (
+			source TEXT NOT NULL,
+			target TEXT NOT NULL,
+			kind TEXT NOT NULL,
+			metadata TEXT,
+			PRIMARY KEY (source, target, kind)
+		)
+	`)
+	if err != nil {
+		t.Fatalf("create edges table: %v", err)
+	}
+
+	// Create other required tables
+	for _, stmt := range []string{
+		`CREATE TABLE IF NOT EXISTS behavior_when (behavior_id TEXT NOT NULL, field TEXT NOT NULL, value TEXT NOT NULL, value_type TEXT DEFAULT 'string', PRIMARY KEY (behavior_id, field))`,
+		`CREATE TABLE IF NOT EXISTS behavior_stats (behavior_id TEXT PRIMARY KEY, times_activated INTEGER DEFAULT 0, times_followed INTEGER DEFAULT 0, times_overridden INTEGER DEFAULT 0, times_confirmed INTEGER DEFAULT 0, last_activated TEXT, last_confirmed TEXT)`,
+		`CREATE TABLE IF NOT EXISTS corrections (id TEXT PRIMARY KEY, timestamp TEXT NOT NULL, agent_action TEXT NOT NULL, corrected_action TEXT NOT NULL, human_response TEXT, context TEXT, conversation_id TEXT, turn_number INTEGER, corrector TEXT, processed INTEGER DEFAULT 0, processed_at TEXT)`,
+		`CREATE TABLE IF NOT EXISTS dirty_behaviors (behavior_id TEXT PRIMARY KEY, operation TEXT NOT NULL, dirty_at TEXT NOT NULL)`,
+		`CREATE TABLE IF NOT EXISTS export_state (id INTEGER PRIMARY KEY CHECK (id = 1), last_export_time TEXT, jsonl_hash TEXT)`,
+		`CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+		`CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`,
+	} {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("create table: %v", err)
+		}
+	}
+
+	// Create triggers
+	for _, stmt := range []string{
+		`CREATE TRIGGER IF NOT EXISTS behavior_insert_dirty AFTER INSERT ON behaviors BEGIN INSERT OR REPLACE INTO dirty_behaviors (behavior_id, operation, dirty_at) VALUES (NEW.id, 'insert', datetime('now')); END`,
+		`CREATE TRIGGER IF NOT EXISTS behavior_update_dirty AFTER UPDATE ON behaviors BEGIN INSERT OR REPLACE INTO dirty_behaviors (behavior_id, operation, dirty_at) VALUES (NEW.id, 'update', datetime('now')); END`,
+		`CREATE TRIGGER IF NOT EXISTS behavior_delete_dirty AFTER DELETE ON behaviors BEGIN INSERT OR REPLACE INTO dirty_behaviors (behavior_id, operation, dirty_at) VALUES (OLD.id, 'delete', datetime('now')); END`,
+	} {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("create trigger: %v", err)
+		}
+	}
+
+	// Record as v2
+	_, err = db.ExecContext(ctx, `INSERT INTO schema_version (version, applied_at) VALUES (2, datetime('now'))`)
+	if err != nil {
+		t.Fatalf("record version: %v", err)
+	}
+
+	// Insert some v2 edges (no weight, created_at, last_activated columns)
+	_, err = db.ExecContext(ctx, `INSERT INTO edges (source, target, kind, metadata) VALUES ('node-a', 'node-b', 'requires', '{"note":"test"}')`)
+	if err != nil {
+		t.Fatalf("insert edge: %v", err)
+	}
+	_, err = db.ExecContext(ctx, `INSERT INTO edges (source, target, kind) VALUES ('node-b', 'node-c', 'overrides')`)
+	if err != nil {
+		t.Fatalf("insert edge: %v", err)
+	}
+
+	db.Close()
+
+	// Open with new code -- should trigger v2->v3 migration
+	store, err := NewSQLiteGraphStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewSQLiteGraphStore() after migration error = %v", err)
+	}
+	defer store.Close()
+
+	// Verify schema version is now 3
+	var version int
+	err = store.db.QueryRowContext(ctx, `SELECT MAX(version) FROM schema_version`).Scan(&version)
+	if err != nil {
+		t.Fatalf("get version: %v", err)
+	}
+	if version != 3 {
+		t.Errorf("schema version = %d, want 3", version)
+	}
+
+	// Verify edges have been backfilled
+	edges, err := store.GetEdges(ctx, "node-a", DirectionOutbound, "")
+	if err != nil {
+		t.Fatalf("GetEdges() error = %v", err)
+	}
+	if len(edges) != 1 {
+		t.Fatalf("GetEdges() returned %d edges, want 1", len(edges))
+	}
+
+	// Weight should be backfilled to 1.0
+	if edges[0].Weight != 1.0 {
+		t.Errorf("migrated edge Weight = %v, want 1.0", edges[0].Weight)
+	}
+
+	// CreatedAt should be backfilled (non-zero)
+	if edges[0].CreatedAt.IsZero() {
+		t.Error("migrated edge CreatedAt is zero, want backfilled time")
+	}
+
+	// LastActivated should be nil (not backfilled)
+	if edges[0].LastActivated != nil {
+		t.Errorf("migrated edge LastActivated = %v, want nil", edges[0].LastActivated)
+	}
+
+	// Verify metadata was preserved
+	if edges[0].Metadata == nil || edges[0].Metadata["note"] != "test" {
+		t.Error("migrated edge metadata not preserved")
+	}
+
+	// Verify the second edge also got backfilled
+	edges2, err := store.GetEdges(ctx, "node-b", DirectionOutbound, "")
+	if err != nil {
+		t.Fatalf("GetEdges(node-b) error = %v", err)
+	}
+	if len(edges2) != 1 {
+		t.Fatalf("GetEdges(node-b) returned %d edges, want 1", len(edges2))
+	}
+	if edges2[0].Weight != 1.0 {
+		t.Errorf("second migrated edge Weight = %v, want 1.0", edges2[0].Weight)
+	}
+}
+
+func TestSQLiteGraphStore_EdgeJSONLRoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := NewSQLiteGraphStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewSQLiteGraphStore() error = %v", err)
+	}
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Second) // Truncate for RFC3339 roundtrip
+	activated := now.Add(-2 * time.Hour)
+
+	// Add edges with weights and timestamps
+	edges := []Edge{
+		{
+			Source:        "x",
+			Target:        "y",
+			Kind:          "requires",
+			Weight:        0.8,
+			CreatedAt:     now,
+			LastActivated: &activated,
+			Metadata:      map[string]interface{}{"note": "first"},
+		},
+		{
+			Source:    "y",
+			Target:    "z",
+			Kind:      "similar-to",
+			Weight:    0.5,
+			CreatedAt: now,
+		},
+	}
+
+	for _, e := range edges {
+		if err := store.AddEdge(ctx, e); err != nil {
+			t.Fatalf("AddEdge() error = %v", err)
+		}
+	}
+
+	// Sync to JSONL
+	if err := store.Sync(ctx); err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+
+	// Verify edges.jsonl exists
+	edgesFile := filepath.Join(tmpDir, ".floop", "edges.jsonl")
+	if _, err := os.Stat(edgesFile); os.IsNotExist(err) {
+		t.Fatal("edges.jsonl was not created after Sync")
+	}
+
+	// Close and reopen
+	if err := store.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	store2, err := NewSQLiteGraphStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewSQLiteGraphStore() reopen error = %v", err)
+	}
+	defer store2.Close()
+
+	// Read back first edge
+	got, err := store2.GetEdges(ctx, "x", DirectionOutbound, "requires")
+	if err != nil {
+		t.Fatalf("GetEdges() error = %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("GetEdges() returned %d edges, want 1", len(got))
+	}
+
+	// Verify weight preserved
+	if got[0].Weight != 0.8 {
+		t.Errorf("Weight = %v, want 0.8", got[0].Weight)
+	}
+
+	// Verify created_at preserved (within 1 second tolerance)
+	if got[0].CreatedAt.Sub(now).Abs() > time.Second {
+		t.Errorf("CreatedAt = %v, want ~%v", got[0].CreatedAt, now)
+	}
+
+	// Verify last_activated preserved
+	if got[0].LastActivated == nil {
+		t.Fatal("LastActivated is nil, want non-nil")
+	}
+	if got[0].LastActivated.Sub(activated).Abs() > time.Second {
+		t.Errorf("LastActivated = %v, want ~%v", got[0].LastActivated, activated)
+	}
+
+	// Verify metadata preserved
+	if got[0].Metadata == nil || got[0].Metadata["note"] != "first" {
+		t.Error("metadata not preserved through round-trip")
+	}
+
+	// Read back second edge
+	got2, err := store2.GetEdges(ctx, "y", DirectionOutbound, "similar-to")
+	if err != nil {
+		t.Fatalf("GetEdges() error = %v", err)
+	}
+	if len(got2) != 1 {
+		t.Fatalf("GetEdges() returned %d edges, want 1", len(got2))
+	}
+	if got2[0].Weight != 0.5 {
+		t.Errorf("Weight = %v, want 0.5", got2[0].Weight)
+	}
+	if got2[0].LastActivated != nil {
+		t.Errorf("LastActivated = %v, want nil", got2[0].LastActivated)
 	}
 }

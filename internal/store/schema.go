@@ -5,10 +5,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 )
 
 // SchemaVersion is the current schema version.
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 // schemaV1 is the initial schema for the SQLite store.
 const schemaV1 = `
@@ -88,6 +89,9 @@ CREATE TABLE IF NOT EXISTS edges (
     source TEXT NOT NULL,
     target TEXT NOT NULL,
     kind TEXT NOT NULL,
+    weight REAL DEFAULT 1.0,
+    created_at TEXT DEFAULT (datetime('now')),
+    last_activated TEXT,
     metadata TEXT,
     PRIMARY KEY (source, target, kind)
 );
@@ -215,6 +219,11 @@ func migrateSchema(ctx context.Context, db *sql.DB, currentVersion int) error {
 			return fmt.Errorf("migrate v1 to v2: %w", err)
 		}
 	}
+	if currentVersion < 3 {
+		if err := migrateV2ToV3(ctx, db); err != nil {
+			return fmt.Errorf("migrate v2 to v3: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -276,6 +285,78 @@ func migrateV1ToV2(ctx context.Context, db *sql.DB) error {
 	_, err = tx.ExecContext(ctx,
 		`INSERT INTO schema_version (version, applied_at) VALUES (?, datetime('now'))`,
 		2)
+	if err != nil {
+		return fmt.Errorf("record schema version: %w", err)
+	}
+
+	return tx.Commit()
+}
+
+// migrateV2ToV3 adds edge weight and temporal metadata columns to the edges table.
+// Columns added:
+// - weight: activation transmission factor (0.0-1.0)
+// - created_at: when edge was created
+// - last_activated: when activation last flowed through
+func migrateV2ToV3(ctx context.Context, db *sql.DB) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Get existing columns on edges table
+	existingCols := make(map[string]bool)
+	rows, err := tx.QueryContext(ctx, `PRAGMA table_info(edges)`)
+	if err != nil {
+		return fmt.Errorf("check table info: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dfltValue interface{}
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err != nil {
+			return fmt.Errorf("scan table info: %w", err)
+		}
+		existingCols[name] = true
+	}
+
+	// Add missing columns (idempotent)
+	columnsToAdd := []struct {
+		name string
+		def  string
+	}{
+		{"weight", "REAL DEFAULT 1.0"},
+		{"created_at", "TEXT"},
+		{"last_activated", "TEXT"},
+	}
+
+	for _, col := range columnsToAdd {
+		if !existingCols[col.name] {
+			_, err = tx.ExecContext(ctx, fmt.Sprintf(
+				`ALTER TABLE edges ADD COLUMN %s %s`, col.name, col.def))
+			if err != nil {
+				return fmt.Errorf("add %s column: %w", col.name, err)
+			}
+		}
+	}
+
+	// Backfill existing edges: weight=1.0, created_at=now (RFC3339 format)
+	now := time.Now().Format(time.RFC3339)
+	_, err = tx.ExecContext(ctx, `UPDATE edges SET weight = 1.0 WHERE weight IS NULL`)
+	if err != nil {
+		return fmt.Errorf("backfill weight: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE edges SET created_at = ? WHERE created_at IS NULL`, now)
+	if err != nil {
+		return fmt.Errorf("backfill created_at: %w", err)
+	}
+
+	// Record the new schema version
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO schema_version (version, applied_at) VALUES (?, datetime('now'))`,
+		3)
 	if err != nil {
 		return fmt.Errorf("record schema version: %w", err)
 	}
