@@ -108,6 +108,34 @@ type DeduplicationResult struct {
 	Error        string  `json:"error,omitempty" jsonschema:"Error message if operation failed"`
 }
 
+// FloopBackupInput defines the input for floop_backup tool.
+type FloopBackupInput struct {
+	OutputPath string `json:"output_path,omitempty" jsonschema:"Output file path (default: ~/.floop/backups/floop-backup-TIMESTAMP.json)"`
+}
+
+// FloopBackupOutput defines the output for floop_backup tool.
+type FloopBackupOutput struct {
+	Path       string `json:"path" jsonschema:"Path to the backup file"`
+	NodeCount  int    `json:"node_count" jsonschema:"Number of nodes backed up"`
+	EdgeCount  int    `json:"edge_count" jsonschema:"Number of edges backed up"`
+	Message    string `json:"message" jsonschema:"Human-readable result message"`
+}
+
+// FloopRestoreInput defines the input for floop_restore tool.
+type FloopRestoreInput struct {
+	InputPath string `json:"input_path" jsonschema:"Path to backup file to restore,required"`
+	Mode      string `json:"mode,omitempty" jsonschema:"Restore mode: merge (skip existing, default) or replace (clear first)"`
+}
+
+// FloopRestoreOutput defines the output for floop_restore tool.
+type FloopRestoreOutput struct {
+	NodesRestored int    `json:"nodes_restored" jsonschema:"Number of nodes restored"`
+	NodesSkipped  int    `json:"nodes_skipped" jsonschema:"Number of nodes skipped (merge mode)"`
+	EdgesRestored int    `json:"edges_restored" jsonschema:"Number of edges restored"`
+	EdgesSkipped  int    `json:"edges_skipped" jsonschema:"Number of edges skipped"`
+	Message       string `json:"message" jsonschema:"Human-readable result message"`
+}
+
 // FloopConnectInput defines the input for floop_connect tool.
 type FloopConnectInput struct {
 	Source        string  `json:"source" jsonschema:"Source behavior ID,required"`

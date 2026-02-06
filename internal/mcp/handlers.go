@@ -12,6 +12,7 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/nvandessel/feedback-loop/internal/activation"
+	"github.com/nvandessel/feedback-loop/internal/backup"
 	"github.com/nvandessel/feedback-loop/internal/assembly"
 	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/dedup"
@@ -48,6 +49,18 @@ func (s *Server) registerTools() error {
 		Name:        "floop_deduplicate",
 		Description: "Find and merge duplicate behaviors in the store",
 	}, s.handleFloopDeduplicate)
+
+	// Register floop_backup tool
+	sdk.AddTool(s.server, &sdk.Tool{
+		Name:        "floop_backup",
+		Description: "Export full graph state (nodes + edges) to a backup file",
+	}, s.handleFloopBackup)
+
+	// Register floop_restore tool
+	sdk.AddTool(s.server, &sdk.Tool{
+		Name:        "floop_restore",
+		Description: "Import graph state from a backup file (merge or replace)",
+	}, s.handleFloopRestore)
 
 	// Register floop_connect tool
 	sdk.AddTool(s.server, &sdk.Tool{
@@ -395,6 +408,23 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 		return nil, FloopLearnOutput{}, fmt.Errorf("failed to sync store: %w", err)
 	}
 
+	// Auto-backup after successful learn (fire-and-forget)
+	go func() {
+		backupDir, err := backup.DefaultBackupDir()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "warning: auto-backup failed (dir): %v\n", err)
+			return
+		}
+		backupPath := backup.GenerateBackupPath(backupDir)
+		if _, err := backup.Backup(context.Background(), s.store, backupPath); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: auto-backup failed: %v\n", err)
+			return
+		}
+		if err := backup.RotateBackups(backupDir, 10); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: auto-backup rotation failed: %v\n", err)
+		}
+	}()
+
 	// Refresh PageRank cache after graph mutation
 	if err := s.refreshPageRank(ctx); err != nil {
 		// Non-fatal: PageRank will be stale but still functional
@@ -598,6 +628,66 @@ func (s *Server) handleFloopDeduplicate(ctx context.Context, req *sdk.CallToolRe
 		Merged:          report.MergesPerformed,
 		Results:         results,
 		Message:         message,
+	}, nil
+}
+
+// handleFloopBackup implements the floop_backup tool.
+func (s *Server) handleFloopBackup(ctx context.Context, req *sdk.CallToolRequest, args FloopBackupInput) (*sdk.CallToolResult, FloopBackupOutput, error) {
+	outputPath := args.OutputPath
+	if outputPath == "" {
+		backupDir, err := backup.DefaultBackupDir()
+		if err != nil {
+			return nil, FloopBackupOutput{}, fmt.Errorf("failed to get backup directory: %w", err)
+		}
+		outputPath = backup.GenerateBackupPath(backupDir)
+	}
+
+	result, err := backup.Backup(ctx, s.store, outputPath)
+	if err != nil {
+		return nil, FloopBackupOutput{}, fmt.Errorf("backup failed: %w", err)
+	}
+
+	// Rotate old backups (keep last 10)
+	backupDir := filepath.Dir(outputPath)
+	if err := backup.RotateBackups(backupDir, 10); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to rotate backups: %v\n", err)
+	}
+
+	return nil, FloopBackupOutput{
+		Path:      outputPath,
+		NodeCount: len(result.Nodes),
+		EdgeCount: len(result.Edges),
+		Message:   fmt.Sprintf("Backup created: %d nodes, %d edges → %s", len(result.Nodes), len(result.Edges), outputPath),
+	}, nil
+}
+
+// handleFloopRestore implements the floop_restore tool.
+func (s *Server) handleFloopRestore(ctx context.Context, req *sdk.CallToolRequest, args FloopRestoreInput) (*sdk.CallToolResult, FloopRestoreOutput, error) {
+	if args.InputPath == "" {
+		return nil, FloopRestoreOutput{}, fmt.Errorf("'input_path' parameter is required")
+	}
+
+	mode := backup.RestoreMerge
+	if args.Mode == "replace" {
+		mode = backup.RestoreReplace
+	}
+
+	result, err := backup.Restore(ctx, s.store, args.InputPath, mode)
+	if err != nil {
+		return nil, FloopRestoreOutput{}, fmt.Errorf("restore failed: %w", err)
+	}
+
+	// Refresh PageRank after restore
+	if err := s.refreshPageRank(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to refresh PageRank after restore: %v\n", err)
+	}
+
+	return nil, FloopRestoreOutput{
+		NodesRestored: result.NodesRestored,
+		NodesSkipped:  result.NodesSkipped,
+		EdgesRestored: result.EdgesRestored,
+		EdgesSkipped:  result.EdgesSkipped,
+		Message:       fmt.Sprintf("Restore complete: %d nodes restored, %d skipped; %d edges restored, %d skipped", result.NodesRestored, result.NodesSkipped, result.EdgesRestored, result.EdgesSkipped),
 	}, nil
 }
 

@@ -98,6 +98,9 @@ context-aware behavior activation for consistent agent operation.`,
 		newActivateCmd(),
 		// Graph management commands
 		newConnectCmd(),
+		// Backup/restore commands
+		newBackupCmd(),
+		newRestoreFromBackupCmd(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {
