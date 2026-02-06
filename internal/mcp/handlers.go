@@ -332,6 +332,30 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 		"repo":     actCtx.RepoRoot,
 	}
 
+	// Fire-and-forget confidence reinforcement
+	go func() {
+		// Build active and all behavior ID→confidence maps
+		activeConfs := make(map[string]float64, len(result.Active))
+		for _, b := range result.Active {
+			activeConfs[b.ID] = b.Confidence
+		}
+		allConfs := make(map[string]float64, len(behaviors))
+		for _, b := range behaviors {
+			allConfs[b.ID] = b.Confidence
+		}
+
+		// Apply reinforcement via ConfidenceUpdater interface
+		type confidenceUpdater interface {
+			UpdateConfidence(ctx context.Context, behaviorID string, newConfidence float64) error
+		}
+		if updater, ok := s.store.(confidenceUpdater); ok {
+			cfg := ranking.DefaultReinforcementConfig()
+			if err := ranking.ApplyReinforcement(context.Background(), updater, activeConfs, allConfs, cfg); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: confidence reinforcement failed: %v\n", err)
+			}
+		}
+	}()
+
 	return nil, FloopActiveOutput{
 		Context: ctxMap,
 		Active:  summaries,

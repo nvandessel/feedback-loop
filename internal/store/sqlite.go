@@ -1174,6 +1174,29 @@ func (s *SQLiteGraphStore) exportEdgesToJSONL(ctx context.Context) error {
 	return nil
 }
 
+// UpdateConfidence efficiently updates just the confidence value for a behavior.
+func (s *SQLiteGraphStore) UpdateConfidence(ctx context.Context, behaviorID string, newConfidence float64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE behaviors SET confidence = ?, updated_at = ? WHERE id = ?`,
+		newConfidence, time.Now().Format(time.RFC3339), behaviorID)
+	if err != nil {
+		return fmt.Errorf("failed to update confidence for %s: %w", behaviorID, err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("behavior not found: %s", behaviorID)
+	}
+
+	return nil
+}
+
 // Close syncs and closes the store.
 func (s *SQLiteGraphStore) Close() error {
 	if err := s.Sync(context.Background()); err != nil {

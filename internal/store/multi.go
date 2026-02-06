@@ -322,6 +322,36 @@ func (m *MultiGraphStore) Close() error {
 	return nil
 }
 
+// UpdateConfidence updates the confidence for a behavior in whichever store contains it.
+func (m *MultiGraphStore) UpdateConfidence(ctx context.Context, behaviorID string, newConfidence float64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Try local first
+	if localStore, ok := m.localStore.(*SQLiteGraphStore); ok {
+		localNode, err := m.localStore.GetNode(ctx, behaviorID)
+		if err != nil {
+			return fmt.Errorf("error checking local store: %w", err)
+		}
+		if localNode != nil {
+			return localStore.UpdateConfidence(ctx, behaviorID, newConfidence)
+		}
+	}
+
+	// Try global
+	if globalStore, ok := m.globalStore.(*SQLiteGraphStore); ok {
+		globalNode, err := m.globalStore.GetNode(ctx, behaviorID)
+		if err != nil {
+			return fmt.Errorf("error checking global store: %w", err)
+		}
+		if globalNode != nil {
+			return globalStore.UpdateConfidence(ctx, behaviorID, newConfidence)
+		}
+	}
+
+	return fmt.Errorf("behavior not found in either store: %s", behaviorID)
+}
+
 // ValidateBehaviorGraph validates both stores and combines errors.
 // Errors from local store are prefixed with "local: " and global with "global: ".
 func (m *MultiGraphStore) ValidateBehaviorGraph(ctx context.Context) ([]ValidationError, error) {
