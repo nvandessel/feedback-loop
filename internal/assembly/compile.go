@@ -473,3 +473,103 @@ func (c *Compiler) assembleTieredText(fullText, quickRef, nameOnly string, omitt
 
 	return strings.TrimSpace(strings.Join(parts, "\n"))
 }
+
+// CompileCoalesced renders both individual behaviors and clusters.
+//
+// Clusters are shown as:
+//
+//	### Python File Handling (3 behaviors)
+//	- **Use pathlib.Path** instead of os.path for all file operations
+//	- _Also: prefer-context-managers, avoid-os-walk_ (use `floop show <id>` for details)
+//
+// Individual behaviors are rendered normally using the standard Compile method.
+func (c *Compiler) CompileCoalesced(individuals []models.InjectedBehavior, clusters []BehaviorCluster) string {
+	var parts []string
+
+	// Render individual behaviors using the standard compiler.
+	if len(individuals) > 0 {
+		behaviors := make([]models.Behavior, 0, len(individuals))
+		for _, ib := range individuals {
+			if ib.Behavior != nil {
+				behaviors = append(behaviors, *ib.Behavior)
+			}
+		}
+		if compiled := c.Compile(behaviors); compiled.Text != "" {
+			parts = append(parts, compiled.Text)
+		}
+	}
+
+	// Render clusters.
+	if len(clusters) > 0 {
+		for _, cluster := range clusters {
+			totalCount := 1 + len(cluster.Members) // representative + members
+			clusterText := c.formatCluster(cluster, totalCount)
+			if clusterText != "" {
+				parts = append(parts, clusterText)
+			}
+		}
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return strings.TrimSpace(strings.Join(parts, "\n\n"))
+}
+
+// formatCluster renders a single behavior cluster.
+func (c *Compiler) formatCluster(cluster BehaviorCluster, totalCount int) string {
+	var lines []string
+
+	switch c.format {
+	case FormatXML:
+		lines = append(lines, fmt.Sprintf("<cluster label=%q count=\"%d\">", cluster.ClusterLabel, totalCount))
+		if cluster.Representative.Behavior != nil {
+			lines = append(lines, fmt.Sprintf("  <behavior kind=%q>%s</behavior>",
+				cluster.Representative.Behavior.Kind,
+				cluster.Representative.Content))
+		}
+		if len(cluster.Members) > 0 {
+			var names []string
+			for _, m := range cluster.Members {
+				if m.Behavior != nil {
+					names = append(names, m.Behavior.Name)
+				}
+			}
+			lines = append(lines, fmt.Sprintf("  <also>%s</also>", strings.Join(names, ", ")))
+		}
+		lines = append(lines, "</cluster>")
+
+	case FormatPlain:
+		lines = append(lines, fmt.Sprintf("%s (%d behaviors):", cluster.ClusterLabel, totalCount))
+		if cluster.Representative.Content != "" {
+			lines = append(lines, fmt.Sprintf("  %s", cluster.Representative.Content))
+		}
+		if len(cluster.Members) > 0 {
+			var names []string
+			for _, m := range cluster.Members {
+				if m.Behavior != nil {
+					names = append(names, m.Behavior.Name)
+				}
+			}
+			lines = append(lines, fmt.Sprintf("  Also: %s (use `floop show <id>` for details)", strings.Join(names, ", ")))
+		}
+
+	default: // FormatMarkdown
+		lines = append(lines, fmt.Sprintf("### %s (%d behaviors)", cluster.ClusterLabel, totalCount))
+		if cluster.Representative.Content != "" {
+			lines = append(lines, fmt.Sprintf("- **%s**", cluster.Representative.Content))
+		}
+		if len(cluster.Members) > 0 {
+			var names []string
+			for _, m := range cluster.Members {
+				if m.Behavior != nil {
+					names = append(names, m.Behavior.Name)
+				}
+			}
+			lines = append(lines, fmt.Sprintf("- _Also: %s_ (use `floop show <id>` for details)", strings.Join(names, ", ")))
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
