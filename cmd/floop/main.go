@@ -88,6 +88,7 @@ context-aware behavior activation for consistent agent operation.`,
 		newMergeCmd(),
 		// Management commands
 		newDeduplicateCmd(),
+		newValidateCmd(),
 		newConfigCmd(),
 		// Token optimization commands
 		newSummarizeCmd(),

@@ -8,7 +8,7 @@ import (
 )
 
 // SchemaVersion is the current schema version.
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 // schemaV1 is the initial schema for the SQLite store.
 const schemaV1 = `
@@ -209,10 +209,78 @@ func createSchema(ctx context.Context, db *sql.DB) error {
 
 // migrateSchema applies migrations from currentVersion to SchemaVersion.
 func migrateSchema(ctx context.Context, db *sql.DB, currentVersion int) error {
-	// Currently only one version, no migrations needed
-	// When we add v2, migrations go here
-	_ = currentVersion
+	// Apply migrations sequentially
+	if currentVersion < 2 {
+		if err := migrateV1ToV2(ctx, db); err != nil {
+			return fmt.Errorf("migrate v1 to v2: %w", err)
+		}
+	}
 	return nil
+}
+
+// migrateV1ToV2 adds missing columns to the behaviors table.
+// Columns that may be missing from old v1 databases:
+// - behavior_type: tracks behavior types (directive, constraint, etc.)
+// - metadata_extra: JSON for arbitrary metadata (forget_reason, etc.)
+// - content_hash: UNIQUE hash for deduplication
+func migrateV1ToV2(ctx context.Context, db *sql.DB) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Get existing columns
+	existingCols := make(map[string]bool)
+	rows, err := tx.QueryContext(ctx, `PRAGMA table_info(behaviors)`)
+	if err != nil {
+		return fmt.Errorf("check table info: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dfltValue interface{}
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err != nil {
+			return fmt.Errorf("scan table info: %w", err)
+		}
+		existingCols[name] = true
+	}
+
+	// Add missing columns (idempotent)
+	columnsToAdd := []struct {
+		name string
+		def  string
+	}{
+		{"behavior_type", "TEXT"},
+		{"metadata_extra", "TEXT"},
+		{"content_hash", "TEXT"},
+	}
+
+	for _, col := range columnsToAdd {
+		if !existingCols[col.name] {
+			_, err = tx.ExecContext(ctx, fmt.Sprintf(
+				`ALTER TABLE behaviors ADD COLUMN %s %s`, col.name, col.def))
+			if err != nil {
+				return fmt.Errorf("add %s column: %w", col.name, err)
+			}
+		}
+	}
+
+	// Note: We cannot add UNIQUE constraint to content_hash via ALTER TABLE in SQLite.
+	// The UNIQUE constraint will only apply to new databases created with the full schema.
+	// For existing databases, deduplication logic handles uniqueness at the application level.
+
+	// Record the new schema version
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO schema_version (version, applied_at) VALUES (?, datetime('now'))`,
+		2)
+	if err != nil {
+		return fmt.Errorf("record schema version: %w", err)
+	}
+
+	return tx.Commit()
 }
 
 // ValidateIntegrity runs SQLite integrity checks on the database.

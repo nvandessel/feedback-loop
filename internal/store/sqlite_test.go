@@ -775,3 +775,114 @@ func TestInitSchema_RunsIntegrityCheck(t *testing.T) {
 	// If we got here, integrity check passed during InitSchema
 	// (The test would fail with an error if integrity check failed)
 }
+
+func TestSQLiteGraphStore_ContentHashCollision(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := NewSQLiteGraphStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewSQLiteGraphStore() error = %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Add first behavior with canonical content "Same content"
+	node1 := Node{
+		ID:   "behavior-1",
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"name": "First Behavior",
+			"kind": "directive",
+			"content": map[string]interface{}{
+				"canonical": "Same content",
+			},
+		},
+	}
+	_, err = store.AddNode(ctx, node1)
+	if err != nil {
+		t.Fatalf("AddNode(node1) error = %v", err)
+	}
+
+	// Try to add a DIFFERENT behavior with the same canonical content
+	// This should error because it would cause data loss
+	node2 := Node{
+		ID:   "behavior-2", // Different ID
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"name": "Second Behavior",
+			"kind": "directive",
+			"content": map[string]interface{}{
+				"canonical": "Same content", // Same canonical content = same hash
+			},
+		},
+	}
+	_, err = store.AddNode(ctx, node2)
+	if err == nil {
+		t.Error("AddNode(node2) should error for duplicate content hash with different ID")
+	}
+
+	// Verify only one behavior exists
+	behaviors, err := store.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
+	if err != nil {
+		t.Fatalf("QueryNodes() error = %v", err)
+	}
+	if len(behaviors) != 1 {
+		t.Errorf("Expected 1 behavior, got %d", len(behaviors))
+	}
+
+	// Verify the first behavior was preserved (not silently replaced)
+	got, err := store.GetNode(ctx, "behavior-1")
+	if err != nil {
+		t.Fatalf("GetNode() error = %v", err)
+	}
+	if got == nil {
+		t.Fatal("Original behavior-1 was lost")
+	}
+	if got.Content["name"] != "First Behavior" {
+		t.Errorf("behavior-1 name = %v, want First Behavior", got.Content["name"])
+	}
+}
+
+func TestSQLiteGraphStore_ContentHashSameIDUpdate(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := NewSQLiteGraphStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewSQLiteGraphStore() error = %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Add behavior
+	node := Node{
+		ID:   "behavior-1",
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"name": "Test Behavior",
+			"kind": "directive",
+			"content": map[string]interface{}{
+				"canonical": "Test content",
+			},
+		},
+	}
+	_, err = store.AddNode(ctx, node)
+	if err != nil {
+		t.Fatalf("AddNode() error = %v", err)
+	}
+
+	// Re-adding the same behavior with same ID should succeed (it's an update)
+	node.Content["name"] = "Updated Name"
+	_, err = store.AddNode(ctx, node)
+	if err != nil {
+		t.Errorf("AddNode() with same ID should succeed: %v", err)
+	}
+
+	// Verify the update took effect
+	got, err := store.GetNode(ctx, "behavior-1")
+	if err != nil {
+		t.Fatalf("GetNode() error = %v", err)
+	}
+	if got.Content["name"] != "Updated Name" {
+		t.Errorf("behavior name = %v, want Updated Name", got.Content["name"])
+	}
+}

@@ -298,9 +298,23 @@ func (s *SQLiteGraphStore) addBehavior(ctx context.Context, node Node) (string, 
 	// Compute content hash for deduplication
 	contentHash := computeContentHash(canonical)
 
+	// Check for duplicate content hash before inserting
+	var existingID string
+	err = s.db.QueryRowContext(ctx,
+		`SELECT id FROM behaviors WHERE content_hash = ? AND id != ?`,
+		contentHash, node.ID).Scan(&existingID)
+	if err == nil {
+		// Found existing behavior with same content
+		return "", fmt.Errorf("duplicate content: behavior %s has identical canonical content", existingID)
+	} else if err != sql.ErrNoRows {
+		// Unexpected error
+		return "", fmt.Errorf("check for duplicate content: %w", err)
+	}
+	// err == sql.ErrNoRows means no duplicate found, proceed with insert
+
 	now := time.Now().Format(time.RFC3339)
 
-	// Insert behavior
+	// Insert behavior (OR REPLACE handles same-ID updates)
 	_, err = s.db.ExecContext(ctx, `
 		INSERT OR REPLACE INTO behaviors (
 			id, name, kind, behavior_type,
