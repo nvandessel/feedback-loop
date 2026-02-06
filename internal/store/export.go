@@ -4,9 +4,11 @@ package store
 import (
 	"bufio"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 )
 
 // ImportNodesFromJSONL imports nodes from a JSONL file into the SQLite database.
@@ -60,6 +62,8 @@ func (s *SQLiteGraphStore) ImportNodesFromJSONL(ctx context.Context, path string
 }
 
 // ImportEdgesFromJSONL imports edges from a JSONL file into the SQLite database.
+// Handles old JSONL format gracefully: missing weight defaults to 1.0, missing
+// created_at defaults to now.
 func (s *SQLiteGraphStore) ImportEdgesFromJSONL(ctx context.Context, path string) error {
 	f, err := os.Open(path)
 	if err != nil {
@@ -85,15 +89,33 @@ func (s *SQLiteGraphStore) ImportEdgesFromJSONL(ctx context.Context, path string
 			continue
 		}
 
+		// Backfill defaults for old JSONL files missing new fields
+		if edge.Weight == 0 {
+			edge.Weight = 1.0
+		}
+		if edge.CreatedAt.IsZero() {
+			edge.CreatedAt = time.Now()
+		}
+
 		var metadataJSON []byte
 		if edge.Metadata != nil {
 			metadataJSON, _ = json.Marshal(edge.Metadata)
 		}
 
+		var createdAtStr sql.NullString
+		if !edge.CreatedAt.IsZero() {
+			createdAtStr = sql.NullString{String: edge.CreatedAt.Format(time.RFC3339), Valid: true}
+		}
+
+		var lastActivatedStr sql.NullString
+		if edge.LastActivated != nil && !edge.LastActivated.IsZero() {
+			lastActivatedStr = sql.NullString{String: edge.LastActivated.Format(time.RFC3339), Valid: true}
+		}
+
 		_, err := s.db.ExecContext(ctx, `
-			INSERT OR REPLACE INTO edges (source, target, kind, metadata)
-			VALUES (?, ?, ?, ?)
-		`, edge.Source, edge.Target, edge.Kind, nullBytes(metadataJSON))
+			INSERT OR REPLACE INTO edges (source, target, kind, weight, created_at, last_activated, metadata)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+		`, edge.Source, edge.Target, edge.Kind, edge.Weight, createdAtStr, lastActivatedStr, nullBytes(metadataJSON))
 		if err != nil {
 			return fmt.Errorf("failed to import edge: %w", err)
 		}

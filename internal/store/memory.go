@@ -93,6 +93,9 @@ func (s *InMemoryGraphStore) QueryNodes(ctx context.Context, predicate map[strin
 }
 
 // AddEdge adds an edge to the store.
+// Callers must explicitly set Weight, CreatedAt, and LastActivated; no hidden
+// defaults are applied. The spreading engine should validate/reject edges with
+// zero Weight rather than silently substituting defaults.
 func (s *InMemoryGraphStore) AddEdge(ctx context.Context, edge Edge) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

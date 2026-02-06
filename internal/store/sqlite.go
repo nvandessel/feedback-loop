@@ -726,6 +726,7 @@ func (s *SQLiteGraphStore) QueryNodes(ctx context.Context, predicate map[string]
 }
 
 // AddEdge adds an edge to the store.
+// Callers must explicitly set Weight and CreatedAt; no hidden defaults are applied.
 func (s *SQLiteGraphStore) AddEdge(ctx context.Context, edge Edge) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -739,10 +740,22 @@ func (s *SQLiteGraphStore) AddEdge(ctx context.Context, edge Edge) error {
 		}
 	}
 
+	// Format CreatedAt for SQLite storage
+	var createdAtStr sql.NullString
+	if !edge.CreatedAt.IsZero() {
+		createdAtStr = sql.NullString{String: edge.CreatedAt.Format(time.RFC3339), Valid: true}
+	}
+
+	// Format LastActivated for SQLite storage
+	var lastActivatedStr sql.NullString
+	if edge.LastActivated != nil && !edge.LastActivated.IsZero() {
+		lastActivatedStr = sql.NullString{String: edge.LastActivated.Format(time.RFC3339), Valid: true}
+	}
+
 	_, err = s.db.ExecContext(ctx, `
-		INSERT OR REPLACE INTO edges (source, target, kind, metadata)
-		VALUES (?, ?, ?, ?)
-	`, edge.Source, edge.Target, edge.Kind, nullBytes(metadataJSON))
+		INSERT OR REPLACE INTO edges (source, target, kind, weight, created_at, last_activated, metadata)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, edge.Source, edge.Target, edge.Kind, edge.Weight, createdAtStr, lastActivatedStr, nullBytes(metadataJSON))
 	if err != nil {
 		return fmt.Errorf("failed to add edge: %w", err)
 	}
@@ -775,13 +788,13 @@ func (s *SQLiteGraphStore) GetEdges(ctx context.Context, nodeID string, directio
 
 	switch direction {
 	case DirectionOutbound:
-		query = `SELECT source, target, kind, metadata FROM edges WHERE source = ?`
+		query = `SELECT source, target, kind, weight, created_at, last_activated, metadata FROM edges WHERE source = ?`
 		args = append(args, nodeID)
 	case DirectionInbound:
-		query = `SELECT source, target, kind, metadata FROM edges WHERE target = ?`
+		query = `SELECT source, target, kind, weight, created_at, last_activated, metadata FROM edges WHERE target = ?`
 		args = append(args, nodeID)
 	case DirectionBoth:
-		query = `SELECT source, target, kind, metadata FROM edges WHERE source = ? OR target = ?`
+		query = `SELECT source, target, kind, weight, created_at, last_activated, metadata FROM edges WHERE source = ? OR target = ?`
 		args = append(args, nodeID, nodeID)
 	}
 
@@ -799,9 +812,10 @@ func (s *SQLiteGraphStore) GetEdges(ctx context.Context, nodeID string, directio
 	var edges []Edge
 	for rows.Next() {
 		var source, target, edgeKind string
-		var metadataJSON sql.NullString
+		var weight sql.NullFloat64
+		var createdAtStr, lastActivatedStr, metadataJSON sql.NullString
 
-		if err := rows.Scan(&source, &target, &edgeKind, &metadataJSON); err != nil {
+		if err := rows.Scan(&source, &target, &edgeKind, &weight, &createdAtStr, &lastActivatedStr, &metadataJSON); err != nil {
 			return nil, fmt.Errorf("failed to scan edge: %w", err)
 		}
 
@@ -809,6 +823,22 @@ func (s *SQLiteGraphStore) GetEdges(ctx context.Context, nodeID string, directio
 			Source: source,
 			Target: target,
 			Kind:   edgeKind,
+		}
+
+		if weight.Valid {
+			edge.Weight = weight.Float64
+		}
+
+		if createdAtStr.Valid {
+			if t, err := time.Parse(time.RFC3339, createdAtStr.String); err == nil {
+				edge.CreatedAt = t
+			}
+		}
+
+		if lastActivatedStr.Valid {
+			if t, err := time.Parse(time.RFC3339, lastActivatedStr.String); err == nil {
+				edge.LastActivated = &t
+			}
 		}
 
 		if metadataJSON.Valid {
@@ -1081,7 +1111,7 @@ func (s *SQLiteGraphStore) exportNodesToJSONL(ctx context.Context) error {
 
 // exportEdgesToJSONL exports all edges to the edges.jsonl file.
 func (s *SQLiteGraphStore) exportEdgesToJSONL(ctx context.Context) error {
-	rows, err := s.db.QueryContext(ctx, `SELECT source, target, kind, metadata FROM edges`)
+	rows, err := s.db.QueryContext(ctx, `SELECT source, target, kind, weight, created_at, last_activated, metadata FROM edges`)
 	if err != nil {
 		return fmt.Errorf("failed to query edges: %w", err)
 	}
@@ -1096,9 +1126,10 @@ func (s *SQLiteGraphStore) exportEdgesToJSONL(ctx context.Context) error {
 	encoder := json.NewEncoder(f)
 	for rows.Next() {
 		var source, target, kind string
-		var metadataJSON sql.NullString
+		var weight sql.NullFloat64
+		var createdAtStr, lastActivatedStr, metadataJSON sql.NullString
 
-		if err := rows.Scan(&source, &target, &kind, &metadataJSON); err != nil {
+		if err := rows.Scan(&source, &target, &kind, &weight, &createdAtStr, &lastActivatedStr, &metadataJSON); err != nil {
 			return fmt.Errorf("failed to scan edge: %w", err)
 		}
 
@@ -1106,6 +1137,22 @@ func (s *SQLiteGraphStore) exportEdgesToJSONL(ctx context.Context) error {
 			Source: source,
 			Target: target,
 			Kind:   kind,
+		}
+
+		if weight.Valid {
+			edge.Weight = weight.Float64
+		}
+
+		if createdAtStr.Valid {
+			if t, err := time.Parse(time.RFC3339, createdAtStr.String); err == nil {
+				edge.CreatedAt = t
+			}
+		}
+
+		if lastActivatedStr.Valid {
+			if t, err := time.Parse(time.RFC3339, lastActivatedStr.String); err == nil {
+				edge.LastActivated = &t
+			}
 		}
 
 		if metadataJSON.Valid {
