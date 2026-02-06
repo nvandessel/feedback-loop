@@ -69,10 +69,16 @@ func (c *ClaudePlatform) GenerateHookConfig(existingConfig map[string]interface{
 		config = make(map[string]interface{})
 	}
 
-	// Build the floop hook
-	floopHook := map[string]interface{}{
+	// Build the static behavior injection hook (floop prompt)
+	promptHook := map[string]interface{}{
 		"type":    "command",
 		"command": c.InjectCommand(),
+	}
+
+	// Build the dynamic context activation hook (floop activate)
+	activateHook := map[string]interface{}{
+		"type":    "command",
+		"command": c.ActivateCommand(),
 	}
 
 	// Get or create hooks section
@@ -87,14 +93,20 @@ func (c *ClaudePlatform) GenerateHookConfig(existingConfig map[string]interface{
 		preToolUse = make([]interface{}, 0)
 	}
 
-	// Build the matcher hook entry
-	matcherHook := map[string]interface{}{
+	// Read matcher: static behavior injection via floop prompt
+	readMatcher := map[string]interface{}{
 		"matcher": "Read",
-		"hooks":   []interface{}{floopHook},
+		"hooks":   []interface{}{promptHook},
 	}
 
-	// Add to PreToolUse array
-	preToolUse = append(preToolUse, matcherHook)
+	// Bash matcher: dynamic context activation via floop activate
+	bashMatcher := map[string]interface{}{
+		"matcher": "Bash",
+		"hooks":   []interface{}{activateHook},
+	}
+
+	// Add both matchers to PreToolUse array
+	preToolUse = append(preToolUse, readMatcher, bashMatcher)
 
 	// Update hooks
 	hooks["PreToolUse"] = preToolUse
@@ -130,6 +142,11 @@ func (c *ClaudePlatform) WriteConfig(projectRoot string, config map[string]inter
 // InjectCommand returns the command to inject behaviors.
 func (c *ClaudePlatform) InjectCommand() string {
 	return "floop prompt --format markdown"
+}
+
+// ActivateCommand returns the command for dynamic context activation.
+func (c *ClaudePlatform) ActivateCommand() string {
+	return `"$CLAUDE_PROJECT_DIR"/.claude/hooks/dynamic-context.sh`
 }
 
 // HasFloopHook checks if floop hooks are already configured.

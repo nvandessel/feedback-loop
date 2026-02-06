@@ -130,23 +130,38 @@ func TestClaudePlatformGenerateHookConfig(t *testing.T) {
 		t.Fatal("expected PreToolUse to be an array")
 	}
 
-	if len(preToolUse) != 1 {
-		t.Errorf("expected 1 PreToolUse entry, got %d", len(preToolUse))
+	if len(preToolUse) != 2 {
+		t.Errorf("expected 2 PreToolUse entries (Read + Bash), got %d", len(preToolUse))
 	}
 
-	// Verify hook entry
-	entry := preToolUse[0].(map[string]interface{})
-	if entry["matcher"] != "Read" {
-		t.Errorf("expected matcher='Read', got '%v'", entry["matcher"])
+	// Verify Read matcher entry
+	readEntry := preToolUse[0].(map[string]interface{})
+	if readEntry["matcher"] != "Read" {
+		t.Errorf("expected first matcher='Read', got '%v'", readEntry["matcher"])
 	}
 
-	hooksList := entry["hooks"].([]interface{})
-	hook := hooksList[0].(map[string]interface{})
-	if hook["type"] != "command" {
-		t.Errorf("expected type='command', got '%v'", hook["type"])
+	readHooksList := readEntry["hooks"].([]interface{})
+	readHook := readHooksList[0].(map[string]interface{})
+	if readHook["type"] != "command" {
+		t.Errorf("expected type='command', got '%v'", readHook["type"])
 	}
-	if !strings.Contains(hook["command"].(string), "floop") {
-		t.Errorf("expected command to contain 'floop', got '%v'", hook["command"])
+	if !strings.Contains(readHook["command"].(string), "floop") {
+		t.Errorf("expected Read command to contain 'floop', got '%v'", readHook["command"])
+	}
+
+	// Verify Bash matcher entry
+	bashEntry := preToolUse[1].(map[string]interface{})
+	if bashEntry["matcher"] != "Bash" {
+		t.Errorf("expected second matcher='Bash', got '%v'", bashEntry["matcher"])
+	}
+
+	bashHooksList := bashEntry["hooks"].([]interface{})
+	bashHook := bashHooksList[0].(map[string]interface{})
+	if bashHook["type"] != "command" {
+		t.Errorf("expected type='command', got '%v'", bashHook["type"])
+	}
+	if !strings.Contains(bashHook["command"].(string), "dynamic-context") {
+		t.Errorf("expected Bash command to contain 'dynamic-context', got '%v'", bashHook["command"])
 	}
 }
 
@@ -221,6 +236,18 @@ func TestClaudePlatformInjectCommand(t *testing.T) {
 	}
 	if !strings.Contains(cmd, "prompt") {
 		t.Error("expected command to contain 'prompt'")
+	}
+}
+
+func TestClaudePlatformActivateCommand(t *testing.T) {
+	p := NewClaudePlatform()
+	cmd := p.ActivateCommand()
+
+	if !strings.Contains(cmd, "dynamic-context") {
+		t.Error("expected activate command to contain 'dynamic-context'")
+	}
+	if !strings.Contains(cmd, "CLAUDE_PROJECT_DIR") {
+		t.Error("expected activate command to reference CLAUDE_PROJECT_DIR")
 	}
 }
 
