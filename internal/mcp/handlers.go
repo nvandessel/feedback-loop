@@ -18,6 +18,7 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/dedup"
 	"github.com/nvandessel/feedback-loop/internal/learning"
 	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/feedback-loop/internal/pathutil"
 	"github.com/nvandessel/feedback-loop/internal/ranking"
 	"github.com/nvandessel/feedback-loop/internal/sanitize"
 	"github.com/nvandessel/feedback-loop/internal/spreading"
@@ -779,11 +780,21 @@ func (s *Server) handleFloopDeduplicate(ctx context.Context, req *sdk.CallToolRe
 func (s *Server) handleFloopBackup(ctx context.Context, req *sdk.CallToolRequest, args FloopBackupInput) (*sdk.CallToolResult, FloopBackupOutput, error) {
 	outputPath := args.OutputPath
 	if outputPath == "" {
+		// Default path -- controlled by us, no validation needed
 		backupDir, err := backup.DefaultBackupDir()
 		if err != nil {
 			return nil, FloopBackupOutput{}, fmt.Errorf("failed to get backup directory: %w", err)
 		}
 		outputPath = backup.GenerateBackupPath(backupDir)
+	} else {
+		// User-specified path -- validate against allowed directories
+		allowedDirs, err := pathutil.DefaultAllowedBackupDirsWithProjectRoot(s.root)
+		if err != nil {
+			return nil, FloopBackupOutput{}, fmt.Errorf("failed to determine allowed backup dirs: %w", err)
+		}
+		if err := pathutil.ValidatePath(outputPath, allowedDirs); err != nil {
+			return nil, FloopBackupOutput{}, fmt.Errorf("backup path rejected: %w", err)
+		}
 	}
 
 	result, err := backup.Backup(ctx, s.store, outputPath)
@@ -809,6 +820,15 @@ func (s *Server) handleFloopBackup(ctx context.Context, req *sdk.CallToolRequest
 func (s *Server) handleFloopRestore(ctx context.Context, req *sdk.CallToolRequest, args FloopRestoreInput) (*sdk.CallToolResult, FloopRestoreOutput, error) {
 	if args.InputPath == "" {
 		return nil, FloopRestoreOutput{}, fmt.Errorf("'input_path' parameter is required")
+	}
+
+	// Validate user-supplied path against allowed directories
+	allowedDirs, err := pathutil.DefaultAllowedBackupDirsWithProjectRoot(s.root)
+	if err != nil {
+		return nil, FloopRestoreOutput{}, fmt.Errorf("failed to determine allowed backup dirs: %w", err)
+	}
+	if err := pathutil.ValidatePath(args.InputPath, allowedDirs); err != nil {
+		return nil, FloopRestoreOutput{}, fmt.Errorf("restore path rejected: %w", err)
 	}
 
 	mode := backup.RestoreMerge

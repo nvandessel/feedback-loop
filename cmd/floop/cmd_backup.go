@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/nvandessel/feedback-loop/internal/backup"
+	"github.com/nvandessel/feedback-loop/internal/pathutil"
 	"github.com/nvandessel/feedback-loop/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -34,6 +35,15 @@ Examples:
 					return fmt.Errorf("failed to get backup directory: %w", err)
 				}
 				outputPath = backup.GenerateBackupPath(dir)
+			} else {
+				// Validate user-specified path
+				allowedDirs, err := pathutil.DefaultAllowedBackupDirsWithProjectRoot(root)
+				if err != nil {
+					return fmt.Errorf("failed to determine allowed backup dirs: %w", err)
+				}
+				if err := pathutil.ValidatePath(outputPath, allowedDirs); err != nil {
+					return fmt.Errorf("backup path rejected: %w", err)
+				}
 			}
 
 			ctx := context.Background()
@@ -93,6 +103,15 @@ Examples:
 			root, _ := cmd.Flags().GetString("root")
 			jsonOut, _ := cmd.Flags().GetBool("json")
 			mode, _ := cmd.Flags().GetString("mode")
+
+			// Validate input path
+			allowedDirs, err := pathutil.DefaultAllowedBackupDirsWithProjectRoot(root)
+			if err != nil {
+				return fmt.Errorf("failed to determine allowed backup dirs: %w", err)
+			}
+			if err := pathutil.ValidatePath(inputPath, allowedDirs); err != nil {
+				return fmt.Errorf("restore path rejected: %w", err)
+			}
 
 			restoreMode := backup.RestoreMerge
 			if mode == "replace" {
