@@ -38,6 +38,10 @@ type Server struct {
 
 	// Bounded worker pool for background goroutines
 	workerPool chan struct{}
+
+	// Shutdown coordination
+	done      chan struct{} // closed on shutdown
+	closeOnce sync.Once
 }
 
 // Config holds server configuration.
@@ -73,6 +77,7 @@ func NewServer(cfg *Config) (*Server, error) {
 		pageRankCache: make(map[string]float64),
 		toolLimiters:  ratelimit.NewToolLimiters(),
 		workerPool:    make(chan struct{}, maxBackgroundWorkers),
+		done:          make(chan struct{}),
 	}
 
 	// Register tools
@@ -134,6 +139,11 @@ func (s *Server) debouncedRefreshPageRank() {
 		s.pageRankDebounce.Stop()
 	}
 	s.pageRankDebounce = time.AfterFunc(2*time.Second, func() {
+		select {
+		case <-s.done:
+			return // server is shutting down
+		default:
+		}
 		if err := s.refreshPageRank(context.Background()); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: debounced PageRank refresh failed: %v\n", err)
 		}
@@ -142,11 +152,19 @@ func (s *Server) debouncedRefreshPageRank() {
 
 // runBackground executes fn in a bounded goroutine pool.
 // If the pool is full, the task is dropped with a warning.
+// If the server is shutting down, the task is not started.
 func (s *Server) runBackground(name string, fn func()) {
 	select {
+	case <-s.done:
+		return // server is shutting down
 	case s.workerPool <- struct{}{}:
 		go func() {
 			defer func() { <-s.workerPool }()
+			select {
+			case <-s.done:
+				return
+			default:
+			}
 			fn()
 		}()
 	default:
@@ -173,13 +191,26 @@ func (s *Server) Run(ctx context.Context) error {
 	// Run server (blocks)
 	err := s.server.Run(ctx, &sdk.StdioTransport{})
 
-	// Clean up
-	s.store.Close()
+	// Clean up (idempotent — safe if Close() was already called)
+	s.Close()
 
 	return err
 }
 
 // Close closes the server and releases resources.
+// It is safe to call Close multiple times; only the first call takes effect.
 func (s *Server) Close() error {
-	return s.store.Close()
+	var closeErr error
+	s.closeOnce.Do(func() {
+		close(s.done)
+
+		s.pageRankDebounceMu.Lock()
+		if s.pageRankDebounce != nil {
+			s.pageRankDebounce.Stop()
+		}
+		s.pageRankDebounceMu.Unlock()
+
+		closeErr = s.store.Close()
+	})
+	return closeErr
 }

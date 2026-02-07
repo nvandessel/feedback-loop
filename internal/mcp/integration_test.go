@@ -309,8 +309,8 @@ func TestIntegration_ConcurrentAccess(t *testing.T) {
 	t.Logf("Concurrent learns: %d succeeded, %d rate-limited", successCount, limitedCount)
 
 	// At least the burst count (3) should succeed
-	if successCount < 1 {
-		t.Errorf("Expected at least 1 successful learn, got %d", successCount)
+	if successCount < 3 {
+		t.Errorf("Expected at least burst count (3) successful learns, got %d", successCount)
 	}
 
 	// Verify behaviors were saved for the successful ones

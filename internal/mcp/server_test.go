@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // isolateHome sets HOME to a temp directory to avoid touching real ~/.floop/
@@ -250,5 +251,80 @@ func TestRun_CancelledContext(t *testing.T) {
 	// but we're just verifying it doesn't hang
 	if err == nil {
 		t.Log("Run returned nil (expected in test environment)")
+	}
+}
+
+func TestClose_GracefulShutdownStopsDebounce(t *testing.T) {
+	tmpDir := t.TempDir()
+	isolateHome(t, tmpDir)
+	floopDir := filepath.Join(tmpDir, ".floop")
+	if err := os.MkdirAll(floopDir, 0755); err != nil {
+		t.Fatalf("Failed to create .floop dir: %v", err)
+	}
+
+	cfg := &Config{
+		Name:    "test-server",
+		Version: "v1.0.0",
+		Root:    tmpDir,
+	}
+
+	server, err := NewServer(cfg)
+	if err != nil {
+		t.Fatalf("NewServer failed: %v", err)
+	}
+
+	// Trigger a debounced PageRank refresh (fires after 2s)
+	server.debouncedRefreshPageRank()
+
+	// Close the server immediately — before the 2s timer fires.
+	// This should stop the debounce timer and signal shutdown via the done channel.
+	// Without the fix, the timer callback would run against a closed store,
+	// causing "sql: database is closed" errors.
+	if err := server.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	// Wait long enough for the timer to have fired (if it wasn't stopped)
+	time.Sleep(3 * time.Second)
+
+	// If we get here without panic or error, graceful shutdown worked
+	t.Log("Graceful shutdown completed without panic or database errors")
+}
+
+func TestRunBackground_SkipsAfterClose(t *testing.T) {
+	tmpDir := t.TempDir()
+	isolateHome(t, tmpDir)
+	floopDir := filepath.Join(tmpDir, ".floop")
+	if err := os.MkdirAll(floopDir, 0755); err != nil {
+		t.Fatalf("Failed to create .floop dir: %v", err)
+	}
+
+	cfg := &Config{
+		Name:    "test-server",
+		Version: "v1.0.0",
+		Root:    tmpDir,
+	}
+
+	server, err := NewServer(cfg)
+	if err != nil {
+		t.Fatalf("NewServer failed: %v", err)
+	}
+
+	// Close the server first
+	if err := server.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	// Attempting to run a background task after close should be a no-op
+	executed := false
+	server.runBackground("post-close-task", func() {
+		executed = true
+	})
+
+	// Give it a moment in case the goroutine was somehow started
+	time.Sleep(50 * time.Millisecond)
+
+	if executed {
+		t.Error("expected background task to be skipped after Close()")
 	}
 }
