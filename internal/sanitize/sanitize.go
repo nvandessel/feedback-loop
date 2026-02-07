@@ -61,8 +61,8 @@ var (
 //  4. Remove markdown horizontal rules
 //  5. Collapse triple backticks to single backtick
 //  6. Collapse excessive newlines (3+ -> 2)
-//  7. Truncate to MaxContentLength
-//  8. Trim leading/trailing whitespace
+//  7. Trim leading/trailing whitespace
+//  8. Truncate to MaxContentLength
 func SanitizeBehaviorContent(input string) string {
 	if input == "" {
 		return ""

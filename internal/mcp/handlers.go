@@ -945,7 +945,7 @@ func (s *Server) handleFloopConnect(ctx context.Context, req *sdk.CallToolReques
 
 	message := fmt.Sprintf("Edge created: %s -[%s (%.2f)]-> %s", args.Source, args.Kind, weight, args.Target)
 	if args.Bidirectional {
-		message += fmt.Sprintf(" (bidirectional)")
+		message += " (bidirectional)"
 	}
 
 	return nil, FloopConnectOutput{
