@@ -85,7 +85,7 @@ func (s *Server) registerResources() error {
 	s.server.AddResource(&sdk.Resource{
 		URI:         "floop://behaviors/active",
 		Name:        "floop-active-behaviors",
-		Description: "Learned behaviors that should guide agent actions. These are corrections and preferences captured from previous sessions.",
+		Description: "Patterns and suggestions from previous sessions that may be relevant to the current task.",
 		MIMEType:    "text/markdown",
 	}, s.handleBehaviorsResource)
 

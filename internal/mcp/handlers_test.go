@@ -763,10 +763,20 @@ func TestHandleBehaviorsResource_EmptyStoreFraming(t *testing.T) {
 	text := result.Contents[0].Text
 
 	// Even the empty-state message must not contain authoritative phrasing.
-	forbiddenPhrases := []string{"CRITICAL", "Violating", "repeating a past mistake"}
-	for _, phrase := range forbiddenPhrases {
-		if strings.Contains(text, phrase) {
-			t.Errorf("Empty-state output contains forbidden phrase %q:\n%s", phrase, text)
-		}
+	forbiddenPhrases := []struct {
+		name   string
+		phrase string
+	}{
+		{"no CRITICAL keyword", "CRITICAL"},
+		{"no Violating language", "Violating"},
+		{"no repeating a past mistake", "repeating a past mistake"},
+		{"no YOUR learned memories", "YOUR learned memories"},
+	}
+	for _, tc := range forbiddenPhrases {
+		t.Run(tc.name, func(t *testing.T) {
+			if strings.Contains(text, tc.phrase) {
+				t.Errorf("Empty-state output contains forbidden phrase %q:\n%s", tc.phrase, text)
+			}
+		})
 	}
 }
