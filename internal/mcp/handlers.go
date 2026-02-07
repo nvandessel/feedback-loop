@@ -12,8 +12,8 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/nvandessel/feedback-loop/internal/activation"
-	"github.com/nvandessel/feedback-loop/internal/backup"
 	"github.com/nvandessel/feedback-loop/internal/assembly"
+	"github.com/nvandessel/feedback-loop/internal/backup"
 	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/dedup"
 	"github.com/nvandessel/feedback-loop/internal/learning"
@@ -159,8 +159,8 @@ func (s *Server) handleBehaviorsResource(ctx context.Context, req *sdk.ReadResou
 	// Build final output with header
 	var sb strings.Builder
 	sb.WriteString("# Learned Behaviors\n\n")
-	sb.WriteString("**CRITICAL:** These are YOUR learned memories from past sessions.\n")
-	sb.WriteString("Violating a learned behavior means repeating a past mistake.\n\n")
+	sb.WriteString("Suggestions based on patterns from previous sessions.\n")
+	sb.WriteString("Apply these where relevant; override when context requires it.\n\n")
 
 	// Add the compiled tiered content
 	if tieredPrompt.Text != "" {
