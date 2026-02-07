@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -657,5 +658,125 @@ func TestHandleFloopValidate_WithDanglingReference(t *testing.T) {
 
 	if !foundDangling {
 		t.Errorf("Expected dangling error, got: %v", output.Errors)
+	}
+}
+
+func TestHandleBehaviorsResource_FramingIsAdvisory(t *testing.T) {
+	server, _ := setupTestServer(t)
+	defer server.Close()
+
+	ctx := context.Background()
+
+	// Add a behavior with no "when" conditions so it always activates.
+	behaviorNode := store.Node{
+		ID:   "framing-test-behavior",
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"name": "Test Framing Behavior",
+			"kind": "directive",
+			"content": map[string]interface{}{
+				"canonical": "Always use table-driven tests in Go",
+			},
+			"when": map[string]interface{}{},
+		},
+		Metadata: map[string]interface{}{
+			"confidence": 0.9,
+			"priority":   1,
+		},
+	}
+	if _, err := server.store.AddNode(ctx, behaviorNode); err != nil {
+		t.Fatalf("Failed to add test behavior: %v", err)
+	}
+	if err := server.store.Sync(ctx); err != nil {
+		t.Fatalf("Failed to sync store: %v", err)
+	}
+
+	// Call the resource handler.
+	req := &sdk.ReadResourceRequest{}
+	result, err := server.handleBehaviorsResource(ctx, req)
+	if err != nil {
+		t.Fatalf("handleBehaviorsResource failed: %v", err)
+	}
+
+	if len(result.Contents) == 0 {
+		t.Fatal("Expected at least one resource content block")
+	}
+
+	text := result.Contents[0].Text
+
+	// Subtest table: phrases that MUST NOT appear (authoritative framing).
+	forbiddenPhrases := []struct {
+		name   string
+		phrase string
+	}{
+		{"no CRITICAL keyword", "CRITICAL"},
+		{"no Violating language", "Violating"},
+		{"no repeating a past mistake", "repeating a past mistake"},
+		{"no YOUR learned memories", "YOUR learned memories"},
+	}
+
+	for _, tc := range forbiddenPhrases {
+		t.Run(tc.name, func(t *testing.T) {
+			if strings.Contains(text, tc.phrase) {
+				t.Errorf("Resource output contains forbidden phrase %q:\n%s", tc.phrase, text)
+			}
+		})
+	}
+
+	// Subtest table: phrases that SHOULD appear (advisory framing).
+	requiredPhrases := []struct {
+		name   string
+		phrase string
+	}{
+		{"has Learned Behaviors header", "# Learned Behaviors"},
+		{"has advisory suggestion language", "Suggestions"},
+		{"has override-friendly language", "override"},
+		{"has memories active stats", "memories active"},
+	}
+
+	for _, tc := range requiredPhrases {
+		t.Run(tc.name, func(t *testing.T) {
+			if !strings.Contains(text, tc.phrase) {
+				t.Errorf("Resource output missing required phrase %q:\n%s", tc.phrase, text)
+			}
+		})
+	}
+}
+
+func TestHandleBehaviorsResource_EmptyStoreFraming(t *testing.T) {
+	server, _ := setupTestServer(t)
+	defer server.Close()
+
+	ctx := context.Background()
+
+	// Call with no behaviors — should still use neutral framing.
+	req := &sdk.ReadResourceRequest{}
+	result, err := server.handleBehaviorsResource(ctx, req)
+	if err != nil {
+		t.Fatalf("handleBehaviorsResource failed: %v", err)
+	}
+
+	if len(result.Contents) == 0 {
+		t.Fatal("Expected at least one resource content block")
+	}
+
+	text := result.Contents[0].Text
+
+	// Even the empty-state message must not contain authoritative phrasing.
+	forbiddenPhrases := []struct {
+		name   string
+		phrase string
+	}{
+		{"no CRITICAL keyword", "CRITICAL"},
+		{"no Violating language", "Violating"},
+		{"no repeating a past mistake", "repeating a past mistake"},
+		{"no YOUR learned memories", "YOUR learned memories"},
+	}
+	for _, tc := range forbiddenPhrases {
+		t.Run(tc.name, func(t *testing.T) {
+			if strings.Contains(text, tc.phrase) {
+				t.Errorf("Empty-state output contains forbidden phrase %q:\n%s", tc.phrase, text)
+			}
+		})
 	}
 }

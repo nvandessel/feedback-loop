@@ -86,7 +86,7 @@ func (s *Server) registerResources() error {
 	s.server.AddResource(&sdk.Resource{
 		URI:         "floop://behaviors/active",
 		Name:        "floop-active-behaviors",
-		Description: "Learned behaviors that should guide agent actions. These are corrections and preferences captured from previous sessions.",
+		Description: "Patterns and suggestions from previous sessions that may be relevant to the current task.",
 		MIMEType:    "text/markdown",
 	}, s.handleBehaviorsResource)
 
@@ -160,8 +160,8 @@ func (s *Server) handleBehaviorsResource(ctx context.Context, req *sdk.ReadResou
 	// Build final output with header
 	var sb strings.Builder
 	sb.WriteString("# Learned Behaviors\n\n")
-	sb.WriteString("**CRITICAL:** These are YOUR learned memories from past sessions.\n")
-	sb.WriteString("Violating a learned behavior means repeating a past mistake.\n\n")
+	sb.WriteString("Suggestions based on patterns from previous sessions.\n")
+	sb.WriteString("Apply these where relevant; override when context requires it.\n\n")
 
 	// Add the compiled tiered content
 	if tieredPrompt.Text != "" {
