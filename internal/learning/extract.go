@@ -300,5 +300,11 @@ func (e *behaviorExtractor) generateName(correction models.Correction) string {
 	name = strings.Trim(name, "-")
 
 	// Prefix with learned/ to indicate origin
-	return "learned/" + name
+	name = "learned/" + name
+
+	// Apply SanitizeBehaviorName as a final safety pass to ensure the name
+	// only contains allowed characters after all transformations.
+	name = sanitize.SanitizeBehaviorName(name)
+
+	return name
 }

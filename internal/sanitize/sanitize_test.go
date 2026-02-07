@@ -3,6 +3,7 @@ package sanitize
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestSanitizeBehaviorContent(t *testing.T) {
@@ -176,6 +177,31 @@ func TestSanitizeBehaviorContent(t *testing.T) {
 			input: "Use x > 5 and y < 10 in conditions",
 			want:  "Use x > 5 and y < 10 in conditions",
 		},
+		{
+			name:  "strip HTML comments",
+			input: "before <!-- hidden --> after",
+			want:  "before  after",
+		},
+		{
+			name:  "strip CDATA sections",
+			input: "<![CDATA[evil]]>",
+			want:  "",
+		},
+		{
+			name:  "strip DEL character",
+			input: "hello\x7fworld",
+			want:  "helloworld",
+		},
+		{
+			name:  "strip unclosed tag at end of string",
+			input: "safe text <system evil",
+			want:  "safe text",
+		},
+		{
+			name:  "strip space-after-slash closing tag",
+			input: "before</ system>after",
+			want:  "beforeafter",
+		},
 	}
 
 	for _, tt := range tests {
@@ -246,6 +272,95 @@ func TestSanitizeBehaviorName(t *testing.T) {
 			got := SanitizeBehaviorName(tt.input)
 			if got != tt.want {
 				t.Errorf("SanitizeBehaviorName()\ngot:  %q\nwant: %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSanitizeBehaviorContent_UTF8Truncation(t *testing.T) {
+	// Build a string of multi-byte characters (each is 3 bytes in UTF-8)
+	// that exceeds MaxContentLength in rune count.
+	multiByteChar := "\xe4\xb8\x96" // U+4E16, Chinese character for "world"
+	input := strings.Repeat(multiByteChar, MaxContentLength+50)
+
+	got := SanitizeBehaviorContent(input)
+
+	// The result must be valid UTF-8.
+	if !utf8.ValidString(got) {
+		t.Errorf("truncation produced invalid UTF-8")
+	}
+
+	// The result should be truncated to MaxContentLength runes plus "...".
+	wantRuneCount := MaxContentLength + 3 // 3 for "..."
+	gotRuneCount := utf8.RuneCountInString(got)
+	if gotRuneCount != wantRuneCount {
+		t.Errorf("rune count = %d, want %d", gotRuneCount, wantRuneCount)
+	}
+
+	// Must end with "..."
+	if !strings.HasSuffix(got, "...") {
+		t.Errorf("truncated string should end with '...', got suffix %q", got[len(got)-10:])
+	}
+}
+
+func TestSanitizeBehaviorContent_Idempotency(t *testing.T) {
+	inputs := []string{
+		"Normal clean text",
+		"# Heading\n<system>evil</system>\n---\nreal content",
+		"Use ```go\nfmt.Println()\n``` for code",
+		"hello\x00\x01\x02\x7fworld",
+		"before <!-- comment --> after",
+		"<![CDATA[data]]>text",
+		strings.Repeat("a", 2100),
+	}
+
+	for _, input := range inputs {
+		once := SanitizeBehaviorContent(input)
+		twice := SanitizeBehaviorContent(once)
+		if once != twice {
+			t.Errorf("not idempotent for input %q:\nonce:  %q\ntwice: %q", input, once, twice)
+		}
+	}
+}
+
+func TestSanitizeFilePath(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "clean path passthrough",
+			input: "internal/store/sqlite.go",
+			want:  "internal/store/sqlite.go",
+		},
+		{
+			name:  "strip control chars from path",
+			input: "internal/\x00store/\x7fsqlite.go",
+			want:  "internal/store/sqlite.go",
+		},
+		{
+			name:  "clean path traversal",
+			input: "internal/../../../etc/passwd",
+			want:  "../../etc/passwd",
+		},
+		{
+			name:  "clean double separators",
+			input: "internal//store///sqlite.go",
+			want:  "internal/store/sqlite.go",
+		},
+		{
+			name:  "empty input",
+			input: "",
+			want:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := SanitizeFilePath(tt.input)
+			if got != tt.want {
+				t.Errorf("SanitizeFilePath()\ngot:  %q\nwant: %q", got, tt.want)
 			}
 		})
 	}

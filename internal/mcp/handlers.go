@@ -401,6 +401,12 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 	// any code path that bypasses the learning loop.
 	args.Wrong = sanitize.SanitizeBehaviorContent(args.Wrong)
 	args.Right = sanitize.SanitizeBehaviorContent(args.Right)
+	if args.Task != "" {
+		args.Task = sanitize.SanitizeBehaviorContent(args.Task)
+	}
+	if args.File != "" {
+		args.File = sanitize.SanitizeFilePath(args.File)
+	}
 
 	// Build context
 	ctxBuilder := activation.NewContextBuilder()

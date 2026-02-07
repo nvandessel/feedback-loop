@@ -5,8 +5,10 @@
 package sanitize
 
 import (
+	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 // MaxContentLength is the maximum allowed length for behavior content.
@@ -19,7 +21,14 @@ const MaxNameLength = 80
 var (
 	// reXMLTag matches XML/HTML tags including those with attributes and self-closing tags.
 	// It also matches XML processing instructions like <?xml ...?>.
-	reXMLTag = regexp.MustCompile(`<[/?!]?[a-zA-Z][a-zA-Z0-9]*(?:\s+[^>]*)?/?>|<\?[^?]*\?>`)
+	// It also matches unclosed tags at end-of-string and space-after-slash closing variants.
+	reXMLTag = regexp.MustCompile(`<[/?!]?[a-zA-Z][a-zA-Z0-9]*(?:\s+[^>]*)?/?\s*>|<\?[^?]*\?>|</\s+[a-zA-Z][^>]*>|<[/?!]?[a-zA-Z][^>]*$`)
+
+	// reHTMLComment matches HTML comments like <!-- anything -->.
+	reHTMLComment = regexp.MustCompile(`<!--[\s\S]*?-->`)
+
+	// reCDATA matches CDATA sections like <![CDATA[anything]]>.
+	reCDATA = regexp.MustCompile(`<!\[CDATA\[[\s\S]*?\]\]>`)
 
 	// reMarkdownHeading matches markdown headings at the start of a line (# , ## , etc.).
 	reMarkdownHeading = regexp.MustCompile(`(?m)^#{1,6}\s+`)
@@ -64,7 +73,9 @@ func SanitizeBehaviorContent(input string) string {
 	// 1. Strip null bytes and ASCII control characters (0x00-0x1F) except \n (0x0A) and \t (0x09).
 	s = stripControlChars(s)
 
-	// 2. Strip XML/HTML-like tags.
+	// 2. Strip HTML comments, CDATA sections, and XML/HTML-like tags.
+	s = reHTMLComment.ReplaceAllString(s, "")
+	s = reCDATA.ReplaceAllString(s, "")
 	s = reXMLTag.ReplaceAllString(s, "")
 
 	// 3. Replace markdown headings with list markers to preserve meaning.
@@ -82,9 +93,10 @@ func SanitizeBehaviorContent(input string) string {
 	// 7. Trim leading/trailing whitespace.
 	s = strings.TrimSpace(s)
 
-	// 8. Truncate to max length.
-	if len(s) > MaxContentLength {
-		s = s[:MaxContentLength] + "..."
+	// 8. Truncate to max length (rune-safe to avoid splitting multi-byte UTF-8 chars).
+	if utf8.RuneCountInString(s) > MaxContentLength {
+		runes := []rune(s)
+		s = string(runes[:MaxContentLength]) + "..."
 	}
 
 	return s
@@ -115,21 +127,35 @@ func SanitizeBehaviorName(input string) string {
 	// Collapse repeated underscores.
 	s = reRepeatedUnderscores.ReplaceAllString(s, "_")
 
-	// Truncate to max length.
-	if len(s) > MaxNameLength {
-		s = s[:MaxNameLength]
+	// Truncate to max length (rune-safe).
+	if utf8.RuneCountInString(s) > MaxNameLength {
+		runes := []rune(s)
+		s = string(runes[:MaxNameLength])
 	}
 
 	return s
 }
 
-// stripControlChars removes ASCII control characters (0x00-0x1F) from the string,
-// except for newline (0x0A) and tab (0x09) which are preserved.
+// SanitizeFilePath sanitizes a file path by cleaning path traversal sequences and
+// stripping control characters. This is used for the 'file' parameter in floop_learn.
+func SanitizeFilePath(input string) string {
+	if input == "" {
+		return ""
+	}
+	// Strip control characters (including DEL) but preserve path-significant chars.
+	s := stripControlChars(input)
+	// Clean the path to resolve . and .. and double separators.
+	s = filepath.Clean(s)
+	return s
+}
+
+// stripControlChars removes ASCII control characters (0x00-0x1F) and DEL (0x7F) from
+// the string, except for newline (0x0A) and tab (0x09) which are preserved.
 func stripControlChars(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
 	for _, r := range s {
-		if r < 0x20 && r != '\n' && r != '\t' {
+		if (r < 0x20 || r == 0x7F) && r != '\n' && r != '\t' {
 			continue
 		}
 		b.WriteRune(r)
