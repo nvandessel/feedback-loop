@@ -12,13 +12,14 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/nvandessel/feedback-loop/internal/activation"
-	"github.com/nvandessel/feedback-loop/internal/backup"
 	"github.com/nvandessel/feedback-loop/internal/assembly"
+	"github.com/nvandessel/feedback-loop/internal/backup"
 	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/dedup"
 	"github.com/nvandessel/feedback-loop/internal/learning"
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/ranking"
+	"github.com/nvandessel/feedback-loop/internal/sanitize"
 	"github.com/nvandessel/feedback-loop/internal/spreading"
 	"github.com/nvandessel/feedback-loop/internal/store"
 	"github.com/nvandessel/feedback-loop/internal/summarization"
@@ -393,6 +394,18 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 	}
 	if args.Right == "" {
 		return nil, FloopLearnOutput{}, fmt.Errorf("'right' parameter is required")
+	}
+
+	// Sanitize inputs at the handler level as defense-in-depth.
+	// The extraction layer also sanitizes, but this protects against
+	// any code path that bypasses the learning loop.
+	args.Wrong = sanitize.SanitizeBehaviorContent(args.Wrong)
+	args.Right = sanitize.SanitizeBehaviorContent(args.Right)
+	if args.Task != "" {
+		args.Task = sanitize.SanitizeBehaviorContent(args.Task)
+	}
+	if args.File != "" {
+		args.File = sanitize.SanitizeFilePath(args.File)
 	}
 
 	// Build context
@@ -932,7 +945,7 @@ func (s *Server) handleFloopConnect(ctx context.Context, req *sdk.CallToolReques
 
 	message := fmt.Sprintf("Edge created: %s -[%s (%.2f)]-> %s", args.Source, args.Kind, weight, args.Target)
 	if args.Bidirectional {
-		message += fmt.Sprintf(" (bidirectional)")
+		message += " (bidirectional)"
 	}
 
 	return nil, FloopConnectOutput{
