@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -201,6 +202,157 @@ func TestRotateBackups(t *testing.T) {
 
 	if jsonCount != 3 {
 		t.Errorf("after rotation, got %d files, want 3", jsonCount)
+	}
+}
+
+func TestBackup_PathValidation(t *testing.T) {
+	srcStore := createTestStore(t)
+	defer srcStore.Close()
+	addTestData(t, srcStore)
+
+	ctx := context.Background()
+	allowedDir := t.TempDir()
+	outsideDir := t.TempDir()
+
+	tests := []struct {
+		name    string
+		path    string
+		wantErr bool
+	}{
+		{
+			name:    "valid path inside allowed dir",
+			path:    filepath.Join(allowedDir, "backup.json"),
+			wantErr: false,
+		},
+		{
+			name:    "path outside allowed dir is rejected",
+			path:    filepath.Join(outsideDir, "backup.json"),
+			wantErr: true,
+		},
+		{
+			name:    "path traversal is rejected",
+			path:    filepath.Join(allowedDir, "..", "escape.json"),
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Backup(ctx, srcStore, tt.path, allowedDir)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Backup() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr && err != nil && !strings.Contains(err.Error(), "path rejected") {
+				t.Errorf("Backup() error = %v, want 'path rejected' in message", err)
+			}
+		})
+	}
+}
+
+func TestBackup_NoValidationWithoutAllowedDirs(t *testing.T) {
+	srcStore := createTestStore(t)
+	defer srcStore.Close()
+	addTestData(t, srcStore)
+
+	ctx := context.Background()
+	backupPath := filepath.Join(t.TempDir(), "backup.json")
+
+	// No allowedDirs arg = no validation (backward compatible)
+	_, err := Backup(ctx, srcStore, backupPath)
+	if err != nil {
+		t.Fatalf("Backup() without allowedDirs should not fail: %v", err)
+	}
+}
+
+func TestRestore_PathValidation(t *testing.T) {
+	// Create a valid backup file first
+	srcStore := createTestStore(t)
+	defer srcStore.Close()
+	addTestData(t, srcStore)
+
+	ctx := context.Background()
+	allowedDir := t.TempDir()
+	backupPath := filepath.Join(allowedDir, "backup.json")
+
+	_, err := Backup(ctx, srcStore, backupPath)
+	if err != nil {
+		t.Fatalf("Backup() error = %v", err)
+	}
+
+	outsideDir := t.TempDir()
+	outsideBackup := filepath.Join(outsideDir, "backup.json")
+	// Copy the backup to outside dir
+	data, _ := os.ReadFile(backupPath)
+	os.WriteFile(outsideBackup, data, 0600)
+
+	dstStore := createTestStore(t)
+	defer dstStore.Close()
+
+	tests := []struct {
+		name    string
+		path    string
+		wantErr bool
+	}{
+		{
+			name:    "valid path inside allowed dir",
+			path:    backupPath,
+			wantErr: false,
+		},
+		{
+			name:    "path outside allowed dir is rejected",
+			path:    outsideBackup,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			restoreStore := createTestStore(t)
+			defer restoreStore.Close()
+			_, err := Restore(ctx, restoreStore, tt.path, RestoreMerge, allowedDir)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Restore() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr && err != nil && !strings.Contains(err.Error(), "path rejected") {
+				t.Errorf("Restore() error = %v, want 'path rejected' in message", err)
+			}
+		})
+	}
+}
+
+func TestBackup_FilePermissions(t *testing.T) {
+	srcStore := createTestStore(t)
+	defer srcStore.Close()
+	addTestData(t, srcStore)
+
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+	backupDir := filepath.Join(tmpDir, "newdir", "backups")
+	backupPath := filepath.Join(backupDir, "backup.json")
+
+	_, err := Backup(ctx, srcStore, backupPath)
+	if err != nil {
+		t.Fatalf("Backup() error = %v", err)
+	}
+
+	// Verify directory permissions are 0700
+	dirInfo, err := os.Stat(backupDir)
+	if err != nil {
+		t.Fatalf("Stat(backupDir) error = %v", err)
+	}
+	dirPerm := dirInfo.Mode().Perm()
+	if dirPerm != 0700 {
+		t.Errorf("backup dir permissions = %o, want 0700", dirPerm)
+	}
+
+	// Verify file permissions are 0600
+	fileInfo, err := os.Stat(backupPath)
+	if err != nil {
+		t.Fatalf("Stat(backupPath) error = %v", err)
+	}
+	filePerm := fileInfo.Mode().Perm()
+	if filePerm != 0600 {
+		t.Errorf("backup file permissions = %o, want 0600", filePerm)
 	}
 }
 

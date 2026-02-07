@@ -10,13 +10,14 @@ import (
 	"sort"
 	"time"
 
+	"github.com/nvandessel/feedback-loop/internal/pathutil"
 	"github.com/nvandessel/feedback-loop/internal/store"
 )
 
 // BackupFormat is the JSON structure for a full backup file.
 type BackupFormat struct {
-	Version   int       `json:"version"`
-	CreatedAt time.Time `json:"created_at"`
+	Version   int          `json:"version"`
+	CreatedAt time.Time    `json:"created_at"`
 	Nodes     []BackupNode `json:"nodes"`
 	Edges     []store.Edge `json:"edges"`
 }
@@ -36,7 +37,14 @@ func DefaultBackupDir() (string, error) {
 }
 
 // Backup exports all nodes and edges from the store to a JSON file.
-func Backup(ctx context.Context, graphStore store.GraphStore, outputPath string) (*BackupFormat, error) {
+// If allowedDirs is non-empty, the outputPath is validated against them.
+// Pass nil to skip validation (for internal/default paths only).
+func Backup(ctx context.Context, graphStore store.GraphStore, outputPath string, allowedDirs ...string) (*BackupFormat, error) {
+	if len(allowedDirs) > 0 {
+		if err := pathutil.ValidatePath(outputPath, allowedDirs); err != nil {
+			return nil, fmt.Errorf("backup path rejected: %w", err)
+		}
+	}
 	// Get all nodes (empty predicate = all)
 	nodes, err := graphStore.QueryNodes(ctx, map[string]interface{}{})
 	if err != nil {
@@ -73,14 +81,14 @@ func Backup(ctx context.Context, graphStore store.GraphStore, outputPath string)
 		backup.Nodes[i] = BackupNode{Node: n}
 	}
 
-	// Ensure output directory exists
+	// Ensure output directory exists (user-only permissions)
 	dir := filepath.Dir(outputPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create backup directory: %w", err)
 	}
 
-	// Write to file
-	f, err := os.Create(outputPath)
+	// Write to file (user-only read/write)
+	f, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create backup file: %w", err)
 	}
@@ -114,7 +122,15 @@ type RestoreResult struct {
 }
 
 // Restore imports nodes and edges from a backup file into the store.
-func Restore(ctx context.Context, graphStore store.GraphStore, inputPath string, mode RestoreMode) (*RestoreResult, error) {
+// If allowedDirs is non-empty, the inputPath is validated against them.
+// Pass nil to skip validation (for internal/default paths only).
+func Restore(ctx context.Context, graphStore store.GraphStore, inputPath string, mode RestoreMode, allowedDirs ...string) (*RestoreResult, error) {
+	if len(allowedDirs) > 0 {
+		if err := pathutil.ValidatePath(inputPath, allowedDirs); err != nil {
+			return nil, fmt.Errorf("restore path rejected: %w", err)
+		}
+	}
+
 	// Read backup file
 	f, err := os.Open(inputPath)
 	if err != nil {

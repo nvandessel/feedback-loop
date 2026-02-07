@@ -195,7 +195,12 @@ func TestE2E_FullPipeline(t *testing.T) {
 
 	// ── Stage 5: Backup and restore ─────────────────────────────────
 	t.Run("Stage5_BackupRestore", func(t *testing.T) {
-		backupPath := filepath.Join(tmpDir, "test-backup.json")
+		// Use project-local .floop/backups/ directory (allowed by path validation)
+		backupDir := filepath.Join(tmpDir, ".floop", "backups")
+		if err := os.MkdirAll(backupDir, 0700); err != nil {
+			t.Fatalf("Failed to create backup dir: %v", err)
+		}
+		backupPath := filepath.Join(backupDir, "test-backup.json")
 
 		// Backup
 		_, backupOut, err := server.handleFloopBackup(ctx, nil, FloopBackupInput{
@@ -220,13 +225,17 @@ func TestE2E_FullPipeline(t *testing.T) {
 		server2, tmpDir2 := setupTestServer(t)
 		defer server2.Close()
 
-		// Copy backup to server2's directory
-		backupPath2 := filepath.Join(tmpDir2, "restore.json")
+		// Copy backup to server2's allowed backup directory
+		backupDir2 := filepath.Join(tmpDir2, ".floop", "backups")
+		if err := os.MkdirAll(backupDir2, 0700); err != nil {
+			t.Fatalf("Failed to create backup dir 2: %v", err)
+		}
+		backupPath2 := filepath.Join(backupDir2, "restore.json")
 		data, err := os.ReadFile(backupPath)
 		if err != nil {
 			t.Fatalf("Failed to read backup: %v", err)
 		}
-		if err := os.WriteFile(backupPath2, data, 0644); err != nil {
+		if err := os.WriteFile(backupPath2, data, 0600); err != nil {
 			t.Fatalf("Failed to write backup copy: %v", err)
 		}
 
