@@ -32,6 +32,9 @@ type Server struct {
 	// Rate limiting
 	toolLimiters ratelimit.ToolLimiters
 
+	// Confidence boost rate limiting
+	boostTracker *ranking.BoostTracker
+
 	// PageRank debounce
 	pageRankDebounce   *time.Timer
 	pageRankDebounceMu sync.Mutex
@@ -76,6 +79,7 @@ func NewServer(cfg *Config) (*Server, error) {
 		session:       session.NewState(session.DefaultConfig()),
 		pageRankCache: make(map[string]float64),
 		toolLimiters:  ratelimit.NewToolLimiters(),
+		boostTracker:  ranking.DefaultBoostTracker(),
 		workerPool:    make(chan struct{}, maxBackgroundWorkers),
 		done:          make(chan struct{}),
 	}
