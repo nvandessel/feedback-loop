@@ -9,6 +9,7 @@ import (
 
 	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/hooks"
+	"github.com/nvandessel/feedback-loop/internal/seed"
 	"github.com/nvandessel/feedback-loop/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -98,6 +99,38 @@ created: %s
 			// Human-readable output for floop init
 			if !jsonOut {
 				fmt.Printf("Created %s\n", floopDir)
+			}
+
+			// Seed meta-behaviors into global store
+			if globalInit {
+				homeDir, err := os.UserHomeDir()
+				if err != nil {
+					return fmt.Errorf("failed to get home directory: %w", err)
+				}
+				globalStore, err := store.NewSQLiteGraphStore(homeDir)
+				if err != nil {
+					return fmt.Errorf("failed to open global store for seeding: %w", err)
+				}
+				defer globalStore.Close()
+
+				seedResult, err := seed.NewSeeder(globalStore).SeedGlobalStore(cmd.Context())
+				if err != nil {
+					return fmt.Errorf("failed to seed global store: %w", err)
+				}
+
+				if !jsonOut {
+					if len(seedResult.Added) > 0 {
+						fmt.Printf("Seeded %d meta-behavior(s) into global store\n", len(seedResult.Added))
+					}
+					if len(seedResult.Updated) > 0 {
+						fmt.Printf("Updated %d meta-behavior(s) in global store\n", len(seedResult.Updated))
+					}
+				}
+				result["seeds"] = map[string]interface{}{
+					"added":   len(seedResult.Added),
+					"updated": len(seedResult.Updated),
+					"skipped": len(seedResult.Skipped),
+				}
 			}
 
 			// Configure AI tool hooks if enabled
