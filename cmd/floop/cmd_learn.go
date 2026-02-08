@@ -11,6 +11,7 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/learning"
 	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/feedback-loop/internal/sanitize"
 	"github.com/nvandessel/feedback-loop/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -41,6 +42,24 @@ Example:
 			}
 			if right == "" {
 				return fmt.Errorf("--right is required and cannot be empty")
+			}
+
+			// Sanitize inputs to prevent stored prompt injection
+			wrong = sanitize.SanitizeBehaviorContent(wrong)
+			right = sanitize.SanitizeBehaviorContent(right)
+			if task != "" {
+				task = sanitize.SanitizeBehaviorContent(task)
+			}
+			if file != "" {
+				file = sanitize.SanitizeFilePath(file)
+			}
+
+			// Validate that inputs are not empty after sanitization
+			if wrong == "" {
+				return fmt.Errorf("--wrong is empty after sanitization: input contained only unsafe content")
+			}
+			if right == "" {
+				return fmt.Errorf("--right is empty after sanitization: input contained only unsafe content")
 			}
 
 			// Build context snapshot
