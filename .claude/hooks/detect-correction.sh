@@ -15,6 +15,6 @@ FLOOP_CMD="${CLAUDE_PROJECT_DIR}/floop"
 
 # Use floop's detection (calls MightBeCorrection + LLM extraction)
 # Run in background with timeout to avoid blocking the prompt
-timeout 5s $FLOOP_CMD detect-correction --prompt "$PROMPT" --json 2>/dev/null &
+timeout 5s "$FLOOP_CMD" detect-correction --prompt "$PROMPT" --json 2>/dev/null &
 
 exit 0
