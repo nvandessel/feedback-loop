@@ -42,6 +42,7 @@ func (c *FallbackClient) MergeBehaviors(ctx context.Context, behaviors []*models
 		return &MergeResult{Merged: behaviors[0], SourceIDs: []string{behaviors[0].ID}, Reasoning: "Single behavior, no merge needed"}, nil
 	}
 
+	first := behaviors[0]
 	sourceIDs := make([]string, len(behaviors))
 	for i, b := range behaviors {
 		sourceIDs[i] = b.ID
@@ -73,9 +74,9 @@ func (c *FallbackClient) MergeBehaviors(ctx context.Context, behaviors []*models
 	}
 
 	merged := &models.Behavior{
-		ID:   behaviors[0].ID + "-merged",
-		Name: behaviors[0].Name + " (merged)",
-		Kind: behaviors[0].Kind,
+		ID:   first.ID + "-merged",
+		Name: first.Name + " (merged)",
+		Kind: first.Kind,
 		When: mergedWhen,
 		Content: models.BehaviorContent{
 			Canonical: strings.Join(canonicalParts, "\n\n"),

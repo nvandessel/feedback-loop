@@ -21,7 +21,7 @@ case "$TOOL_NAME" in
         FILE_PATH=$(echo "$TOOL_INPUT" | jq -r '.file_path // .path // empty')
         [ -z "$FILE_PATH" ] && exit 0
         # Trigger context-aware activation
-        $FLOOP_CMD activate --file "$FILE_PATH" --format markdown --token-budget 500 --session-id "$SESSION_ID" 2>/dev/null
+        "$FLOOP_CMD" activate --file "$FILE_PATH" --format markdown --token-budget 500 --session-id "$SESSION_ID" 2>/dev/null
         ;;
     Bash)
         # Extract command from tool input
@@ -37,7 +37,7 @@ case "$TOOL_NAME" in
             docker*|kubectl*) TASK="deployment" ;;
         esac
         [ -z "$TASK" ] && exit 0
-        $FLOOP_CMD activate --task "$TASK" --format markdown --token-budget 500 --session-id "$SESSION_ID" 2>/dev/null
+        "$FLOOP_CMD" activate --task "$TASK" --format markdown --token-budget 500 --session-id "$SESSION_ID" 2>/dev/null
         ;;
 esac
 
