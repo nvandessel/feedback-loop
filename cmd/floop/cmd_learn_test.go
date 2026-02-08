@@ -57,7 +57,7 @@ func TestLearnCmdSanitizesInputs(t *testing.T) {
 			file:      "../../etc/passwd",
 			wantWrong: "used bad path",
 			wantRight: "use good path",
-			wantFile:  "../../etc/passwd", // filepath.Clean preserves traversal but normalizes
+			wantFile:  "etc/passwd", // path traversal stripped
 		},
 		{
 			name:      "task is sanitized",
