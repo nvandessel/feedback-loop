@@ -138,6 +138,8 @@ func SanitizeBehaviorName(input string) string {
 
 // SanitizeFilePath sanitizes a file path by cleaning path traversal sequences and
 // stripping control characters. This is used for the 'file' parameter in floop_learn.
+// After filepath.Clean, it strips leading "/" and leading "../" components to prevent
+// directory traversal attacks.
 func SanitizeFilePath(input string) string {
 	if input == "" {
 		return ""
@@ -146,6 +148,18 @@ func SanitizeFilePath(input string) string {
 	s := stripControlChars(input)
 	// Clean the path to resolve . and .. and double separators.
 	s = filepath.Clean(s)
+	// Strip absolute path prefix.
+	s = strings.TrimPrefix(s, "/")
+	// Strip leading path traversal components.
+	for strings.HasPrefix(s, "../") {
+		s = strings.TrimPrefix(s, "../")
+	}
+	if s == ".." {
+		return ""
+	}
+	if s == "." {
+		return ""
+	}
 	return s
 }
 

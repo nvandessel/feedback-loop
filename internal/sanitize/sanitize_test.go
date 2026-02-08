@@ -340,9 +340,24 @@ func TestSanitizeFilePath(t *testing.T) {
 			want:  "internal/store/sqlite.go",
 		},
 		{
-			name:  "clean path traversal",
+			name:  "strip path traversal",
 			input: "internal/../../../etc/passwd",
-			want:  "../../etc/passwd",
+			want:  "etc/passwd",
+		},
+		{
+			name:  "pure traversal path",
+			input: "../../..",
+			want:  "",
+		},
+		{
+			name:  "absolute path stripped",
+			input: "/etc/passwd",
+			want:  "etc/passwd",
+		},
+		{
+			name:  "dotdot in middle resolved by Clean",
+			input: "internal/../store/file.go",
+			want:  "store/file.go",
 		},
 		{
 			name:  "clean double separators",
