@@ -1,5 +1,7 @@
 # Feedback Loop - Agent Instructions
 
+> **For floop contributors.** If you're a user, see [docs/integrations/](docs/integrations/) for setup guides.
+
 ## Floop Integration (REQUIRED)
 
 You have persistent memory via floop. Your learned behaviors are auto-injected at session start via hooks.

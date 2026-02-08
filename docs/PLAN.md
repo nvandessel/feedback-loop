@@ -1,5 +1,7 @@
 # Feedback Loop - Implementation Plan
 
+> **Historical implementation roadmap.** See [CHANGELOG.md](../CHANGELOG.md) for releases.
+
 ## Overview
 
 This document tracks the implementation plan for `floop`, broken down into phases with concrete tasks and acceptance criteria.

@@ -54,7 +54,7 @@ Each wave uses isolated git worktrees in `.worktrees/` at repo root. Each subage
 Use this prompt when spawning the orchestration agent:
 
 ```
-You are an orchestration agent implementing the Spreading Activation Memory System for the floop project at /home/nvandessel/repos/feedback-loop.
+You are an orchestration agent implementing the Spreading Activation Memory System for the floop project at $REPO_ROOT.
 
 ## Your Role
 You coordinate implementation across 5 sequential waves, spawning subagents for parallel work within each wave. You are responsible for:
@@ -159,7 +159,7 @@ git worktree remove .worktrees/<short-name>
 ```
 You are implementing schema v3 for the floop project.
 
-Working directory: /home/nvandessel/repos/feedback-loop/.worktrees/chy-1-schema
+Working directory: $REPO_ROOT/.worktrees/chy-1-schema
 
 ## First: Claim the bead
 ```bash
@@ -229,7 +229,7 @@ git add -A ':!.beads' && git commit -m "feat(store): add edge weights and tempor
 ```
 You are implementing the core spreading activation engine for floop.
 
-Working directory: /home/nvandessel/repos/feedback-loop/.worktrees/chy-2-engine
+Working directory: $REPO_ROOT/.worktrees/chy-2-engine
 
 ## First: Claim the bead
 ```bash
@@ -295,7 +295,7 @@ Create 4 worktrees and spawn 4 subagents simultaneously.
 ```
 You are implementing seed node selection for the floop spreading activation system.
 
-Working directory: /home/nvandessel/repos/feedback-loop/.worktrees/chy-3-seeds
+Working directory: $REPO_ROOT/.worktrees/chy-3-seeds
 
 First: `bd update feedback-loop-chy.3 --status in_progress`
 Read the full task: `bd show feedback-loop-chy.3`
@@ -322,7 +322,7 @@ Commit (code only, NOT .beads/): `git add -A ':!.beads' && git commit -m "feat(s
 ```
 You are implementing activation-distance-based tiering for floop.
 
-Working directory: /home/nvandessel/repos/feedback-loop/.worktrees/chy-6-tiers
+Working directory: $REPO_ROOT/.worktrees/chy-6-tiers
 
 First: `bd update feedback-loop-chy.6 --status in_progress`
 Read the full task: `bd show feedback-loop-chy.6`
@@ -352,7 +352,7 @@ Commit (code only, NOT .beads/): `git add -A ':!.beads' && git commit -m "feat(t
 ```
 You are implementing lateral inhibition for the floop spreading activation engine.
 
-Working directory: /home/nvandessel/repos/feedback-loop/.worktrees/chy-7-inhibition
+Working directory: $REPO_ROOT/.worktrees/chy-7-inhibition
 
 First: `bd update feedback-loop-chy.7 --status in_progress`
 Read the full task: `bd show feedback-loop-chy.7`
@@ -379,7 +379,7 @@ Commit (code only, NOT .beads/): `git add -A ':!.beads' && git commit -m "feat(s
 ```
 You are implementing hybrid scoring (context + activation + PageRank) for floop.
 
-Working directory: /home/nvandessel/repos/feedback-loop/.worktrees/chy-8-scoring
+Working directory: $REPO_ROOT/.worktrees/chy-8-scoring
 
 First: `bd update feedback-loop-chy.8 --status in_progress`
 Read the full task: `bd show feedback-loop-chy.8`
@@ -420,7 +420,7 @@ Run `go test ./...` on main after each merge. Run code review after all 4 are me
 ```
 You are implementing session state tracking for floop injection management.
 
-Working directory: /home/nvandessel/repos/feedback-loop/.worktrees/chy-4-session
+Working directory: $REPO_ROOT/.worktrees/chy-4-session
 
 First: `bd update feedback-loop-chy.4 --status in_progress`
 Read the full task: `bd show feedback-loop-chy.4`
@@ -452,7 +452,7 @@ Commit (code only, NOT .beads/): `git add -A ':!.beads' && git commit -m "feat(s
 ```
 You are implementing hook-based dynamic context detection for floop.
 
-Working directory: /home/nvandessel/repos/feedback-loop/.worktrees/chy-5-hooks
+Working directory: $REPO_ROOT/.worktrees/chy-5-hooks
 
 First: `bd update feedback-loop-chy.5 --status in_progress`
 Read the full task: `bd show feedback-loop-chy.5`
@@ -486,7 +486,7 @@ Commit (code only, NOT .beads/): `git add -A ':!.beads' && git commit -m "feat(h
 ```
 You are implementing smart reinforcement and coalescing logic for floop.
 
-Working directory: /home/nvandessel/repos/feedback-loop/.worktrees/chy-9-reinforce
+Working directory: $REPO_ROOT/.worktrees/chy-9-reinforce
 
 First: `bd update feedback-loop-chy.9 --status in_progress`
 Read the full task: `bd show feedback-loop-chy.9`
