@@ -198,21 +198,56 @@ func selectBestKind(behaviors []*models.Behavior) models.BehaviorKind {
 }
 
 // mergeWhenConditions unions all when conditions from the behaviors.
+// Keys and string values are sanitized to prevent stored prompt injection.
 func mergeWhenConditions(behaviors []*models.Behavior) map[string]interface{} {
 	result := make(map[string]interface{})
 
 	for _, b := range behaviors {
 		for key, value := range b.When {
-			if existing, ok := result[key]; ok {
+			// Sanitize the key to prevent injection via condition keys.
+			cleanKey := sanitize.SanitizeBehaviorName(key)
+			if cleanKey == "" {
+				continue
+			}
+			// Sanitize the value to prevent injection via condition values.
+			cleanValue := sanitizeWhenValue(value)
+			if existing, ok := result[cleanKey]; ok {
 				// Try to merge values
-				result[key] = mergeConditionValues(existing, value)
+				result[cleanKey] = mergeConditionValues(existing, cleanValue)
 			} else {
-				result[key] = value
+				result[cleanKey] = cleanValue
 			}
 		}
 	}
 
 	return result
+}
+
+// sanitizeWhenValue sanitizes a when condition value. String values are
+// sanitized using SanitizeBehaviorContent. Slices are sanitized recursively.
+// Non-string types (int, bool, etc.) are passed through unchanged.
+func sanitizeWhenValue(v interface{}) interface{} {
+	switch val := v.(type) {
+	case string:
+		return sanitize.SanitizeBehaviorContent(val)
+	case []string:
+		clean := make([]string, 0, len(val))
+		for _, s := range val {
+			c := sanitize.SanitizeBehaviorContent(s)
+			if c != "" {
+				clean = append(clean, c)
+			}
+		}
+		return clean
+	case []interface{}:
+		clean := make([]interface{}, 0, len(val))
+		for _, item := range val {
+			clean = append(clean, sanitizeWhenValue(item))
+		}
+		return clean
+	default:
+		return v
+	}
 }
 
 // mergeConditionValues combines two condition values.
