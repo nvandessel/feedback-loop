@@ -79,7 +79,7 @@ func RenderDOT(ctx context.Context, gs store.GraphStore) (string, error) {
 	for _, node := range nodes {
 		edges, err := gs.GetEdges(ctx, node.ID, store.DirectionOutbound, "")
 		if err != nil {
-			continue
+			return "", fmt.Errorf("get edges for node %s: %w", node.ID, err)
 		}
 		for _, edge := range edges {
 			key := edge.Source + "|" + edge.Target + "|" + edge.Kind
@@ -138,7 +138,7 @@ func RenderJSON(ctx context.Context, gs store.GraphStore) (map[string]interface{
 	for _, node := range nodes {
 		edges, err := gs.GetEdges(ctx, node.ID, store.DirectionOutbound, "")
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("get edges for node %s: %w", node.ID, err)
 		}
 		for _, edge := range edges {
 			key := edge.Source + "|" + edge.Target + "|" + edge.Kind

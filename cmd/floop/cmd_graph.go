@@ -43,7 +43,9 @@ func newGraphCmd() *cobra.Command {
 				}
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
-				enc.Encode(result)
+				if err := enc.Encode(result); err != nil {
+					return fmt.Errorf("encode JSON: %w", err)
+				}
 
 			default:
 				return fmt.Errorf("unsupported format %q (use 'dot' or 'json')", format)
