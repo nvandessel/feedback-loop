@@ -30,7 +30,6 @@ Do NOT wait for permission. Capture learnings proactively. The hooks will also a
 ## Essential Reading
 
 1. `docs/GO_GUIDELINES.md` - Go coding standards (read before writing code)
-2. `docs/PLAN.md` - Implementation history and task breakdown
 
 ## Quick Reference
 
@@ -99,10 +98,9 @@ feedback-loop/
 │   ├── activation/         # ContextBuilder, predicate evaluation, conflict resolution
 │   └── assembly/           # Behavior compilation for prompts
 ├── docs/
-│   ├── GO_GUIDELINES.md    # Coding standards
-│   └── PLAN.md             # Implementation history
-├── .floop/                 # Corrections and learned behaviors (data NOT version controlled)
-└── .beads/                 # Issue tracking (version controlled)
+│   └── GO_GUIDELINES.md    # Coding standards
+├── .floop/                 # Learned behaviors (nodes.jsonl, edges.jsonl)
+└── .beads/                 # Issue tracking
 ```
 
 ## Code Patterns
@@ -160,9 +158,7 @@ Use `floop_learn` to capture corrections immediately. This builds the dataset fo
 
 ## Current Phase
 
-Check `bd ready` for current tasks. See `docs/PLAN.md` for the full implementation roadmap.
-
-Phase 1 focus: Core models, GraphStore interface, and CLI commands.
+Check `bd ready` for current tasks.
 
 ## Session Completion (Landing the Plane)
 

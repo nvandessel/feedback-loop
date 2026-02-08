@@ -4,9 +4,9 @@
 
 January 2026. I'd been spending a lot of time with AI coding agents — Claude Code, mostly — and the thing that kept bugging me was that they didn't remember. You'd correct an agent, it'd get it right for the rest of the session, and then next session it's back to square one. Same mistake, same correction, over and over.
 
-There are ways to deal with this. You can put rules in an `AGENTS.md` file, or split them across multiple markdown files, but it's manual — you have to remember to add things, keep them up to date, and they just grow into these unwieldy walls of text. Memory tools like Mem0 exist for storing facts and preferences, which is great, but facts aren't really behaviors. Knowing "the user prefers tabs" is different from knowing "when writing Go tests, use table-driven tests with `t.Run()`."
+There are ways to deal with this. You can put rules in an `AGENTS.md` file, or split them across multiple markdown files, but it's manual — you have to remember to add things, keep them up to date, and they just grow into these unwieldy walls of text. Memory tools exist for storing facts and preferences, which is great, but facts aren't really behaviors. Knowing "the user prefers tabs" is different from knowing "when writing Go tests, use table-driven tests with `t.Run()`." At least that's how I felt, whether that's true or not is a philosphical discussion.
 
-I hadn't tried every tool out there. This wasn't a gap analysis — it was more of a feeling. There was a disconnect between the corrections I was giving and the agent's ability to internalize them. It just had me thinking: what if corrections could become durable, context-aware behaviors that the agent actually carries forward?
+I hadn't tried many of these tools if I'm being honest. They intruiged me, but something felt missing. This wasn't a gap analysis — it was more of a feeling. There was a disconnect between the corrections I was giving and the agent's ability to internalize them. It just had me thinking: what if corrections could become durable, context-aware behaviors that the agent actually carries forward?
 
 That idea excited me enough to start building.
 
@@ -22,9 +22,11 @@ About ten days in, the basic system worked. Behaviors were being captured, store
 
 Around the same time, I'd been looking at AI code review tools. [CodeRabbit](https://coderabbit.ai/) and [Greptile](https://greptile.com/) both have this concept of a "blast radius" — when reviewing a diff, they don't just look at the changed lines, they pull in surrounding code and related context to understand the full impact. That got me thinking: what if triggered behaviors had a similar blast radius? When one behavior fires, what if it also pulls in related behaviors that might be relevant, even if they're not a direct match?
 
-Then the [SYNAPSE paper](https://arxiv.org/abs/2601.02744) came out (published January 6, 2026). It showed that spreading activation — a decades-old theory from cognitive science about how the brain retrieves memories — could be applied to LLM agent memory, with 95% token reduction while maintaining accuracy. The key insight: you don't need to load everything, you just need to activate the right things, and activation propagates outward through associations.
+Then one afternoon while talking with Claude about these ideas, it found something that cristalized things. The [SYNAPSE paper](https://arxiv.org/abs/2601.02744) (published January 6, 2026). It showed that spreading activation — a decades-old theory from cognitive science about how the brain retrieves memories — could be applied to LLM agent memory, with 95% token reduction while maintaining accuracy. The key insight: you don't need to load everything, you just need to activate the right things, and activation propagates outward through associations.
 
-The blast radius idea from the code review tools and the spreading activation model from cognitive science were basically the same concept from different angles. The mapping to floop fell out naturally:
+The blast radius idea from the code review tools and the spreading activation model from cognitive science were basically the same concept from different angles. I was shocked and excited. The fact these ideas I had were rooted in cognitive science was facinating. 
+
+The mapping to floop fell out naturally:
 
 - **Corrections** as episodic nodes (specific interaction memories)
 - **Behaviors** as semantic nodes (abstract knowledge extracted from episodes)
@@ -35,7 +37,7 @@ The behavior graph wasn't just storage anymore. It was an associative network wh
 
 ## Why This Excites Me
 
-What I find exciting about AI agents isn't that they write code — it's that they can adopt and enforce the same design principles I care about (SOLID, dependency inversion, clean interfaces) at a pace I never could on my own. The ideas in my head, produced consistently. But that only works if the agent has the right context. A few more guardrails, the right behaviors loaded at the right time, something closer to how we actually think — with associations and related context, not just keyword matches — that's what levels up agents from "helpful autocomplete" to genuine collaborators. That's what I'm exploring here.
+What I find exciting about AI agents isn't that they write code — it's that they can adopt and enforce the same design principles I care about: SOLID principles, good ole OOP, clean interfaces that enable real and valid tests that provide value. They do this at a pace I never could on my own. The ideas in my head, produced consistently. But that only works if the agent has the right context. A few more guardrails, the right behaviors loaded at the right time, something closer to how we actually think — with associations and related context, not just keyword matches — that's what levels up agents from "helpful autocomplete" to genuine collaborators. That's what I'm exploring here.
 
 ## The Name
 
