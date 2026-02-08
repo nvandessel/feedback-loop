@@ -34,7 +34,8 @@ Do NOT wait for permission. Capture learnings proactively. The hooks will also a
 ## Quick Reference
 
 ### Issue Tracking (Beads)
-```bashbv --robot-triage 
+```bash
+bv --robot-triage             # Get ranked recommendations
 bd ready              # Find available work (no blockers)
 bd show <id>          # View issue details
 bd update <id> --status in_progress  # Claim work
@@ -84,7 +85,9 @@ go fmt ./...                # Format code
 2. Format code: `go fmt ./...`
 3. Close the issue: `bd close <id> --reason "..."`
 4. Sync beads: `bd sync`
-5. Commit and push changes
+5. Commit changes on a feature branch
+6. Push and create a PR — **never commit directly to main**
+7. Wait for review before merging
 
 ## Project Structure
 
@@ -98,9 +101,11 @@ feedback-loop/
 │   ├── activation/         # ContextBuilder, predicate evaluation, conflict resolution
 │   └── assembly/           # Behavior compilation for prompts
 ├── docs/
-│   └── GO_GUIDELINES.md    # Coding standards
-├── .floop/                 # Learned behaviors (nodes.jsonl, edges.jsonl)
-└── .beads/                 # Issue tracking
+│   ├── GO_GUIDELINES.md    # Coding standards
+│   ├── FLOOP_USAGE.md      # Floop usage guide
+│   └── integrations/       # AI tool integration guides
+├── .floop/                 # Learned behaviors (data files NOT version controlled)
+└── .beads/                 # Issue tracking (version controlled)
 ```
 
 ## Code Patterns
@@ -162,28 +167,30 @@ Check `bd ready` for current tasks.
 
 ## Session Completion (Landing the Plane)
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+**When ending a work session**, you MUST complete ALL steps below.
 
 **MANDATORY WORKFLOW:**
 
 1. **File issues for remaining work** - Create issues for anything that needs follow-up
 2. **Run quality gates** (if code changed) - Tests, linters, builds
 3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
+4. **Sync beads** - `bd sync`
+5. **Commit and push on a branch** - Never commit directly to main:
    ```bash
-   git pull --rebase
-   bd sync
-   git push
-   git status  # MUST show "up to date with origin"
+   git checkout -b chore/session-cleanup  # or use existing feature branch
+   git add <specific files>
+   git commit -m "chore: sync beads state"
+   git push -u origin HEAD
    ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+6. **Create PR** - `gh pr create` and present to user for review
+7. **Clean up** - Clear stashes, prune remote branches
+8. **Hand off** - Provide context for next session
 
 **CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
+- **NEVER** commit directly to main — always use a feature branch + PR
+- **NEVER** merge PRs without user review — present PRs and wait for approval
+- NEVER stop before pushing your branch — that leaves work stranded locally
+- NEVER say "ready to push when you are" - YOU must push to a branch
 - If push fails, resolve and retry until it succeeds
 
 ### Using bv as an AI Sidecar
