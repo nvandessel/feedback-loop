@@ -580,3 +580,141 @@ func TestDefaultConfig(t *testing.T) {
 		t.Error("expected Inhibition.Enabled=true")
 	}
 }
+
+func TestEngine_ConflictEdgeInhibition(t *testing.T) {
+	// Graph: Seed -> A (requires), A -> B (conflicts)
+	// B should have REDUCED activation due to the conflict edge.
+	// Compare against a baseline where A -> B is a normal "requires" edge.
+	now := time.Now()
+
+	t.Run("conflict edge reduces neighbor activation", func(t *testing.T) {
+		s := store.NewInMemoryGraphStore()
+		addNode(t, s, "Seed")
+		addNode(t, s, "A")
+		addNode(t, s, "B")
+
+		addEdge(t, s, "Seed", "A", "requires", 1.0, timePtr(now))
+		addEdge(t, s, "A", "B", "conflicts", 1.0, timePtr(now))
+
+		cfg := DefaultConfig()
+		cfg.Inhibition = nil // Disable lateral inhibition to isolate conflict behavior
+		eng := NewEngine(s, cfg)
+		seeds := []Seed{{BehaviorID: "Seed", Activation: 1.0, Source: "test"}}
+
+		results, err := eng.Activate(context.Background(), seeds)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		rB := findResult(results, "B")
+
+		// With conflict inhibition, B should NOT gain activation from A.
+		// B should either be absent from results or have very low activation
+		// (only from sigmoid of 0 or negative, which floors at 0).
+		if rB != nil {
+			// If B appears, its activation should be lower than what a normal
+			// requires edge would produce.
+			t.Logf("B activation with conflict edge: %f", rB.Activation)
+		}
+
+		// Now create a baseline with a normal edge to compare.
+		sBaseline := store.NewInMemoryGraphStore()
+		addNode(t, sBaseline, "Seed")
+		addNode(t, sBaseline, "A")
+		addNode(t, sBaseline, "B")
+
+		addEdge(t, sBaseline, "Seed", "A", "requires", 1.0, timePtr(now))
+		addEdge(t, sBaseline, "A", "B", "requires", 1.0, timePtr(now))
+
+		engBaseline := NewEngine(sBaseline, cfg)
+		baselineResults, err := engBaseline.Activate(context.Background(), seeds)
+		if err != nil {
+			t.Fatalf("unexpected error in baseline: %v", err)
+		}
+
+		rBBaseline := findResult(baselineResults, "B")
+		if rBBaseline == nil {
+			t.Fatal("expected B in baseline results")
+		}
+
+		// The conflict case should produce strictly lower activation for B
+		// than the normal-edge case.
+		conflictAct := 0.0
+		if rB != nil {
+			conflictAct = rB.Activation
+		}
+		if conflictAct >= rBBaseline.Activation {
+			t.Errorf("conflict edge should reduce B's activation: conflict=%f, normal=%f",
+				conflictAct, rBBaseline.Activation)
+		}
+	})
+
+	t.Run("conflict edge does not produce negative activation", func(t *testing.T) {
+		// Seed -> A (requires, high weight), Seed -> B (requires), B -> A (conflicts)
+		// Even with strong conflict, activation should not go negative.
+		s := store.NewInMemoryGraphStore()
+		addNode(t, s, "Seed")
+		addNode(t, s, "A")
+		addNode(t, s, "B")
+
+		addEdge(t, s, "Seed", "A", "requires", 0.3, timePtr(now))
+		addEdge(t, s, "Seed", "B", "requires", 1.0, timePtr(now))
+		addEdge(t, s, "B", "A", "conflicts", 1.0, timePtr(now))
+
+		cfg := DefaultConfig()
+		cfg.Inhibition = nil
+		eng := NewEngine(s, cfg)
+		seeds := []Seed{{BehaviorID: "Seed", Activation: 1.0, Source: "test"}}
+
+		results, err := eng.Activate(context.Background(), seeds)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		for _, r := range results {
+			if r.Activation < 0 {
+				t.Errorf("activation for %s should not be negative, got %f",
+					r.BehaviorID, r.Activation)
+			}
+		}
+	})
+
+	t.Run("non-conflict edges still spread normally", func(t *testing.T) {
+		// Seed -> A (requires), Seed -> B (similar-to)
+		// Both should receive positive activation.
+		s := store.NewInMemoryGraphStore()
+		addNode(t, s, "Seed")
+		addNode(t, s, "A")
+		addNode(t, s, "B")
+
+		addEdge(t, s, "Seed", "A", "requires", 1.0, timePtr(now))
+		addEdge(t, s, "Seed", "B", "similar-to", 1.0, timePtr(now))
+
+		cfg := DefaultConfig()
+		cfg.Inhibition = nil
+		eng := NewEngine(s, cfg)
+		seeds := []Seed{{BehaviorID: "Seed", Activation: 1.0, Source: "test"}}
+
+		results, err := eng.Activate(context.Background(), seeds)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		rA := findResult(results, "A")
+		rB := findResult(results, "B")
+
+		if rA == nil {
+			t.Fatal("expected A in results for requires edge")
+		}
+		if rB == nil {
+			t.Fatal("expected B in results for similar-to edge")
+		}
+
+		if rA.Activation <= 0 {
+			t.Errorf("expected positive activation for A, got %f", rA.Activation)
+		}
+		if rB.Activation <= 0 {
+			t.Errorf("expected positive activation for B, got %f", rB.Activation)
+		}
+	})
+}

@@ -138,9 +138,17 @@ func (e *Engine) Activate(ctx context.Context, seeds []Seed) ([]Result, error) {
 				energy := nodeAct * e.config.SpreadFactor * effectiveWeight / outDegree
 				energy *= e.config.DecayFactor
 
-				// Use max, not sum, to prevent runaway activation.
-				if energy > newActivation[neighbor] {
-					newActivation[neighbor] = energy
+				if edge.Kind == "conflicts" {
+					// Conflict edges inhibit: subtract energy from neighbor.
+					newActivation[neighbor] -= energy
+					if newActivation[neighbor] < 0 {
+						newActivation[neighbor] = 0
+					}
+				} else {
+					// Normal edges spread: use max to prevent runaway activation.
+					if energy > newActivation[neighbor] {
+						newActivation[neighbor] = energy
+					}
 				}
 
 				// Track distance and seed source via the shortest path.
