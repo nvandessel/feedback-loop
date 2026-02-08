@@ -369,6 +369,127 @@ func TestFormatCluster_EscapesXMLContent(t *testing.T) {
 	}
 }
 
+func TestEscapeXML(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "ampersand",
+			input: "A & B",
+			want:  "A &amp; B",
+		},
+		{
+			name:  "less than",
+			input: "a < b",
+			want:  "a &lt; b",
+		},
+		{
+			name:  "greater than",
+			input: "a > b",
+			want:  "a &gt; b",
+		},
+		{
+			name:  "double quote",
+			input: `say "hello"`,
+			want:  "say &quot;hello&quot;",
+		},
+		{
+			name:  "single quote",
+			input: "it's",
+			want:  "it&apos;s",
+		},
+		{
+			name:  "combined entities",
+			input: `<b>"Tom & Jerry's"</b>`,
+			want:  "&lt;b&gt;&quot;Tom &amp; Jerry&apos;s&quot;&lt;/b&gt;",
+		},
+		{
+			name:  "already escaped entity is double-escaped",
+			input: "&lt;",
+			want:  "&amp;lt;",
+		},
+		{
+			name:  "empty string",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "no special chars",
+			input: "hello world 123",
+			want:  "hello world 123",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := escapeXML(tt.input)
+			if got != tt.want {
+				t.Errorf("escapeXML(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCompileTiered_XML_EscapesSummarizedAndNameOnly(t *testing.T) {
+	compiler := NewCompiler().WithFormat(FormatXML)
+
+	fullB := models.Behavior{
+		ID:   "full-1",
+		Kind: models.BehaviorKindDirective,
+		Content: models.BehaviorContent{
+			Canonical: "Use Go modules",
+		},
+	}
+	summB := models.Behavior{
+		ID:   "summ-behavior-1",
+		Kind: models.BehaviorKindPreference,
+		Content: models.BehaviorContent{
+			Canonical: "Prefer interfaces <T> over concrete types",
+			Summary:   "Prefer interfaces <T>",
+		},
+	}
+	nameB := models.Behavior{
+		ID:   "name-behavior-1",
+		Kind: models.BehaviorKindPreference,
+		Content: models.BehaviorContent{
+			Canonical: "Use context & cancellation",
+		},
+	}
+
+	plan := &models.InjectionPlan{
+		FullBehaviors: []models.InjectedBehavior{
+			{Behavior: &fullB, Tier: models.TierFull, Content: fullB.Content.Canonical},
+		},
+		SummarizedBehaviors: []models.InjectedBehavior{
+			{Behavior: &summB, Tier: models.TierSummary, Content: "Prefer interfaces <T>"},
+		},
+		NameOnlyBehaviors: []models.InjectedBehavior{
+			{Behavior: &nameB, Tier: models.TierNameOnly, Content: "Use context & cancellation [preference]"},
+		},
+		TokenBudget: 500,
+	}
+
+	result := compiler.CompileTiered(plan)
+
+	// Summarized content inside <quick-reference> must be escaped
+	if strings.Contains(result.Text, "interfaces <T>") {
+		t.Errorf("expected summarized content to be XML-escaped inside <quick-reference>, got raw angle brackets in: %s", result.Text)
+	}
+	if !strings.Contains(result.Text, "interfaces &lt;T&gt;") {
+		t.Errorf("expected escaped angle brackets in summarized content, got: %s", result.Text)
+	}
+
+	// Name-only content inside <also-available> must be escaped
+	if strings.Contains(result.Text, "context & cancellation") {
+		t.Errorf("expected name-only content to be XML-escaped inside <also-available>, got raw ampersand in: %s", result.Text)
+	}
+	if !strings.Contains(result.Text, "context &amp; cancellation") {
+		t.Errorf("expected escaped ampersand in name-only content, got: %s", result.Text)
+	}
+}
+
 func TestCompiler_CompileTiered_Nil(t *testing.T) {
 	compiler := NewCompiler()
 	result := compiler.CompileTiered(nil)

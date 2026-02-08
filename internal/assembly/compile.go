@@ -375,7 +375,12 @@ func (c *Compiler) buildQuickReferenceSection(summarized []models.InjectedBehavi
 		if len(shortID) > 8 {
 			shortID = shortID[:8]
 		}
-		lines = append(lines, fmt.Sprintf("- [%s] %s", shortID, ib.Content))
+		content := ib.Content
+		if c.format == FormatXML {
+			content = escapeXML(content)
+			shortID = escapeXML(shortID)
+		}
+		lines = append(lines, fmt.Sprintf("- [%s] %s", shortID, content))
 	}
 
 	return strings.Join(lines, "\n")
@@ -394,7 +399,11 @@ func (c *Compiler) buildNameOnlySection(nameOnly []models.InjectedBehavior) stri
 			continue
 		}
 		// Content is pre-formatted by the tier mapper as `name` [kind] #tags
-		lines = append(lines, fmt.Sprintf("- %s", ib.Content))
+		content := ib.Content
+		if c.format == FormatXML {
+			content = escapeXML(content)
+		}
+		lines = append(lines, fmt.Sprintf("- %s", content))
 	}
 
 	return strings.Join(lines, "\n")
@@ -533,9 +542,9 @@ func (c *Compiler) formatCluster(cluster BehaviorCluster, totalCount int) string
 
 	switch c.format {
 	case FormatXML:
-		lines = append(lines, fmt.Sprintf("<cluster label=%q count=\"%d\">", escapeXML(cluster.ClusterLabel), totalCount))
+		lines = append(lines, fmt.Sprintf("<cluster label=\"%s\" count=\"%d\">", escapeXML(cluster.ClusterLabel), totalCount))
 		if cluster.Representative.Behavior != nil {
-			lines = append(lines, fmt.Sprintf("  <behavior kind=%q>%s</behavior>",
+			lines = append(lines, fmt.Sprintf("  <behavior kind=\"%s\">%s</behavior>",
 				cluster.Representative.Behavior.Kind,
 				escapeXML(cluster.Representative.Content)))
 		}
