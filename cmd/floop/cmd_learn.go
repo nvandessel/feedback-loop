@@ -306,6 +306,16 @@ Example:
 					continue
 				}
 
+				// Sanitize correction fields before reprocessing
+				c.AgentAction = sanitize.SanitizeBehaviorContent(c.AgentAction)
+				c.CorrectedAction = sanitize.SanitizeBehaviorContent(c.CorrectedAction)
+				if c.Context.FilePath != "" {
+					c.Context.FilePath = sanitize.SanitizeFilePath(c.Context.FilePath)
+				}
+				if c.Context.Task != "" {
+					c.Context.Task = sanitize.SanitizeBehaviorContent(c.Context.Task)
+				}
+
 				result, err := loop.ProcessCorrection(ctx, *c)
 				if err != nil {
 					if !jsonOut {

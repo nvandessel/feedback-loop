@@ -11,6 +11,7 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/learning"
 	"github.com/nvandessel/feedback-loop/internal/llm"
 	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/feedback-loop/internal/sanitize"
 	"github.com/nvandessel/feedback-loop/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -101,6 +102,10 @@ Examples:
 				}
 				return nil
 			}
+
+			// Sanitize extracted values to prevent stored prompt injection
+			wrong = sanitize.SanitizeBehaviorContent(wrong)
+			right = sanitize.SanitizeBehaviorContent(right)
 
 			// Dry run - just report what would be captured
 			if dryRun {
