@@ -391,7 +391,7 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 		}
 		if updater, ok := s.store.(confidenceUpdater); ok {
 			cfg := ranking.DefaultReinforcementConfig()
-			if err := ranking.ApplyReinforcement(context.Background(), updater, activeConfs, allConfs, cfg); err != nil {
+			if err := ranking.ApplyReinforcement(context.Background(), updater, activeConfs, allConfs, cfg, s.boostTracker); err != nil {
 				fmt.Fprintf(os.Stderr, "warning: confidence reinforcement failed: %v\n", err)
 			}
 		}
