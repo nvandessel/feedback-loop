@@ -47,31 +47,27 @@ Respond with ONLY a JSON object (no markdown code blocks, no additional text):
 
 // MergePrompt generates a prompt for merging multiple similar behaviors into one.
 // The prompt instructs the LLM to synthesize a unified behavior preserving key information.
+//
+// User-provided behavior data is concatenated via strings.Builder rather than
+// interpolated through fmt.Sprintf alongside JSON template text, to prevent
+// quote-breaking if behavior content contains double quotes (CWE-94).
 func MergePrompt(behaviors []*models.Behavior) string {
 	if len(behaviors) == 0 {
 		return ""
 	}
 
-	var behaviorDescriptions strings.Builder
 	var sourceIDs []string
+	var prompt strings.Builder
+
+	prompt.WriteString("You are merging multiple similar AI agent behaviors into a single unified behavior.\n\n")
 
 	for i, b := range behaviors {
 		sourceIDs = append(sourceIDs, b.ID)
-		behaviorDescriptions.WriteString(fmt.Sprintf(`
-## Behavior %d
-ID: %s
-Name: %s
-Kind: %s
-Content: %s
-Priority: %d
-Confidence: %.2f
-`,
-			i+1, b.ID, b.Name, b.Kind, b.Content.Canonical, b.Priority, b.Confidence))
+		fmt.Fprintf(&prompt, "\n## Behavior %d\nID: %s\nName: %s\nKind: %s\nContent: %s\nPriority: %d\nConfidence: %.2f\n",
+			i+1, b.ID, b.Name, b.Kind, b.Content.Canonical, b.Priority, b.Confidence)
 	}
 
-	return fmt.Sprintf(`You are merging multiple similar AI agent behaviors into a single unified behavior.
-
-%s
+	prompt.WriteString(`
 ## Task
 Create a single merged behavior that:
 1. Preserves the essential guidance from all source behaviors
@@ -91,11 +87,13 @@ Respond with ONLY a JSON object (no markdown code blocks, no additional text):
     "priority": <integer priority, use highest from sources>,
     "confidence": <float confidence, use average from sources>
   },
-  "source_ids": %s,
+  "source_ids": `)
+	prompt.WriteString(toJSONArray(sourceIDs))
+	prompt.WriteString(`,
   "reasoning": "<brief explanation of how you merged the behaviors>"
-}`,
-		behaviorDescriptions.String(),
-		toJSONArray(sourceIDs))
+}`)
+
+	return prompt.String()
 }
 
 // ParseComparisonResponse parses an LLM response into a ComparisonResult.
