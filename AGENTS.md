@@ -91,22 +91,11 @@ go fmt ./...                # Format code
 
 ## Project Structure
 
-```
-feedback-loop/
-├── cmd/floop/main.go       # CLI entry point
-├── internal/
-│   ├── models/             # Behavior, Correction, Context, Provenance
-│   ├── store/              # GraphStore interface, InMemoryGraphStore, FileGraphStore
-│   ├── learning/           # CorrectionCapture, BehaviorExtractor, GraphPlacer
-│   ├── activation/         # ContextBuilder, predicate evaluation, conflict resolution
-│   └── assembly/           # Behavior compilation for prompts
-├── docs/
-│   ├── GO_GUIDELINES.md    # Coding standards
-│   ├── FLOOP_USAGE.md      # Floop usage guide
-│   └── integrations/       # AI tool integration guides
-├── .floop/                 # Learned behaviors (data files NOT version controlled)
-└── .beads/                 # Issue tracking (version controlled)
-```
+- **`cmd/floop/`** — CLI entry point
+- **`internal/`** — All application packages. Run `ls internal/` for current list.
+- **`docs/`** — Documentation (`GO_GUIDELINES.md`, `FLOOP_USAGE.md`, `integrations/`)
+- **`.floop/`** — Learned behaviors (JSONL + manifest tracked; DB + audit.jsonl gitignored)
+- **`.beads/`** — Issue tracking (version controlled)
 
 ## Code Patterns
 

@@ -4,20 +4,11 @@ This guide outlines the coding standards for the feedback-loop project.
 
 ## 1. Project Structure
 
-```
-feedback-loop/
-├── cmd/floop/          # CLI entry point
-│   └── main.go
-├── internal/           # Private application code
-│   ├── models/         # Core data types (Behavior, Correction, Context)
-│   ├── store/          # GraphStore interface and implementations
-│   ├── learning/       # Correction capture, extraction, placement
-│   ├── activation/     # Context building, predicate evaluation, conflict resolution
-│   └── assembly/       # Behavior compilation, token optimization
-├── pkg/types/          # Public types (if needed for imports)
-├── docs/               # Documentation
-└── .floop/             # Runtime data (corrections, behaviors) - version controlled
-```
+- **`cmd/floop/`** — CLI entry point
+- **`internal/`** — All application packages. Run `ls internal/` for current list.
+- **`docs/`** — Documentation
+- **`.floop/`** — Learned behaviors (JSONL + manifest tracked; DB + audit.jsonl gitignored)
+- **`.beads/`** — Issue tracking (version controlled)
 
 ## 2. Code Style
 
