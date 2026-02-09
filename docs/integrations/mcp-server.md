@@ -567,7 +567,7 @@ A: No. The MCP server only reads behaviors and writes corrections to `.floop/`. 
 
 A: If the AI tool supports it, it can call `floop_learn` automatically. Otherwise, you can manually run:
 ```bash
-floop learn -w "what agent did" -r "what it should do" --file path/to/file
+floop learn --wrong "what agent did" --right "what it should do" --file path/to/file
 ```
 
 ---
@@ -587,7 +587,7 @@ A: Simply remove the floop entry from your AI tool's MCP configuration and resta
 ## Next Steps
 
 - **Explore Behaviors**: `floop list` to see what's been learned
-- **Manually Learn**: `floop learn -w "wrong" -r "right"` to add corrections
+- **Manually Learn**: `floop learn --wrong "wrong" --right "right"` to add corrections
 - **Curate**: Use `floop forget`, `floop merge`, `floop deprecate` to manage behaviors
 - **Prompt Generation**: `floop prompt` to generate AI-readable behavior summaries
 

@@ -9,14 +9,31 @@ feedback-loop/
 ├── cmd/floop/          # CLI entry point
 │   └── main.go
 ├── internal/           # Private application code
-│   ├── models/         # Core data types (Behavior, Correction, Context)
-│   ├── store/          # GraphStore interface and implementations
-│   ├── learning/       # Correction capture, extraction, placement
 │   ├── activation/     # Context building, predicate evaluation, conflict resolution
-│   └── assembly/       # Behavior compilation, token optimization
-├── pkg/types/          # Public types (if needed for imports)
+│   ├── assembly/       # Behavior compilation, token optimization
+│   ├── backup/         # Backup and restore operations
+│   ├── config/         # Configuration management
+│   ├── constants/      # Shared constants
+│   ├── dedup/          # Behavior deduplication and merging
+│   ├── hooks/          # AI tool hook integration
+│   ├── learning/       # Correction capture, extraction, placement
+│   ├── llm/            # LLM client interfaces and implementations
+│   ├── mcp/            # MCP server protocol handlers
+│   ├── models/         # Core data types (Behavior, Correction, Context)
+│   ├── pathutil/       # Path utilities
+│   ├── ranking/        # Behavior scoring and ranking
+│   ├── ratelimit/      # Rate limiting
+│   ├── sanitize/       # Input sanitization
+│   ├── seed/           # Pre-seeded behaviors
+│   ├── session/        # Session state tracking
+│   ├── spreading/      # Spreading activation engine
+│   ├── store/          # GraphStore interface and implementations
+│   ├── summarization/  # Behavior summarization
+│   ├── tiering/        # Token budget tiering
+│   ├── utils/          # Shared utilities
+│   └── visualization/  # Graph visualization
 ├── docs/               # Documentation
-└── .floop/             # Runtime data (corrections, behaviors) - version controlled
+└── .floop/             # Runtime data (corrections, behaviors) - NOT version controlled
 ```
 
 ## 2. Code Style

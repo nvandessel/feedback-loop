@@ -95,11 +95,29 @@ go fmt ./...                # Format code
 feedback-loop/
 ├── cmd/floop/main.go       # CLI entry point
 ├── internal/
-│   ├── models/             # Behavior, Correction, Context, Provenance
-│   ├── store/              # GraphStore interface, InMemoryGraphStore, FileGraphStore
-│   ├── learning/           # CorrectionCapture, BehaviorExtractor, GraphPlacer
-│   ├── activation/         # ContextBuilder, predicate evaluation, conflict resolution
-│   └── assembly/           # Behavior compilation for prompts
+│   ├── activation/         # Context building, predicate evaluation, conflict resolution
+│   ├── assembly/           # Behavior compilation, token optimization
+│   ├── backup/             # Backup and restore operations
+│   ├── config/             # Configuration management
+│   ├── constants/          # Shared constants
+│   ├── dedup/              # Behavior deduplication and merging
+│   ├── hooks/              # AI tool hook integration
+│   ├── learning/           # Correction capture, extraction, placement
+│   ├── llm/                # LLM client interfaces and implementations
+│   ├── mcp/                # MCP server protocol handlers
+│   ├── models/             # Core data types (Behavior, Correction, Context)
+│   ├── pathutil/           # Path utilities
+│   ├── ranking/            # Behavior scoring and ranking
+│   ├── ratelimit/          # Rate limiting
+│   ├── sanitize/           # Input sanitization
+│   ├── seed/               # Pre-seeded behaviors
+│   ├── session/            # Session state tracking
+│   ├── spreading/          # Spreading activation engine
+│   ├── store/              # GraphStore interface and implementations
+│   ├── summarization/      # Behavior summarization
+│   ├── tiering/            # Token budget tiering
+│   ├── utils/              # Shared utilities
+│   └── visualization/      # Graph visualization
 ├── docs/
 │   ├── GO_GUIDELINES.md    # Coding standards
 │   ├── FLOOP_USAGE.md      # Floop usage guide

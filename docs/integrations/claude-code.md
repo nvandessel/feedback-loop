@@ -238,7 +238,7 @@ Inject only relevant behaviors by maintaining good `when` predicates:
 
 ```bash
 # Learn with context
-floop learn -w "used print for errors" -r "use stderr" --file main.go
+floop learn --wrong "used print for errors" --right "use stderr" --file main.go
 ```
 
 ### 2. Use Both MCP and Hooks
@@ -287,7 +287,7 @@ floop prompt --format markdown
         "hooks": [
           {
             "type": "command",
-            "command": "floop prompt --format xml --max-tokens 1000"
+            "command": "floop prompt --format xml --token-budget 1000"
           }
         ]
       }
