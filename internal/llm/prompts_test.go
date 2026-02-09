@@ -96,6 +96,33 @@ func TestMergePrompt(t *testing.T) {
 			t.Error("prompt should contain source_ids array")
 		}
 	})
+
+	t.Run("behavior content with double quotes does not corrupt prompt", func(t *testing.T) {
+		behaviors := []*models.Behavior{
+			{
+				ID:   "b1",
+				Name: `Use "pathlib" library`,
+				Kind: models.BehaviorKindDirective,
+				Content: models.BehaviorContent{
+					Canonical: `Always use "pathlib.Path" instead of "os.path"`,
+				},
+			},
+		}
+
+		prompt := MergePrompt(behaviors)
+
+		// Verify behavior content with quotes is preserved
+		if !strings.Contains(prompt, `Use "pathlib" library`) {
+			t.Error("prompt should contain behavior name with quotes")
+		}
+		if !strings.Contains(prompt, `Always use "pathlib.Path" instead of "os.path"`) {
+			t.Error("prompt should contain behavior content with quotes")
+		}
+		// Verify JSON template structure is intact
+		if !strings.Contains(prompt, `"source_ids": ["b1"]`) {
+			t.Error("prompt should contain properly formatted source_ids")
+		}
+	})
 }
 
 func TestExtractJSON(t *testing.T) {
