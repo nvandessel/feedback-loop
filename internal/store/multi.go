@@ -285,6 +285,12 @@ func (m *MultiGraphStore) Traverse(ctx context.Context, start string, edgeKinds 
 	return nil, fmt.Errorf("start node not found in either store: %s", start)
 }
 
+// GlobalStore returns the global store instance for direct access.
+// This is used by the seeder to write seed behaviors to the global store.
+func (m *MultiGraphStore) GlobalStore() GraphStore {
+	return m.globalStore
+}
+
 // Sync syncs both stores to disk.
 func (m *MultiGraphStore) Sync(ctx context.Context) error {
 	m.mu.Lock()

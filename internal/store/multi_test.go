@@ -599,6 +599,52 @@ func TestMergeEdges(t *testing.T) {
 	}
 }
 
+func TestMultiGraphStore_GlobalStore(t *testing.T) {
+	localRoot, globalRoot, cleanup := setupTestStores(t)
+	defer cleanup()
+
+	originalHome := os.Getenv("HOME")
+	os.Setenv("HOME", globalRoot)
+	defer os.Setenv("HOME", originalHome)
+
+	ms, err := NewMultiGraphStore(localRoot, ScopeLocal)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer ms.Close()
+
+	ctx := context.Background()
+	gs := ms.GlobalStore()
+
+	if gs == nil {
+		t.Fatal("GlobalStore() returned nil")
+	}
+
+	// Write through GlobalStore accessor
+	node := Node{
+		ID:      "global-only-node",
+		Kind:    "behavior",
+		Content: map[string]interface{}{"name": "test"},
+	}
+	if _, err := gs.AddNode(ctx, node); err != nil {
+		t.Fatalf("AddNode via GlobalStore() failed: %v", err)
+	}
+
+	// Verify it's in global, not local
+	globalNode, err := ms.globalStore.GetNode(ctx, "global-only-node")
+	if err != nil || globalNode == nil {
+		t.Error("node not found in global store")
+	}
+
+	localNode, err := ms.localStore.GetNode(ctx, "global-only-node")
+	if err != nil {
+		t.Fatalf("error checking local store: %v", err)
+	}
+	if localNode != nil {
+		t.Error("node should not be in local store")
+	}
+}
+
 func TestMultiGraphStore_ValidateBehaviorGraph(t *testing.T) {
 	localRoot, globalRoot, cleanup := setupTestStores(t)
 	defer cleanup()

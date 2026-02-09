@@ -13,6 +13,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/nvandessel/feedback-loop/internal/ranking"
 	"github.com/nvandessel/feedback-loop/internal/ratelimit"
+	"github.com/nvandessel/feedback-loop/internal/seed"
 	"github.com/nvandessel/feedback-loop/internal/session"
 	"github.com/nvandessel/feedback-loop/internal/store"
 )
@@ -94,6 +95,9 @@ func NewServer(cfg *Config) (*Server, error) {
 		workerPool:    make(chan struct{}, maxBackgroundWorkers),
 		done:          make(chan struct{}),
 	}
+
+	// Auto-seed meta-behaviors into global store (non-fatal)
+	autoSeedGlobalStore(graphStore)
 
 	// Register tools
 	if err := s.registerTools(); err != nil {
@@ -198,6 +202,20 @@ func (s *Server) Run(ctx context.Context) error {
 	s.Close()
 
 	return err
+}
+
+// autoSeedGlobalStore seeds meta-behaviors into the global store.
+// This is non-fatal: errors are logged to stderr but do not block startup.
+func autoSeedGlobalStore(graphStore *store.MultiGraphStore) {
+	globalStore := graphStore.GlobalStore()
+	result, err := seed.NewSeeder(globalStore).SeedGlobalStore(context.Background())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to auto-seed global store: %v\n", err)
+		return
+	}
+	if len(result.Added) > 0 || len(result.Updated) > 0 {
+		fmt.Fprintf(os.Stderr, "floop: seeded %d, updated %d meta-behavior(s)\n", len(result.Added), len(result.Updated))
+	}
 }
 
 // Close closes the server and releases resources.

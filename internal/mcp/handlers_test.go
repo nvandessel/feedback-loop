@@ -51,7 +51,7 @@ func TestHandleFloopActive_Empty(t *testing.T) {
 	server, tmpDir := setupTestServer(t)
 	defer server.Close()
 
-	// Test with no behaviors in store
+	// Test with no user behaviors in store (seeds are auto-injected)
 	ctx := context.Background()
 	req := &sdk.CallToolRequest{}
 
@@ -66,12 +66,13 @@ func TestHandleFloopActive_Empty(t *testing.T) {
 		t.Error("Expected nil result (SDK auto-populates)")
 	}
 
-	if output.Count != 0 {
-		t.Errorf("Count = %d, want 0", output.Count)
+	// Auto-seeded behaviors (2) are always present
+	if output.Count != 2 {
+		t.Errorf("Count = %d, want 2 (seed behaviors)", output.Count)
 	}
 
-	if len(output.Active) != 0 {
-		t.Errorf("len(Active) = %d, want 0", len(output.Active))
+	if len(output.Active) != 2 {
+		t.Errorf("len(Active) = %d, want 2 (seed behaviors)", len(output.Active))
 	}
 
 	// Verify context is populated
@@ -519,17 +520,25 @@ func TestHandleFloopActive_NoEdgesBackwardCompat(t *testing.T) {
 		t.Fatalf("handleFloopActive failed: %v", err)
 	}
 
-	// Should still find the direct match.
-	if output.Count != 1 {
-		t.Errorf("Count = %d, want 1", output.Count)
+	// Should find the direct match plus 2 seed behaviors (no when = always active)
+	if output.Count != 3 {
+		t.Errorf("Count = %d, want 3 (1 user + 2 seeds)", output.Count)
 	}
 
-	if len(output.Active) != 1 {
-		t.Fatalf("len(Active) = %d, want 1", len(output.Active))
+	if len(output.Active) != 3 {
+		t.Fatalf("len(Active) = %d, want 3", len(output.Active))
 	}
 
-	if output.Active[0].ID != "solo-behavior" {
-		t.Errorf("Active[0].ID = %q, want %q", output.Active[0].ID, "solo-behavior")
+	// Verify the user behavior is present
+	found := false
+	for _, b := range output.Active {
+		if b.ID == "solo-behavior" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("solo-behavior not found in active results")
 	}
 }
 
@@ -851,11 +860,12 @@ func TestHandleFloopActive_TokenStats(t *testing.T) {
 		wantBehaviorCount int
 	}{
 		{
+			// 2 seed behaviors are auto-injected (94 tokens total)
 			name:              "empty store has zero token stats",
 			behaviors:         nil,
-			wantTokens:        0,
+			wantTokens:        94,
 			wantBudget:        2000,
-			wantBehaviorCount: 0,
+			wantBehaviorCount: 2,
 		},
 		{
 			name: "single behavior with known canonical content",
@@ -877,9 +887,9 @@ func TestHandleFloopActive_TokenStats(t *testing.T) {
 					},
 				},
 			},
-			wantTokens:        4,
+			wantTokens:        94 + 4, // seeds + user behavior
 			wantBudget:        2000,
-			wantBehaviorCount: 1,
+			wantBehaviorCount: 2 + 1,
 		},
 		{
 			name: "multiple behaviors sum tokens",
@@ -917,9 +927,9 @@ func TestHandleFloopActive_TokenStats(t *testing.T) {
 					},
 				},
 			},
-			wantTokens:        7, // 4 + 3
+			wantTokens:        94 + 7, // seeds + 4 + 3
 			wantBudget:        2000,
-			wantBehaviorCount: 2,
+			wantBehaviorCount: 2 + 2,
 		},
 	}
 
