@@ -35,6 +35,11 @@ func TestDefault(t *testing.T) {
 	if config.Deduplication.SimilarityThreshold != 0.95 {
 		t.Errorf("expected SimilarityThreshold 0.95, got %f", config.Deduplication.SimilarityThreshold)
 	}
+
+	// Logging defaults
+	if config.Logging.Level != "info" {
+		t.Errorf("expected Logging.Level 'info', got '%s'", config.Logging.Level)
+	}
 }
 
 func TestLoadFromFile(t *testing.T) {
@@ -308,6 +313,64 @@ func TestEnvOverrides_LocalConfig(t *testing.T) {
 	}
 	if config.LLM.LocalContextSize != 4096 {
 		t.Errorf("expected LocalContextSize 4096, got %d", config.LLM.LocalContextSize)
+	}
+}
+
+func TestEnvOverrides_LogLevel(t *testing.T) {
+	origLogLevel := os.Getenv("FLOOP_LOG_LEVEL")
+	defer os.Setenv("FLOOP_LOG_LEVEL", origLogLevel)
+
+	os.Setenv("FLOOP_LOG_LEVEL", "debug")
+
+	config := Default()
+	applyEnvOverrides(config)
+
+	if config.Logging.Level != "debug" {
+		t.Errorf("expected Logging.Level 'debug', got '%s'", config.Logging.Level)
+	}
+}
+
+func TestLoadFromFile_LoggingConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	configContent := `
+logging:
+  level: trace
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0600); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	config, err := LoadFromFile(configPath)
+	if err != nil {
+		t.Fatalf("LoadFromFile failed: %v", err)
+	}
+
+	if config.Logging.Level != "trace" {
+		t.Errorf("expected Logging.Level 'trace', got '%s'", config.Logging.Level)
+	}
+}
+
+func TestValidate_InvalidLogLevel(t *testing.T) {
+	config := Default()
+	config.Logging.Level = "verbose"
+	if err := config.Validate(); err == nil {
+		t.Error("expected validation error for invalid log level")
+	}
+}
+
+func TestValidate_ValidLogLevels(t *testing.T) {
+	validLevels := []string{"", "info", "debug", "trace"}
+
+	for _, level := range validLevels {
+		t.Run(level, func(t *testing.T) {
+			config := Default()
+			config.Logging.Level = level
+			if err := config.Validate(); err != nil {
+				t.Errorf("expected log level '%s' to be valid, got error: %v", level, err)
+			}
+		})
 	}
 }
 

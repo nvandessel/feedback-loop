@@ -21,6 +21,17 @@ type FloopConfig struct {
 
 	// Deduplication contains settings for behavior deduplication.
 	Deduplication DeduplicationConfig `json:"deduplication" yaml:"deduplication"`
+
+	// Logging contains settings for operational and decision logging.
+	Logging LoggingConfig `json:"logging" yaml:"logging"`
+}
+
+// LoggingConfig configures floop's logging behavior.
+type LoggingConfig struct {
+	// Level sets the log verbosity: "info" (default), "debug", or "trace".
+	// "debug" enables decision logging to .floop/decisions.jsonl.
+	// "trace" additionally includes full LLM prompt/response content.
+	Level string `json:"level" yaml:"level"`
 }
 
 // LLMConfig configures LLM-based behavior comparison and merging.
@@ -115,6 +126,9 @@ func Default() *FloopConfig {
 			AutoMerge:           false,
 			SimilarityThreshold: constants.DefaultSimilarityThreshold,
 		},
+		Logging: LoggingConfig{
+			Level: "info",
+		},
 	}
 }
 
@@ -175,6 +189,11 @@ func (c *FloopConfig) Validate() error {
 		return fmt.Errorf("invalid provider: %s (valid: anthropic, openai, ollama, subagent, local, or empty)", c.LLM.Provider)
 	}
 
+	validLevels := map[string]bool{"": true, "info": true, "debug": true, "trace": true}
+	if !validLevels[c.Logging.Level] {
+		return fmt.Errorf("invalid log level: %s (valid: info, debug, trace)", c.Logging.Level)
+	}
+
 	return nil
 }
 
@@ -231,6 +250,10 @@ func applyEnvOverrides(config *FloopConfig) {
 		if f, err := strconv.ParseFloat(v, 64); err == nil {
 			config.Deduplication.SimilarityThreshold = f
 		}
+	}
+
+	if v := os.Getenv("FLOOP_LOG_LEVEL"); v != "" {
+		config.Logging.Level = v
 	}
 }
 
