@@ -176,7 +176,7 @@ type FloopConnectOutput struct {
 
 // FloopGraphInput defines the input for floop_graph tool.
 type FloopGraphInput struct {
-	Format string `json:"format,omitempty" jsonschema:"Output format: dot or json (default: json)"`
+	Format string `json:"format,omitempty" jsonschema:"Output format: dot, json, or html (default: json)"`
 }
 
 // FloopGraphOutput defines the output for floop_graph tool.

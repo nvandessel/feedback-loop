@@ -82,7 +82,7 @@ func (s *Server) registerTools() error {
 	// Register floop_graph tool
 	sdk.AddTool(s.server, &sdk.Tool{
 		Name:        "floop_graph",
-		Description: "Render the behavior graph in DOT (Graphviz) or JSON format for visualization",
+		Description: "Render the behavior graph in DOT (Graphviz), JSON, or interactive HTML format for visualization",
 	}, s.handleFloopGraph)
 
 	return nil
@@ -1319,7 +1319,44 @@ func (s *Server) handleFloopGraph(ctx context.Context, req *sdk.CallToolRequest,
 			EdgeCount: edgeCount,
 		}, nil
 
+	case visualization.FormatHTML:
+		// Use cached PageRank scores for enrichment
+		s.pageRankMu.RLock()
+		pageRank := s.pageRankCache
+		s.pageRankMu.RUnlock()
+
+		enrichment := &visualization.EnrichmentData{
+			PageRank: pageRank,
+		}
+
+		htmlBytes, err := visualization.RenderHTML(ctx, s.store, enrichment)
+		if err != nil {
+			return nil, FloopGraphOutput{}, fmt.Errorf("render HTML: %w", err)
+		}
+
+		// Write to temp file
+		tmpFile, err := os.CreateTemp("", "floop-graph-*.html")
+		if err != nil {
+			return nil, FloopGraphOutput{}, fmt.Errorf("create temp file: %w", err)
+		}
+		if _, err := tmpFile.Write(htmlBytes); err != nil {
+			tmpFile.Close()
+			return nil, FloopGraphOutput{}, fmt.Errorf("write HTML: %w", err)
+		}
+		tmpFile.Close()
+
+		nodes, err := s.store.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
+		if err != nil {
+			return nil, FloopGraphOutput{}, fmt.Errorf("query nodes: %w", err)
+		}
+
+		return nil, FloopGraphOutput{
+			Format:    "html",
+			Graph:     tmpFile.Name(),
+			NodeCount: len(nodes),
+		}, nil
+
 	default:
-		return nil, FloopGraphOutput{}, fmt.Errorf("unsupported format %q (use 'dot' or 'json')", format)
+		return nil, FloopGraphOutput{}, fmt.Errorf("unsupported format %q (use 'dot', 'json', or 'html')", format)
 	}
 }
