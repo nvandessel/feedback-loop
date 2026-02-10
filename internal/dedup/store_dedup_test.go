@@ -415,8 +415,11 @@ func TestStoreDeduplicator_ComputeSimilarity(t *testing.T) {
 		}
 
 		sim := dedup.computeSimilarity(a, b)
-		if sim != 1.0 {
-			t.Errorf("expected similarity 1.0, got %f", sim)
+		if sim.score != 1.0 {
+			t.Errorf("expected similarity 1.0, got %f", sim.score)
+		}
+		if sim.method != "jaccard" {
+			t.Errorf("expected method 'jaccard', got %q", sim.method)
 		}
 	})
 
@@ -431,8 +434,8 @@ func TestStoreDeduplicator_ComputeSimilarity(t *testing.T) {
 		}
 
 		sim := dedup.computeSimilarity(a, b)
-		if sim > 0.5 {
-			t.Errorf("expected low similarity, got %f", sim)
+		if sim.score > 0.5 {
+			t.Errorf("expected low similarity, got %f", sim.score)
 		}
 	})
 
@@ -457,9 +460,9 @@ func TestStoreDeduplicator_ComputeSimilarity(t *testing.T) {
 		simSameWhen := dedup.computeSimilarity(sameContent, diffContentSameWhen)
 
 		// Same content should score higher than same when
-		if simSameContent <= simSameWhen {
+		if simSameContent.score <= simSameWhen.score {
 			t.Errorf("same content (%f) should score higher than same when (%f)",
-				simSameContent, simSameWhen)
+				simSameContent.score, simSameWhen.score)
 		}
 	})
 }
@@ -644,8 +647,11 @@ func TestStoreDeduplicator_ComputeSimilarity_WithLLM(t *testing.T) {
 
 		sim := dedup.computeSimilarity(a, b)
 
-		if sim != 0.95 {
-			t.Errorf("expected LLM similarity 0.95, got %f", sim)
+		if sim.score != 0.95 {
+			t.Errorf("expected LLM similarity 0.95, got %f", sim.score)
+		}
+		if sim.method != "llm" {
+			t.Errorf("expected method 'llm', got %q", sim.method)
 		}
 
 		if mockClient.CompareCallCount() != 1 {
@@ -676,8 +682,11 @@ func TestStoreDeduplicator_ComputeSimilarity_WithLLM(t *testing.T) {
 		sim := dedup.computeSimilarity(a, b)
 
 		// Should use Jaccard (identical = 1.0)
-		if sim != 1.0 {
-			t.Errorf("expected Jaccard similarity 1.0, got %f", sim)
+		if sim.score != 1.0 {
+			t.Errorf("expected Jaccard similarity 1.0, got %f", sim.score)
+		}
+		if sim.method != "jaccard" {
+			t.Errorf("expected method 'jaccard', got %q", sim.method)
 		}
 
 		// LLM should not have been called
@@ -710,8 +719,11 @@ func TestStoreDeduplicator_ComputeSimilarity_WithLLM(t *testing.T) {
 		sim := dedup.computeSimilarity(a, b)
 
 		// Should use Jaccard
-		if sim != 1.0 {
-			t.Errorf("expected Jaccard similarity 1.0, got %f", sim)
+		if sim.score != 1.0 {
+			t.Errorf("expected Jaccard similarity 1.0, got %f", sim.score)
+		}
+		if sim.method != "jaccard" {
+			t.Errorf("expected method 'jaccard', got %q", sim.method)
 		}
 
 		// LLM should not have been called
@@ -741,8 +753,11 @@ func TestStoreDeduplicator_ComputeSimilarity_WithLLM(t *testing.T) {
 		sim := dedup.computeSimilarity(a, b)
 
 		// Should fall back to Jaccard
-		if sim != 1.0 {
-			t.Errorf("expected Jaccard similarity 1.0, got %f", sim)
+		if sim.score != 1.0 {
+			t.Errorf("expected Jaccard similarity 1.0, got %f", sim.score)
+		}
+		if sim.method != "jaccard" {
+			t.Errorf("expected method 'jaccard', got %q", sim.method)
 		}
 
 		// LLM was called but failed
@@ -769,8 +784,11 @@ func TestStoreDeduplicator_ComputeSimilarity_WithLLM(t *testing.T) {
 		// Should not panic and use Jaccard
 		sim := dedup.computeSimilarity(a, b)
 
-		if sim != 1.0 {
-			t.Errorf("expected Jaccard similarity 1.0, got %f", sim)
+		if sim.score != 1.0 {
+			t.Errorf("expected Jaccard similarity 1.0, got %f", sim.score)
+		}
+		if sim.method != "jaccard" {
+			t.Errorf("expected method 'jaccard', got %q", sim.method)
 		}
 	})
 }

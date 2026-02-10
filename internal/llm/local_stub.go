@@ -12,7 +12,6 @@ import (
 // LocalClient is a stub implementation used when the llamacpp build tag is not set.
 // It returns Available()=false so callers fall back to other providers.
 type LocalClient struct {
-	modelPath          string
 	embeddingModelPath string
 }
 
@@ -35,9 +34,12 @@ type LocalConfig struct {
 // NewLocalClient creates a new LocalClient. In the stub build (without llamacpp tag),
 // this client is always unavailable.
 func NewLocalClient(cfg LocalConfig) *LocalClient {
+	embPath := cfg.EmbeddingModelPath
+	if embPath == "" {
+		embPath = cfg.ModelPath
+	}
 	return &LocalClient{
-		modelPath:          cfg.ModelPath,
-		embeddingModelPath: cfg.EmbeddingModelPath,
+		embeddingModelPath: embPath,
 	}
 }
 

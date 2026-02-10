@@ -59,14 +59,14 @@ func (d *StoreDeduplicator) FindDuplicates(ctx context.Context, behavior *models
 		}
 
 		other := nodeToBehavior(node)
-		similarity := d.computeSimilarity(behavior, &other)
+		sim := d.computeSimilarity(behavior, &other)
 
-		if similarity >= d.config.SimilarityThreshold {
+		if sim.score >= d.config.SimilarityThreshold {
 			matches = append(matches, DuplicateMatch{
 				Behavior:         &other,
-				Similarity:       similarity,
-				SimilarityMethod: "jaccard",
-				MergeRecommended: similarity >= 0.95,
+				Similarity:       sim.score,
+				SimilarityMethod: sim.method,
+				MergeRecommended: sim.score >= 0.95,
 			})
 		}
 	}
@@ -153,14 +153,14 @@ func (d *StoreDeduplicator) DeduplicateStore(ctx context.Context, s store.GraphS
 			}
 
 			other := &behaviors[j]
-			similarity := d.computeSimilarity(behavior, other)
+			sim := d.computeSimilarity(behavior, other)
 
-			if similarity >= d.config.SimilarityThreshold {
+			if sim.score >= d.config.SimilarityThreshold {
 				duplicates = append(duplicates, DuplicateMatch{
 					Behavior:         other,
-					Similarity:       similarity,
-					SimilarityMethod: "jaccard",
-					MergeRecommended: similarity >= 0.95,
+					Similarity:       sim.score,
+					SimilarityMethod: sim.method,
+					MergeRecommended: sim.score >= 0.95,
 				})
 				processed[other.ID] = true
 			}
@@ -194,18 +194,33 @@ func (d *StoreDeduplicator) DeduplicateStore(ctx context.Context, s store.GraphS
 	return report, nil
 }
 
+// similarityResult holds the score and method used for a similarity computation.
+type similarityResult struct {
+	score  float64
+	method string
+}
+
 // computeSimilarity calculates similarity between two behaviors.
-// Uses LLM-based comparison if available and configured, otherwise falls back
-// to Jaccard word overlap combined with when-condition overlap.
-func (d *StoreDeduplicator) computeSimilarity(a, b *models.Behavior) float64 {
-	// Try LLM-based comparison if configured and available
+// Uses embedding-based comparison if the LLM client supports EmbeddingComparer,
+// then tries LLM-based comparison, otherwise falls back to Jaccard word overlap.
+func (d *StoreDeduplicator) computeSimilarity(a, b *models.Behavior) similarityResult {
 	if d.config.UseLLM && d.llmClient != nil && d.llmClient.Available() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
+		// Prefer embedding-based comparison if supported
+		if ec, ok := d.llmClient.(llm.EmbeddingComparer); ok {
+			sim, err := ec.CompareEmbeddings(ctx, a.Content.Canonical, b.Content.Canonical)
+			if err == nil {
+				return similarityResult{score: sim, method: "embedding"}
+			}
+			// Fall through on error
+		}
+
+		// Try full LLM comparison
 		result, err := d.llmClient.CompareBehaviors(ctx, a, b)
 		if err == nil && result != nil {
-			return result.SemanticSimilarity
+			return similarityResult{score: result.SemanticSimilarity, method: "llm"}
 		}
 		// Fall through to Jaccard on error
 	}
@@ -221,7 +236,7 @@ func (d *StoreDeduplicator) computeSimilarity(a, b *models.Behavior) float64 {
 	contentSim := d.computeContentSimilarity(a.Content.Canonical, b.Content.Canonical)
 	score += contentSim * 0.6
 
-	return score
+	return similarityResult{score: score, method: "jaccard"}
 }
 
 // computeWhenOverlap calculates overlap between two when predicates.
