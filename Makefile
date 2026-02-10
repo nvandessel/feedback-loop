@@ -38,7 +38,7 @@ ci: fmt-check lint vet test build
 clean:
 	rm -f ./floop coverage.out coverage.html
 
-docs-validate:
+docs-validate: build
 	@echo "Validating CLI reference documentation..."
 	@missing=""; \
 	for cmd in $$(./floop --help 2>&1 | awk '/Available Commands:/{found=1; next} found && /^  [a-z]/{print $$1} found && /^$$/{exit}'); do \
