@@ -97,10 +97,19 @@ func TestLocalConfig_Fields(t *testing.T) {
 	}
 
 	client := NewLocalClient(cfg)
-	if client.modelPath != cfg.ModelPath {
-		t.Errorf("modelPath = %q, want %q", client.modelPath, cfg.ModelPath)
-	}
 	if client.embeddingModelPath != cfg.EmbeddingModelPath {
 		t.Errorf("embeddingModelPath = %q, want %q", client.embeddingModelPath, cfg.EmbeddingModelPath)
+	}
+}
+
+func TestLocalConfig_FallbackModelPath(t *testing.T) {
+	cfg := LocalConfig{
+		ModelPath: "/path/to/model.gguf",
+		// EmbeddingModelPath is empty — should fall back to ModelPath
+	}
+
+	client := NewLocalClient(cfg)
+	if client.embeddingModelPath != cfg.ModelPath {
+		t.Errorf("embeddingModelPath = %q, want %q (fallback to ModelPath)", client.embeddingModelPath, cfg.ModelPath)
 	}
 }

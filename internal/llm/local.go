@@ -17,7 +17,6 @@ import (
 // via llama-go. It provides embedding-based similarity comparison without external
 // API dependencies. Thread-safe: all model/context access is serialized via mutex.
 type LocalClient struct {
-	modelPath          string
 	embeddingModelPath string
 	gpuLayers          int
 	contextSize        int
@@ -62,7 +61,6 @@ func NewLocalClient(cfg LocalConfig) *LocalClient {
 		ctxSize = 512
 	}
 	return &LocalClient{
-		modelPath:          cfg.ModelPath,
 		embeddingModelPath: embPath,
 		gpuLayers:          cfg.GPULayers,
 		contextSize:        ctxSize,
