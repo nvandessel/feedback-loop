@@ -102,7 +102,12 @@ func TestNewDecisionLogger_InfoLevel(t *testing.T) {
 	dir := t.TempDir()
 	dl := NewDecisionLogger(dir, "info")
 
-	// At info level, decision logger should not write
+	// At info level, decision logger should be nil
+	if dl != nil {
+		t.Error("expected nil DecisionLogger at info level")
+	}
+
+	// Nil logger should still be safe to use
 	dl.Log(map[string]any{"event": "test"})
 
 	path := filepath.Join(dir, "decisions.jsonl")

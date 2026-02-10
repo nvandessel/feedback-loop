@@ -41,7 +41,7 @@ func NewLogger(level string, w io.Writer) *slog.Logger {
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 			// Label the custom trace level
 			if a.Key == slog.LevelKey {
-				if a.Value.Any().(slog.Level) == LevelTrace {
+				if lvl, ok := a.Value.Any().(slog.Level); ok && lvl == LevelTrace {
 					a.Value = slog.StringValue("TRACE")
 				}
 			}
@@ -60,19 +60,19 @@ type DecisionLogger struct {
 }
 
 // NewDecisionLogger creates a decision logger writing to dir/decisions.jsonl.
-// At "info" level, no file is created and all Log calls are no-ops.
+// At "info" level (the default), returns nil — no file is created.
 // At "debug" or "trace" level, the file is opened for append.
+// Returns nil if the file cannot be opened. All methods are nil-safe.
 func NewDecisionLogger(dir string, level string) *DecisionLogger {
 	lvl := ParseLevel(level)
-	if lvl > slog.LevelDebug {
-		// info level: no decision logging
-		return &DecisionLogger{}
+	if lvl == slog.LevelInfo {
+		return nil
 	}
 
 	path := filepath.Join(dir, "decisions.jsonl")
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
-		return &DecisionLogger{}
+		return nil
 	}
 
 	return &DecisionLogger{file: f}
