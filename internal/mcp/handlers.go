@@ -327,6 +327,13 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 
 	// Spread activation through graph edges
 	seeds := matchesToSeeds(matches)
+
+	// Boost seeds with PageRank scores (15% blend — tiebreaker, not dominator)
+	s.pageRankMu.RLock()
+	prScores := s.pageRankCache
+	s.pageRankMu.RUnlock()
+	seeds = boostSeedsWithPageRank(seeds, prScores, 0.15)
+
 	var spreadResults []spreading.Result
 	if len(seeds) > 0 {
 		engine := spreading.NewEngine(s.store, spreading.DefaultConfig())
@@ -337,6 +344,20 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 		} else {
 			matches = mergeSpreadResults(ctx, s.store, matches, spreadResults)
 		}
+
+		// Background: stamp LastActivated on edges touching seed behaviors
+		seedIDs := make([]string, len(seeds))
+		for i, seed := range seeds {
+			seedIDs[i] = seed.BehaviorID
+		}
+		s.runBackground("edge-timestamp", func() {
+			type edgeToucher interface {
+				TouchEdges(ctx context.Context, behaviorIDs []string) error
+			}
+			if toucher, ok := s.store.(edgeToucher); ok {
+				_ = toucher.TouchEdges(context.Background(), seedIDs)
+			}
+		})
 	}
 
 	// Resolve conflicts and get final active set
@@ -384,7 +405,7 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 		"repo":     actCtx.RepoRoot,
 	}
 
-	// Bounded confidence reinforcement (background worker pool)
+	// Bounded confidence reinforcement + activation hit recording (background worker pool)
 	activeBehaviors := result.Active
 	allBehaviors := behaviors
 	s.runBackground("confidence-reinforcement", func() {
@@ -406,6 +427,16 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 			cfg := ranking.DefaultReinforcementConfig()
 			if err := ranking.ApplyReinforcement(context.Background(), updater, activeConfs, allConfs, cfg, s.boostTracker); err != nil {
 				fmt.Fprintf(os.Stderr, "warning: confidence reinforcement failed: %v\n", err)
+			}
+		}
+
+		// Record activation hits for active behaviors
+		type activationRecorder interface {
+			RecordActivationHit(ctx context.Context, behaviorID string) error
+		}
+		if recorder, ok := s.store.(activationRecorder); ok {
+			for _, b := range activeBehaviors {
+				_ = recorder.RecordActivationHit(context.Background(), b.ID)
 			}
 		}
 	})
@@ -779,6 +810,18 @@ func buildSpreadIndex(seeds []spreading.Seed, matches []activation.ActivationRes
 	}
 
 	return index
+}
+
+// boostSeedsWithPageRank blends PageRank scores into seed activations.
+// The weight parameter controls how much PageRank influences the result:
+// seed.Activation = (1-weight)*seed.Activation + weight*pageRank[seed.ID]
+func boostSeedsWithPageRank(seeds []spreading.Seed, pageRank map[string]float64, weight float64) []spreading.Seed {
+	for i := range seeds {
+		if pr, ok := pageRank[seeds[i].BehaviorID]; ok {
+			seeds[i].Activation = (1-weight)*seeds[i].Activation + weight*pr
+		}
+	}
+	return seeds
 }
 
 // handleFloopDeduplicate implements the floop_deduplicate tool.

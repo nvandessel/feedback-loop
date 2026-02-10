@@ -991,6 +991,150 @@ func TestBehaviorContentToMap_OmitsEmptyTags(t *testing.T) {
 	}
 }
 
+func TestBoostSeedsWithPageRank(t *testing.T) {
+	tests := []struct {
+		name     string
+		seeds    []spreading.Seed
+		pageRank map[string]float64
+		weight   float64
+		wantActs []float64 // expected activation values after boost
+	}{
+		{
+			name: "basic blending",
+			seeds: []spreading.Seed{
+				{BehaviorID: "a", Activation: 0.8, Source: "ctx"},
+				{BehaviorID: "b", Activation: 0.6, Source: "ctx"},
+			},
+			pageRank: map[string]float64{
+				"a": 0.4,
+				"b": 0.2,
+			},
+			weight: 0.15,
+			// a: (1-0.15)*0.8 + 0.15*0.4 = 0.68 + 0.06 = 0.74
+			// b: (1-0.15)*0.6 + 0.15*0.2 = 0.51 + 0.03 = 0.54
+			wantActs: []float64{0.74, 0.54},
+		},
+		{
+			name:     "empty seeds",
+			seeds:    []spreading.Seed{},
+			pageRank: map[string]float64{"a": 0.5},
+			weight:   0.15,
+			wantActs: []float64{},
+		},
+		{
+			name: "no pagerank data for seed",
+			seeds: []spreading.Seed{
+				{BehaviorID: "a", Activation: 0.8, Source: "ctx"},
+			},
+			pageRank: map[string]float64{}, // no data
+			weight:   0.15,
+			wantActs: []float64{0.8}, // unchanged
+		},
+		{
+			name: "weight zero means no blending",
+			seeds: []spreading.Seed{
+				{BehaviorID: "a", Activation: 0.8, Source: "ctx"},
+			},
+			pageRank: map[string]float64{"a": 0.4},
+			weight:   0.0,
+			// (1-0)*0.8 + 0*0.4 = 0.8
+			wantActs: []float64{0.8},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := boostSeedsWithPageRank(tt.seeds, tt.pageRank, tt.weight)
+
+			if len(result) != len(tt.wantActs) {
+				t.Fatalf("len(result) = %d, want %d", len(result), len(tt.wantActs))
+			}
+
+			for i, want := range tt.wantActs {
+				got := result[i].Activation
+				diff := got - want
+				if diff < 0 {
+					diff = -diff
+				}
+				if diff > 0.001 {
+					t.Errorf("seed[%d].Activation = %f, want %f", i, got, want)
+				}
+			}
+		})
+	}
+}
+
+func TestHandleFloopActive_RecordsHits(t *testing.T) {
+	server, _ := setupTestServer(t)
+	defer server.Close()
+
+	ctx := context.Background()
+
+	// Add a behavior with no "when" so it always activates
+	behaviorNode := store.Node{
+		ID:   "hit-tracking-test",
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"name": "Hit Tracking Test",
+			"kind": "directive",
+			"content": map[string]interface{}{
+				"canonical": "Track activation hits",
+			},
+			"when": map[string]interface{}{},
+		},
+		Metadata: map[string]interface{}{
+			"confidence": 0.9,
+			"priority":   1,
+		},
+	}
+	if _, err := server.store.AddNode(ctx, behaviorNode); err != nil {
+		t.Fatalf("Failed to add test behavior: %v", err)
+	}
+	if err := server.store.Sync(ctx); err != nil {
+		t.Fatalf("Failed to sync store: %v", err)
+	}
+
+	// Call handleFloopActive
+	req := &sdk.CallToolRequest{}
+	args := FloopActiveInput{}
+	_, _, err := server.handleFloopActive(ctx, req, args)
+	if err != nil {
+		t.Fatalf("handleFloopActive failed: %v", err)
+	}
+
+	// Wait for background workers to complete
+	// Fill worker pool and then drain to ensure all background tasks finish
+	for i := 0; i < maxBackgroundWorkers; i++ {
+		server.workerPool <- struct{}{}
+	}
+	for i := 0; i < maxBackgroundWorkers; i++ {
+		<-server.workerPool
+	}
+
+	// Verify times_activated > 0 in the store
+	node, err := server.store.GetNode(ctx, "hit-tracking-test")
+	if err != nil {
+		t.Fatalf("GetNode() error = %v", err)
+	}
+	if node == nil {
+		t.Fatal("behavior not found after activation")
+	}
+
+	stats, _ := node.Metadata["stats"].(map[string]interface{})
+	timesActivated := 0
+	if ta, ok := stats["times_activated"]; ok {
+		switch v := ta.(type) {
+		case int:
+			timesActivated = v
+		case float64:
+			timesActivated = int(v)
+		}
+	}
+	if timesActivated == 0 {
+		t.Error("times_activated = 0, want > 0 after floop_active call")
+	}
+}
+
 func TestHandleBehaviorsResource_EmptyStoreFraming(t *testing.T) {
 	server, _ := setupTestServer(t)
 	defer server.Close()
