@@ -577,6 +577,52 @@ func TestBehaviorExtractor_BuildContent(t *testing.T) {
 	}
 }
 
+func TestBehaviorExtractor_BuildContent_Tags(t *testing.T) {
+	extractor := NewBehaviorExtractor().(*behaviorExtractor)
+
+	tests := []struct {
+		name       string
+		correction models.Correction
+		wantTags   []string
+	}{
+		{
+			name: "git-related correction gets git tag",
+			correction: models.Correction{
+				CorrectedAction: "Always use git -C for worktree operations",
+			},
+			wantTags: []string{"git", "worktree"},
+		},
+		{
+			name: "testing correction gets testing tag",
+			correction: models.Correction{
+				CorrectedAction: "Follow TDD when writing Go tests",
+			},
+			wantTags: []string{"go", "tdd", "testing"},
+		},
+		{
+			name: "no keywords produces nil tags",
+			correction: models.Correction{
+				CorrectedAction: "be more careful next time",
+			},
+			wantTags: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			content := extractor.buildContent(tt.correction)
+			if len(content.Tags) != len(tt.wantTags) {
+				t.Fatalf("Tags = %v, want %v", content.Tags, tt.wantTags)
+			}
+			for i, tag := range content.Tags {
+				if tag != tt.wantTags[i] {
+					t.Errorf("Tags[%d] = %q, want %q", i, tag, tt.wantTags[i])
+				}
+			}
+		})
+	}
+}
+
 func TestBehaviorExtractor_Extract_Provenance(t *testing.T) {
 	extractor := NewBehaviorExtractor()
 
