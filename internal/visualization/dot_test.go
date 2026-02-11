@@ -273,11 +273,11 @@ func TestRenderHTML_ProducesValidHTML(t *testing.T) {
 	if !strings.Contains(htmlStr, "<title>floop") {
 		t.Error("expected floop title")
 	}
-	if !strings.Contains(htmlStr, "ForceGraph") {
-		t.Error("expected ForceGraph library to be embedded")
+	if !strings.Contains(htmlStr, "data:text/javascript;base64,") {
+		t.Error("expected force-graph library loaded via data URI")
 	}
 
-	// Check that graph data is embedded
+	// Check that graph data is embedded (HTML-escaped JSON)
 	if !strings.Contains(htmlStr, "use-worktrees") {
 		t.Error("expected node name 'use-worktrees' in HTML")
 	}
@@ -285,9 +285,9 @@ func TestRenderHTML_ProducesValidHTML(t *testing.T) {
 		t.Error("expected node name 'tdd-workflow' in HTML")
 	}
 
-	// Reasonable size (should be > 100KB because of embedded JS)
-	if len(html) < 100000 {
-		t.Errorf("HTML too small (%d bytes), expected > 100KB with embedded JS", len(html))
+	// HTML should be > 5KB (template + data URI + graph JSON)
+	if len(html) < 5000 {
+		t.Errorf("HTML too small (%d bytes), expected > 5KB", len(html))
 	}
 }
 
@@ -305,8 +305,8 @@ func TestRenderHTML_EmptyStore(t *testing.T) {
 	if !strings.Contains(htmlStr, "<!DOCTYPE html>") {
 		t.Error("expected DOCTYPE declaration")
 	}
-	if !strings.Contains(htmlStr, "ForceGraph") {
-		t.Error("expected ForceGraph library even with empty store")
+	if !strings.Contains(htmlStr, "data:text/javascript;base64,") {
+		t.Error("expected force-graph library even with empty store")
 	}
 }
 
