@@ -1269,40 +1269,30 @@ func (s *Server) handleFloopGraph(ctx context.Context, req *sdk.CallToolRequest,
 		}, nil
 
 	case visualization.FormatHTML:
-		// Use cached PageRank scores for enrichment
 		s.pageRankMu.RLock()
 		pageRank := s.pageRankCache
 		s.pageRankMu.RUnlock()
 
-		enrichment := &visualization.EnrichmentData{
-			PageRank: pageRank,
-		}
-
+		enrichment := &visualization.EnrichmentData{PageRank: pageRank}
 		htmlBytes, err := visualization.RenderHTML(ctx, s.store, enrichment)
 		if err != nil {
 			return nil, FloopGraphOutput{}, fmt.Errorf("render HTML: %w", err)
 		}
 
-		// Write to temp file
-		tmpFile, err := os.CreateTemp("", "floop-graph-*.html")
-		if err != nil {
-			return nil, FloopGraphOutput{}, fmt.Errorf("create temp file: %w", err)
-		}
-		if _, err := tmpFile.Write(htmlBytes); err != nil {
-			tmpFile.Close()
-			return nil, FloopGraphOutput{}, fmt.Errorf("write HTML: %w", err)
-		}
-		tmpFile.Close()
-
 		nodes, err := s.store.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
 		if err != nil {
 			return nil, FloopGraphOutput{}, fmt.Errorf("query nodes: %w", err)
 		}
+		edges, err := visualization.CollectEdges(ctx, s.store, nodes)
+		if err != nil {
+			return nil, FloopGraphOutput{}, fmt.Errorf("collect edges: %w", err)
+		}
 
 		return nil, FloopGraphOutput{
 			Format:    "html",
-			Graph:     tmpFile.Name(),
+			Graph:     string(htmlBytes),
 			NodeCount: len(nodes),
+			EdgeCount: len(edges),
 		}, nil
 
 	default:

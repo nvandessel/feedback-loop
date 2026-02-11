@@ -82,7 +82,7 @@ func newGraphCmd() *cobra.Command {
 				fmt.Fprintf(cmd.OutOrStdout(), "Graph written to %s\n", outPath)
 
 				if !noOpen {
-					if err := visualization.OpenBrowser("file://" + outPath); err != nil {
+					if err := visualization.OpenBrowser(outPath); err != nil {
 						fmt.Fprintf(cmd.ErrOrStderr(), "Could not open browser: %v\nOpen %s manually.\n", err, outPath)
 					}
 				}

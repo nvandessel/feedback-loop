@@ -224,7 +224,7 @@ func RenderEnrichedJSON(ctx context.Context, gs store.GraphStore, enrichment *En
 	}
 
 	// Collect edges
-	edges, err := collectEdges(ctx, gs, nodes)
+	edges, err := CollectEdges(ctx, gs, nodes)
 	if err != nil {
 		return nil, err
 	}
@@ -297,8 +297,8 @@ func RenderHTML(ctx context.Context, gs store.GraphStore, enrichment *Enrichment
 	return buf.Bytes(), nil
 }
 
-// collectEdges gathers deduplicated outbound edges for a set of nodes.
-func collectEdges(ctx context.Context, gs store.GraphStore, nodes []store.Node) ([]store.Edge, error) {
+// CollectEdges gathers deduplicated outbound edges for a set of nodes.
+func CollectEdges(ctx context.Context, gs store.GraphStore, nodes []store.Node) ([]store.Edge, error) {
 	seen := make(map[string]bool)
 	var result []store.Edge
 	for _, node := range nodes {
