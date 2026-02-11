@@ -81,12 +81,14 @@ func (m *BehaviorMerger) Merge(ctx context.Context, behaviors []*models.Behavior
 			if m.logger != nil {
 				m.logger.Debug("merge completed", "strategy", "llm", "behavior_count", len(behaviors))
 			}
-			m.decisions.Log(map[string]any{
-				"event":         "merge_decision",
-				"strategy":      "llm",
-				"behavior_ids":  ids,
-				"llm_available": true,
-			})
+			if m.decisions != nil {
+				m.decisions.Log(map[string]any{
+					"event":         "merge_decision",
+					"strategy":      "llm",
+					"behavior_ids":  ids,
+					"llm_available": true,
+				})
+			}
 			return result, nil
 		}
 		// Fall through to rule-based on error
@@ -107,13 +109,15 @@ func (m *BehaviorMerger) Merge(ctx context.Context, behaviors []*models.Behavior
 	if m.logger != nil {
 		m.logger.Debug("merge completed", "strategy", "rule", "behavior_count", len(behaviors), "reason", reason)
 	}
-	m.decisions.Log(map[string]any{
-		"event":         "merge_decision",
-		"strategy":      "rule",
-		"behavior_ids":  ids,
-		"llm_available": llmAvailable,
-		"reason":        reason,
-	})
+	if m.decisions != nil {
+		m.decisions.Log(map[string]any{
+			"event":         "merge_decision",
+			"strategy":      "rule",
+			"behavior_ids":  ids,
+			"llm_available": llmAvailable,
+			"reason":        reason,
+		})
+	}
 
 	// Rule-based merge
 	return m.ruleMerge(behaviors), nil

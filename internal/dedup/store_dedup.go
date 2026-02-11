@@ -228,15 +228,17 @@ func (d *StoreDeduplicator) computeSimilarity(a, b *models.Behavior) similarityR
 				if d.logger != nil {
 					d.logger.Debug("similarity computed", "behavior_a", a.ID, "behavior_b", b.ID, "score", sim, "method", method)
 				}
-				d.decisions.Log(map[string]any{
-					"event":        "similarity_computed",
-					"behavior_a":   a.ID,
-					"behavior_b":   b.ID,
-					"score":        sim,
-					"method":       method,
-					"threshold":    d.config.SimilarityThreshold,
-					"is_duplicate": isDup,
-				})
+				if d.decisions != nil {
+					d.decisions.Log(map[string]any{
+						"event":        "similarity_computed",
+						"behavior_a":   a.ID,
+						"behavior_b":   b.ID,
+						"score":        sim,
+						"method":       method,
+						"threshold":    d.config.SimilarityThreshold,
+						"is_duplicate": isDup,
+					})
+				}
 
 				return similarityResult{score: sim, method: method}
 			}
@@ -253,15 +255,17 @@ func (d *StoreDeduplicator) computeSimilarity(a, b *models.Behavior) similarityR
 			if d.logger != nil {
 				d.logger.Debug("similarity computed", "behavior_a", a.ID, "behavior_b", b.ID, "score", score, "method", method)
 			}
-			d.decisions.Log(map[string]any{
-				"event":        "similarity_computed",
-				"behavior_a":   a.ID,
-				"behavior_b":   b.ID,
-				"score":        score,
-				"method":       method,
-				"threshold":    d.config.SimilarityThreshold,
-				"is_duplicate": isDup,
-			})
+			if d.decisions != nil {
+				d.decisions.Log(map[string]any{
+					"event":        "similarity_computed",
+					"behavior_a":   a.ID,
+					"behavior_b":   b.ID,
+					"score":        score,
+					"method":       method,
+					"threshold":    d.config.SimilarityThreshold,
+					"is_duplicate": isDup,
+				})
+			}
 
 			return similarityResult{score: score, method: method}
 		}
@@ -288,15 +292,17 @@ func (d *StoreDeduplicator) computeSimilarity(a, b *models.Behavior) similarityR
 	if d.logger != nil {
 		d.logger.Debug("similarity computed", "behavior_a", a.ID, "behavior_b", b.ID, "score", score, "method", method)
 	}
-	d.decisions.Log(map[string]any{
-		"event":        "similarity_computed",
-		"behavior_a":   a.ID,
-		"behavior_b":   b.ID,
-		"score":        score,
-		"method":       method,
-		"threshold":    d.config.SimilarityThreshold,
-		"is_duplicate": isDup,
-	})
+	if d.decisions != nil {
+		d.decisions.Log(map[string]any{
+			"event":        "similarity_computed",
+			"behavior_a":   a.ID,
+			"behavior_b":   b.ID,
+			"score":        score,
+			"method":       method,
+			"threshold":    d.config.SimilarityThreshold,
+			"is_duplicate": isDup,
+		})
+	}
 
 	return similarityResult{score: score, method: method}
 }
