@@ -1095,7 +1095,6 @@ func TestSanitizeWhenValue(t *testing.T) {
 	}
 }
 
-
 func TestBehaviorMerger_Merge_LogsDecision(t *testing.T) {
 	dir := t.TempDir()
 	dl := logging.NewDecisionLogger(dir, "debug")

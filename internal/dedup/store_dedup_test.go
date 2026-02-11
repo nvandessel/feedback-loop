@@ -798,7 +798,6 @@ func TestStoreDeduplicator_ComputeSimilarity_WithLLM(t *testing.T) {
 	})
 }
 
-
 func TestStoreDeduplicator_ComputeSimilarity_LogsDecision(t *testing.T) {
 	dir := t.TempDir()
 	dl := logging.NewDecisionLogger(dir, "debug")
