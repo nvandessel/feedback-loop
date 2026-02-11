@@ -62,6 +62,26 @@ type LLMConfig struct {
 	// FallbackToRules indicates whether to fall back to Jaccard similarity
 	// when LLM is unavailable or fails.
 	FallbackToRules bool `json:"fallback_to_rules" yaml:"fallback_to_rules"`
+
+	// LocalLibPath is the directory containing yzma shared libraries (.so/.dylib).
+	// Falls back to YZMA_LIB env var at runtime. Only used when provider is "local".
+	LocalLibPath string `json:"local_lib_path,omitempty" yaml:"local_lib_path,omitempty"`
+
+	// LocalModelPath is the path to a GGUF model file for local text generation.
+	// Only used when provider is "local".
+	LocalModelPath string `json:"local_model_path,omitempty" yaml:"local_model_path,omitempty"`
+
+	// LocalEmbeddingModelPath is the path to a GGUF model file for local embeddings.
+	// If empty, LocalModelPath is used. Only used when provider is "local".
+	LocalEmbeddingModelPath string `json:"local_embedding_model_path,omitempty" yaml:"local_embedding_model_path,omitempty"`
+
+	// LocalGPULayers is the number of model layers to offload to GPU (0 = CPU only).
+	// Only used when provider is "local".
+	LocalGPULayers int `json:"local_gpu_layers,omitempty" yaml:"local_gpu_layers,omitempty"`
+
+	// LocalContextSize is the context window size in tokens for local models.
+	// Defaults to 512 if not set. Only used when provider is "local".
+	LocalContextSize int `json:"local_context_size,omitempty" yaml:"local_context_size,omitempty"`
 }
 
 // RedactedAPIKey returns the API key with most characters masked.
@@ -168,9 +188,9 @@ func (c *FloopConfig) Validate() error {
 		return fmt.Errorf("timeout must be non-negative, got %v", c.LLM.Timeout)
 	}
 
-	validProviders := map[string]bool{"": true, "anthropic": true, "openai": true, "ollama": true, "subagent": true}
+	validProviders := map[string]bool{"": true, "anthropic": true, "openai": true, "ollama": true, "subagent": true, "local": true}
 	if !validProviders[c.LLM.Provider] {
-		return fmt.Errorf("invalid provider: %s (valid: anthropic, openai, ollama, subagent, or empty)", c.LLM.Provider)
+		return fmt.Errorf("invalid provider: %s (valid: anthropic, openai, ollama, subagent, local, or empty)", c.LLM.Provider)
 	}
 
 	validLevels := map[string]bool{"info": true, "debug": true, "trace": true}
@@ -205,6 +225,27 @@ func applyEnvOverrides(config *FloopConfig) {
 			config.LLM.BaseURL = v
 		} else if config.LLM.BaseURL == "" {
 			config.LLM.BaseURL = "http://localhost:11434/v1"
+		}
+	}
+
+	// Local model config from environment
+	if v := os.Getenv("FLOOP_LOCAL_LIB_PATH"); v != "" {
+		config.LLM.LocalLibPath = v
+	}
+	if v := os.Getenv("FLOOP_LOCAL_MODEL_PATH"); v != "" {
+		config.LLM.LocalModelPath = v
+	}
+	if v := os.Getenv("FLOOP_LOCAL_EMBEDDING_MODEL_PATH"); v != "" {
+		config.LLM.LocalEmbeddingModelPath = v
+	}
+	if v := os.Getenv("FLOOP_LOCAL_GPU_LAYERS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			config.LLM.LocalGPULayers = n
+		}
+	}
+	if v := os.Getenv("FLOOP_LOCAL_CONTEXT_SIZE"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			config.LLM.LocalContextSize = n
 		}
 	}
 
