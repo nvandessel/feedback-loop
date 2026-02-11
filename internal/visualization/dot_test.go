@@ -329,9 +329,9 @@ func TestCollectEdges(t *testing.T) {
 		t.Fatalf("query nodes: %v", err)
 	}
 
-	edges, err := collectEdges(ctx, gs, nodes)
+	edges, err := CollectEdges(ctx, gs, nodes)
 	if err != nil {
-		t.Fatalf("collectEdges: %v", err)
+		t.Fatalf("CollectEdges: %v", err)
 	}
 
 	if len(edges) != 2 {
