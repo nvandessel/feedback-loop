@@ -1064,13 +1064,46 @@ func TestBoostSeedsWithPageRank(t *testing.T) {
 	}
 }
 
+// getTimesActivated extracts the times_activated stat from a store node.
+func getTimesActivated(t *testing.T, s store.GraphStore, id string) int {
+	t.Helper()
+	ctx := context.Background()
+	node, err := s.GetNode(ctx, id)
+	if err != nil {
+		t.Fatalf("GetNode(%s) error = %v", id, err)
+	}
+	if node == nil {
+		t.Fatalf("node %s not found", id)
+	}
+	stats, _ := node.Metadata["stats"].(map[string]interface{})
+	if ta, ok := stats["times_activated"]; ok {
+		switch v := ta.(type) {
+		case int:
+			return v
+		case float64:
+			return int(v)
+		}
+	}
+	return 0
+}
+
+// drainWorkerPool blocks until all background workers have completed.
+func drainWorkerPool(server *Server) {
+	for i := 0; i < maxBackgroundWorkers; i++ {
+		server.workerPool <- struct{}{}
+	}
+	for i := 0; i < maxBackgroundWorkers; i++ {
+		<-server.workerPool
+	}
+}
+
 func TestHandleFloopActive_RecordsHits(t *testing.T) {
 	server, _ := setupTestServer(t)
 	defer server.Close()
 
 	ctx := context.Background()
 
-	// Add a behavior with no "when" so it always activates
+	// Add a user behavior with no "when" so it always activates
 	behaviorNode := store.Node{
 		ID:   "hit-tracking-test",
 		Kind: "behavior",
@@ -1102,36 +1135,19 @@ func TestHandleFloopActive_RecordsHits(t *testing.T) {
 		t.Fatalf("handleFloopActive failed: %v", err)
 	}
 
-	// Wait for background workers to complete
-	// Fill worker pool and then drain to ensure all background tasks finish
-	for i := 0; i < maxBackgroundWorkers; i++ {
-		server.workerPool <- struct{}{}
-	}
-	for i := 0; i < maxBackgroundWorkers; i++ {
-		<-server.workerPool
-	}
+	drainWorkerPool(server)
 
-	// Verify times_activated > 0 in the store
-	node, err := server.store.GetNode(ctx, "hit-tracking-test")
-	if err != nil {
-		t.Fatalf("GetNode() error = %v", err)
-	}
-	if node == nil {
-		t.Fatal("behavior not found after activation")
-	}
-
-	stats, _ := node.Metadata["stats"].(map[string]interface{})
-	timesActivated := 0
-	if ta, ok := stats["times_activated"]; ok {
-		switch v := ta.(type) {
-		case int:
-			timesActivated = v
-		case float64:
-			timesActivated = int(v)
-		}
-	}
-	if timesActivated == 0 {
+	// User behavior should have times_activated > 0
+	if got := getTimesActivated(t, server.store, "hit-tracking-test"); got == 0 {
 		t.Error("times_activated = 0, want > 0 after floop_active call")
+	}
+
+	// Seed behaviors should NOT have times_activated incremented
+	if got := getTimesActivated(t, server.store, "seed-capture-corrections"); got != 0 {
+		t.Errorf("seed-capture-corrections times_activated = %d, want 0 (seed behaviors should be skipped)", got)
+	}
+	if got := getTimesActivated(t, server.store, "seed-know-floop-tools"); got != 0 {
+		t.Errorf("seed-know-floop-tools times_activated = %d, want 0 (seed behaviors should be skipped)", got)
 	}
 }
 

@@ -355,7 +355,9 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 				TouchEdges(ctx context.Context, behaviorIDs []string) error
 			}
 			if toucher, ok := s.store.(edgeToucher); ok {
-				_ = toucher.TouchEdges(context.Background(), seedIDs)
+				if err := toucher.TouchEdges(context.Background(), seedIDs); err != nil {
+					fmt.Fprintf(os.Stderr, "warning: edge timestamp failed: %v\n", err)
+				}
 			}
 		})
 	}
@@ -430,13 +432,19 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 			}
 		}
 
-		// Record activation hits for active behaviors
+		// Record activation hits for user behaviors (skip seed behaviors —
+		// they activate every call and don't provide useful signal).
 		type activationRecorder interface {
 			RecordActivationHit(ctx context.Context, behaviorID string) error
 		}
 		if recorder, ok := s.store.(activationRecorder); ok {
 			for _, b := range activeBehaviors {
-				_ = recorder.RecordActivationHit(context.Background(), b.ID)
+				if strings.HasPrefix(b.ID, "seed-") {
+					continue
+				}
+				if err := recorder.RecordActivationHit(context.Background(), b.ID); err != nil {
+					fmt.Fprintf(os.Stderr, "warning: activation hit recording failed: %v\n", err)
+				}
 			}
 		}
 	})
