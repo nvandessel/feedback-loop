@@ -852,6 +852,8 @@ func TestBehaviorContentToMap_IncludesTags(t *testing.T) {
 }
 
 func TestHandleFloopActive_TokenStats(t *testing.T) {
+	// Token counts use raw canonical bytes/4 (no tiering in MCP tool output).
+	// 2 seed behaviors are auto-injected (94 tokens total from their canonical content).
 	tests := []struct {
 		name              string
 		behaviors         []store.Node
