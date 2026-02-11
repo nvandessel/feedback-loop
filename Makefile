@@ -1,4 +1,4 @@
-.PHONY: build build-local test test-coverage lint lint-fix fmt fmt-check vet vuln ci clean docs-validate
+.PHONY: build build-local test test-coverage lint lint-fix fmt fmt-check vet vuln ci clean docs-validate graph-html graph-screenshot graph-preview
 
 build:
 	go build -o ./floop ./cmd/floop
@@ -37,6 +37,7 @@ ci: fmt-check lint vet test build
 
 clean:
 	rm -f ./floop coverage.out coverage.html
+	rm -rf build/
 
 docs-validate: build
 	@echo "Validating CLI reference documentation..."
@@ -51,3 +52,20 @@ docs-validate: build
 		exit 1; \
 	fi; \
 	echo "All commands documented."
+
+# Graph visualization dev targets
+graph-html:
+	@mkdir -p build/graph
+	GOWORK=off go build -o ./floop ./cmd/floop
+	./floop graph --format html -o build/graph/graph.html --no-open
+	@echo "HTML written to build/graph/graph.html"
+
+graph-screenshot: graph-html
+	@command -v node >/dev/null 2>&1 || (echo "node required (install Node.js)" && exit 1)
+	@test -d build/node_modules/puppeteer || npm install --prefix build puppeteer
+	NODE_PATH=build/node_modules node scripts/screenshot.js build/graph/graph.html build/graph/graph.png
+	@echo "Screenshot: build/graph/graph.png"
+
+graph-preview: graph-screenshot
+	@echo "Preview: build/graph/graph.html (open in browser)"
+	@echo "Screenshot: build/graph/graph.png"
