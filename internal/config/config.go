@@ -62,7 +62,6 @@ type LLMConfig struct {
 	// FallbackToRules indicates whether to fall back to Jaccard similarity
 	// when LLM is unavailable or fails.
 	FallbackToRules bool `json:"fallback_to_rules" yaml:"fallback_to_rules"`
-
 }
 
 // RedactedAPIKey returns the API key with most characters masked.

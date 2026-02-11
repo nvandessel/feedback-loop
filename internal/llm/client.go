@@ -87,4 +87,3 @@ type Client interface {
 	// For subagent clients, this checks that the CLI tool is available.
 	Available() bool
 }
-
