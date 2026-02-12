@@ -9,6 +9,7 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/sanitize"
+	"github.com/nvandessel/feedback-loop/internal/tagging"
 )
 
 // BehaviorExtractor transforms corrections into candidate behaviors.
@@ -32,6 +33,8 @@ type behaviorExtractor struct {
 	preferenceSignals []string
 	// procedureSignals are keywords that indicate a procedure behavior
 	procedureSignals []string
+	// tagDict maps keywords to normalized tags for semantic feature extraction
+	tagDict *tagging.Dictionary
 }
 
 // NewBehaviorExtractor creates a new BehaviorExtractor instance.
@@ -49,6 +52,7 @@ func NewBehaviorExtractor() BehaviorExtractor {
 			"first", "then", "after that", "finally",
 			"step 1", "step 2", "workflow", "process",
 		},
+		tagDict: tagging.NewDictionary(),
 	}
 }
 
@@ -220,6 +224,7 @@ func (e *behaviorExtractor) buildContent(correction models.Correction) models.Be
 
 	content := models.BehaviorContent{
 		Canonical:  sanitizedCorrected,
+		Tags:       tagging.ExtractTags(sanitizedCorrected, e.tagDict),
 		Structured: make(map[string]interface{}),
 	}
 
