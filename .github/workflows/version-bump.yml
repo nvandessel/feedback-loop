@@ -1,4 +1,4 @@
-name: Version Bump
+name: Version Bump and Release
 
 on:
   workflow_dispatch:
@@ -19,6 +19,8 @@ jobs:
   bump:
     name: Bump Version
     runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.version.outputs.new_version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -77,4 +79,36 @@ jobs:
       - name: Summary
         run: |
           echo "✅ Successfully created and pushed tag: ${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
-          echo "The release workflow will now automatically build and publish the release." >> $GITHUB_STEP_SUMMARY
+          echo "Building and publishing release..." >> $GITHUB_STEP_SUMMARY
+
+  release:
+    name: Release with GoReleaser
+    needs: bump
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.bump.outputs.new_version }}
+
+      - name: Fetch tags
+        run: git fetch --force --tags
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "✅ Release ${{ needs.bump.outputs.new_version }} published successfully!" >> $GITHUB_STEP_SUMMARY
