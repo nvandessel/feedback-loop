@@ -6,6 +6,7 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/ranking"
 	"github.com/nvandessel/feedback-loop/internal/summarization"
+	"github.com/nvandessel/feedback-loop/internal/tokens"
 )
 
 // TierAssignerConfig configures the tier assigner
@@ -192,11 +193,7 @@ func (a *TierAssigner) getSummary(behavior *models.Behavior) string {
 
 // estimateTokens estimates token count for text
 func (a *TierAssigner) estimateTokens(text string) int {
-	if text == "" {
-		return 0
-	}
-	// Rough estimate: 1 token ≈ 4 characters
-	return (len(text) + 3) / 4
+	return tokens.EstimateTokens(text)
 }
 
 // QuickAssign is a convenience method that creates a scorer and summarizer internally

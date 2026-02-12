@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/feedback-loop/internal/tokens"
 )
 
 // Format specifies the output format for compiled prompts
@@ -266,14 +267,10 @@ func (c *Compiler) assembleText(sections []PromptSection) string {
 	return strings.TrimSpace(strings.Join(parts, "\n"))
 }
 
-// estimateTokens provides a rough token count estimate
-// Uses the common heuristic of ~4 characters per token
+// estimateTokens provides a rough token count estimate.
+// Delegates to tokens.EstimateTokens for the canonical implementation.
 func estimateTokens(text string) int {
-	if text == "" {
-		return 0
-	}
-	// Rough estimate: 1 token ≈ 4 characters for English text
-	return (len(text) + 3) / 4
+	return tokens.EstimateTokens(text)
 }
 
 // TieredCompiledPrompt extends CompiledPrompt with tiering information
