@@ -10,9 +10,7 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/activation"
 	"github.com/nvandessel/feedback-loop/internal/assembly"
 	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/ranking"
 	"github.com/nvandessel/feedback-loop/internal/store"
-	"github.com/nvandessel/feedback-loop/internal/summarization"
 	"github.com/nvandessel/feedback-loop/internal/tiering"
 	"github.com/spf13/cobra"
 )
@@ -334,12 +332,10 @@ Examples:
 
 			// Use tiered injection if requested
 			if tiered && maxTokens > 0 {
-				// Create tiered injection plan
-				scorer := ranking.NewRelevanceScorer(ranking.DefaultScorerConfig())
-				summarizer := summarization.NewRuleSummarizer(summarization.DefaultConfig())
-				assigner := tiering.NewTierAssigner(tiering.DefaultTierAssignerConfig(), scorer, summarizer)
-
-				plan := assigner.AssignTiers(resolved.Active, &ctx, maxTokens)
+				// Create tiered injection plan via bridge → ActivationTierMapper
+				results, behaviorMap := tiering.BehaviorsToResults(resolved.Active)
+				mapper := tiering.NewActivationTierMapper(tiering.DefaultActivationTierConfig())
+				plan := mapper.MapResults(results, behaviorMap, maxTokens)
 				tieredCompiled := compiler.CompileTiered(plan)
 
 				if jsonOut {

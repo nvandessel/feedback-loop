@@ -11,6 +11,7 @@ import (
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/nvandessel/feedback-loop/internal/config"
 	"github.com/nvandessel/feedback-loop/internal/ranking"
 	"github.com/nvandessel/feedback-loop/internal/ratelimit"
 	"github.com/nvandessel/feedback-loop/internal/seed"
@@ -26,6 +27,7 @@ type Server struct {
 	server        *sdk.Server
 	store         store.GraphStore
 	root          string
+	floopConfig   *config.FloopConfig
 	session       *session.State
 	pageRankMu    sync.RWMutex
 	pageRankCache map[string]float64
@@ -83,10 +85,18 @@ func NewServer(cfg *Config) (*Server, error) {
 		homeDir = "" // NewAuditLogger handles empty dir gracefully
 	}
 
+	// Load floop config (non-fatal: use defaults on error)
+	floopCfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to load config, using defaults: %v\n", err)
+		floopCfg = config.Default()
+	}
+
 	s := &Server{
 		server:        mcpServer,
 		store:         graphStore,
 		root:          cfg.Root,
+		floopConfig:   floopCfg,
 		session:       session.NewState(session.DefaultConfig()),
 		auditLogger:   NewAuditLogger(cfg.Root, homeDir),
 		pageRankCache: make(map[string]float64),

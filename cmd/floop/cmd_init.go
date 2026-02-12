@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nvandessel/feedback-loop/internal/config"
 	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/hooks"
 	"github.com/nvandessel/feedback-loop/internal/seed"
@@ -18,7 +19,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const defaultTokenBudget = 2000
 
 func newInitCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -111,7 +111,7 @@ Examples:
 	cmd.Flags().Bool("global", false, "Install hooks globally (~/.claude/)")
 	cmd.Flags().Bool("project", false, "Install hooks for this project (.claude/)")
 	cmd.Flags().String("hooks", "", "Which hooks to enable: all, injection-only (default: all)")
-	cmd.Flags().Int("token-budget", defaultTokenBudget, "Token budget for behavior injection")
+	cmd.Flags().Int("token-budget", config.Default().TokenBudget.Default, "Token budget for behavior injection")
 
 	return cmd
 }

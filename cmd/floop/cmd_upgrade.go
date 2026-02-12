@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/nvandessel/feedback-loop/internal/config"
 	"github.com/nvandessel/feedback-loop/internal/hooks"
 	"github.com/spf13/cobra"
 )
@@ -79,7 +80,7 @@ Examples:
 	}
 
 	cmd.Flags().Bool("force", false, "Re-extract all scripts regardless of version")
-	cmd.Flags().Int("token-budget", defaultTokenBudget, "Token budget for behavior injection")
+	cmd.Flags().Int("token-budget", config.Default().TokenBudget.Default, "Token budget for behavior injection")
 
 	return cmd
 }

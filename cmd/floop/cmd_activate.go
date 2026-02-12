@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/nvandessel/feedback-loop/internal/activation"
+	"github.com/nvandessel/feedback-loop/internal/config"
 	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/learning"
 	"github.com/nvandessel/feedback-loop/internal/models"
@@ -43,7 +44,7 @@ Examples:
 	cmd.Flags().String("file", "", "File path for context")
 	cmd.Flags().String("task", "", "Task type for context")
 	cmd.Flags().String("format", "markdown", "Output format: markdown, json")
-	cmd.Flags().Int("token-budget", 500, "Token budget for this injection")
+	cmd.Flags().Int("token-budget", config.Default().TokenBudget.DynamicContext, "Token budget for this injection")
 	cmd.Flags().String("session-id", "default", "Session ID for state tracking")
 
 	return cmd
