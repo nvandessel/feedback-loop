@@ -1,6 +1,7 @@
 package spreading
 
 import (
+	"context"
 	"time"
 
 	"github.com/nvandessel/feedback-loop/internal/store"
@@ -35,7 +36,7 @@ func DefaultAffinityConfig() AffinityConfig {
 // This is an interface so the engine doesn't depend on concrete store implementations.
 type TagProvider interface {
 	// GetAllBehaviorTags returns a map of behavior ID → tags.
-	GetAllBehaviorTags() map[string][]string
+	GetAllBehaviorTags(ctx context.Context) map[string][]string
 }
 
 // virtualAffinityEdges generates virtual edges from tag overlap between

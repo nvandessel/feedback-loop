@@ -19,8 +19,8 @@ func NewStoreTagProvider(s store.GraphStore) *StoreTagProvider {
 }
 
 // GetAllBehaviorTags loads all behaviors and returns their tags.
-func (p *StoreTagProvider) GetAllBehaviorTags() map[string][]string {
-	nodes, err := p.store.QueryNodes(context.Background(), map[string]interface{}{"kind": "behavior"})
+func (p *StoreTagProvider) GetAllBehaviorTags(ctx context.Context) map[string][]string {
+	nodes, err := p.store.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
 	if err != nil {
 		log.Printf("warning: tag provider failed to query behaviors: %v", err)
 		return nil

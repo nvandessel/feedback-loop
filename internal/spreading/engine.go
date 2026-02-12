@@ -116,7 +116,7 @@ func (e *Engine) Activate(ctx context.Context, seeds []Seed) ([]Result, error) {
 	var allTags map[string][]string
 	affinityEnabled := e.config.Affinity != nil && e.config.Affinity.Enabled && e.config.TagProvider != nil
 	if affinityEnabled {
-		allTags = e.config.TagProvider.GetAllBehaviorTags()
+		allTags = e.config.TagProvider.GetAllBehaviorTags(ctx)
 	}
 
 	// Step 2: Propagation loop.
