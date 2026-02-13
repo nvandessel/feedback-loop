@@ -24,7 +24,6 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/sanitize"
 	"github.com/nvandessel/feedback-loop/internal/spreading"
 	"github.com/nvandessel/feedback-loop/internal/store"
-	"github.com/nvandessel/feedback-loop/internal/summarization"
 	"github.com/nvandessel/feedback-loop/internal/tiering"
 	"github.com/nvandessel/feedback-loop/internal/visualization"
 )
@@ -110,8 +109,6 @@ func (s *Server) registerResources() error {
 	return nil
 }
 
-// Default token budget for behavior injection
-const defaultTokenBudget = 2000
 
 // handleBehaviorsResource returns active behaviors formatted for context injection.
 // Uses tiered injection to optimize token usage while preserving critical behaviors.
@@ -155,12 +152,10 @@ func (s *Server) handleBehaviorsResource(ctx context.Context, req *sdk.ReadResou
 		}, nil
 	}
 
-	// Create tiered injection plan
-	scorer := ranking.NewRelevanceScorer(ranking.DefaultScorerConfig())
-	summarizer := summarization.NewRuleSummarizer(summarization.DefaultConfig())
-	assigner := tiering.NewTierAssigner(tiering.DefaultTierAssignerConfig(), scorer, summarizer)
-
-	plan := assigner.AssignTiers(result.Active, &actCtx, defaultTokenBudget)
+	// Create tiered injection plan via bridge → ActivationTierMapper
+	results, behaviorMap := tiering.BehaviorsToResults(result.Active)
+	mapper := tiering.NewActivationTierMapper(tiering.DefaultActivationTierConfig())
+	plan := mapper.MapResults(results, behaviorMap, s.floopConfig.TokenBudget.Default)
 
 	// Compile tiered prompt
 	compiler := assembly.NewCompiler()
@@ -398,7 +393,7 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 
 	// Apply token budget enforcement: tier and demote behaviors to fit budget.
 	mapper := tiering.NewActivationTierMapper(tiering.DefaultActivationTierConfig())
-	plan := mapper.MapResults(tierResults, behaviorMap, defaultTokenBudget)
+	plan := mapper.MapResults(tierResults, behaviorMap, s.floopConfig.TokenBudget.Default)
 
 	// Build summaries from the injection plan (included behaviors only).
 	included := plan.IncludedBehaviors()
@@ -496,7 +491,7 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 		Count:   len(summaries),
 		TokenStats: &TokenStats{
 			TotalCanonicalTokens: plan.TotalTokens,
-			BudgetDefault:        defaultTokenBudget,
+			BudgetDefault:        s.floopConfig.TokenBudget.Default,
 			BehaviorCount:        plan.BehaviorCount(),
 			FullCount:            len(plan.FullBehaviors),
 			SummaryCount:         len(plan.SummarizedBehaviors),
