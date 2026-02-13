@@ -109,7 +109,6 @@ func (s *Server) registerResources() error {
 	return nil
 }
 
-
 // handleBehaviorsResource returns active behaviors formatted for context injection.
 // Uses tiered injection to optimize token usage while preserving critical behaviors.
 func (s *Server) handleBehaviorsResource(ctx context.Context, req *sdk.ReadResourceRequest) (*sdk.ReadResourceResult, error) {

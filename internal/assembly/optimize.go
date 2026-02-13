@@ -207,4 +207,3 @@ func (o *Optimizer) compareImportance(bi, bj models.Behavior) bool {
 	// Higher confidence
 	return bi.Confidence > bj.Confidence
 }
-
