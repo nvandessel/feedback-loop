@@ -80,6 +80,8 @@ Called by agents when they receive a correction. Records the correction, extract
 | `--scope` | string | `"local"` | Where to save: `local` (project), `global` (user), or `both` |
 | `--auto-merge` | bool | `true` | Automatically merge similar behaviors (matches MCP behavior) |
 
+**Scope classification (MCP):** When invoked via the MCP server (`floop_learn` tool), the `--scope` flag is not used. Instead, behaviors are automatically classified based on their activation conditions: behaviors with `file_path` or `environment` in their When predicate go to local (`.floop/`), while all others go to global (`~/.floop/`). The response includes a `scope` field indicating where the behavior was stored.
+
 **Examples:**
 
 ```bash
@@ -1051,7 +1053,7 @@ Starts an MCP server that exposes floop functionality over stdio using JSON-RPC 
 | Tool | Description |
 |------|-------------|
 | `floop_active` | Get active behaviors for current context |
-| `floop_learn` | Capture corrections and extract behaviors |
+| `floop_learn` | Capture corrections and extract behaviors (auto-classifies scope) |
 | `floop_list` | List all behaviors or corrections |
 | `floop_deduplicate` | Find and merge duplicate behaviors |
 | `floop_backup` | Export full graph state to backup file |

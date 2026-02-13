@@ -114,6 +114,8 @@ Capture a correction and extract a reusable behavior.
 - `wrong` (string, required): What the agent did that needs correction
 - `right` (string, required): What should have been done instead
 - `file` (string, optional): Relevant file path for context
+- `task` (string, optional): Current task type for context
+- `auto_merge` (boolean, optional): Enable automatic merging of duplicate behaviors (default: false)
 
 **Example Request:**
 ```json
@@ -139,14 +141,24 @@ Capture a correction and extract a reusable behavior.
   "result": {
     "correction_id": "correction-x7y8z9",
     "behavior_id": "behavior-e5f6g7h8",
+    "scope": "local",
     "auto_accepted": true,
     "confidence": 0.85,
     "requires_review": false,
-    "message": "Learned behavior: error-logging-to-stderr"
+    "message": "Learned behavior (local): error-logging-to-stderr"
   },
   "id": 2
 }
 ```
+
+**Scope Classification:**
+
+The `scope` field indicates where the behavior was stored. The MCP server automatically classifies behaviors based on their activation conditions:
+
+- **`"local"`** — Behavior has project-specific conditions (`file_path` or `environment` in its When predicate). Stored in `./.floop/` only.
+- **`"global"`** — Behavior has universal conditions (language-only, task-only, or no conditions). Stored in `~/.floop/` only.
+
+This prevents duplication across stores. Providing a `file` parameter with a directory path (e.g., `"internal/store/file.go"`) typically produces a local behavior, while omitting `file` or providing a bare filename produces a global one.
 
 ---
 
@@ -470,6 +482,8 @@ floop init --global # Global
 ```
 
 The MCP server queries both stores and merges results (local takes precedence).
+
+**Automatic scope routing:** When using `floop_learn` via MCP, behaviors are automatically classified and routed to the correct store based on their activation conditions (see [Scope Classification](#scope-classification) above). You don't need to specify scope manually.
 
 ---
 
