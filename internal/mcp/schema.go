@@ -58,6 +58,7 @@ type FloopLearnInput struct {
 type FloopLearnOutput struct {
 	CorrectionID    string   `json:"correction_id" jsonschema:"ID of the captured correction"`
 	BehaviorID      string   `json:"behavior_id" jsonschema:"ID of the extracted behavior"`
+	Scope           string   `json:"scope" jsonschema:"Where the behavior was stored: 'local' (project-specific) or 'global' (universal)"`
 	AutoAccepted    bool     `json:"auto_accepted" jsonschema:"Whether behavior was automatically accepted"`
 	Confidence      float64  `json:"confidence" jsonschema:"Placement confidence (0.0-1.0)"`
 	RequiresReview  bool     `json:"requires_review" jsonschema:"Whether behavior requires manual review"`
