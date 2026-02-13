@@ -7,6 +7,7 @@ import (
 
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/spreading"
+	"github.com/nvandessel/feedback-loop/internal/tokens"
 )
 
 // ActivationTierConfig maps activation levels to tiers.
@@ -175,11 +176,7 @@ func (m *ActivationTierMapper) MapResults(
 // estimateTokensForTier estimates the token cost for a behavior at a given tier.
 func estimateTokensForTier(b *models.Behavior, tier models.InjectionTier) int {
 	content := contentForTier(b, tier)
-	if content == "" {
-		return 0
-	}
-	// Rough estimate: 1 token ~ 4 characters.
-	return (len(content) + 3) / 4
+	return tokens.EstimateTokens(content)
 }
 
 // contentForTier returns the content string for a behavior at a given tier.
