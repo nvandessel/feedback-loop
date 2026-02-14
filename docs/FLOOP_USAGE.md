@@ -61,6 +61,8 @@ floop_learn(wrong="Used print for debugging", right="Use structured logging")
 floop_active(file="internal/store/file.go", task="development")
 ```
 
+**Automatic scope routing:** Via MCP, `floop_learn` automatically classifies behaviors and routes them to the correct store. Behaviors with project-specific conditions (file paths, environment) go to local (`.floop/`), while universal conventions (language, task) go to global (`~/.floop/`). No manual `--scope` flag needed.
+
 ## CLI Workflow
 
 ### Starting a Session
@@ -91,6 +93,9 @@ floop learn --wrong "..." --right "..." --auto-merge
 
 # Specify scope (local or global)
 floop learn --wrong "..." --right "..." --scope local
+
+# Note: Via MCP, scope is automatically classified based on the behavior's
+# activation conditions. The --scope flag is only needed for CLI usage.
 ```
 
 ### Querying Behaviors

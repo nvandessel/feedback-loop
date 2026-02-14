@@ -109,7 +109,6 @@ func (s *Server) registerResources() error {
 	return nil
 }
 
-
 // handleBehaviorsResource returns active behaviors formatted for context injection.
 // Uses tiered injection to optimize token usage while preserving critical behaviors.
 func (s *Server) handleBehaviorsResource(ctx context.Context, req *sdk.ReadResourceRequest) (*sdk.ReadResourceResult, error) {
@@ -504,10 +503,14 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 // handleFloopLearn implements the floop_learn tool.
 func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest, args FloopLearnInput) (_ *sdk.CallToolResult, _ FloopLearnOutput, retErr error) {
 	start := time.Now()
+	var auditScope string
 	defer func() {
+		if auditScope == "" {
+			auditScope = "local" // fallback if error before scope is determined
+		}
 		s.auditTool("floop_learn", start, retErr, sanitizeToolParams("floop_learn", map[string]interface{}{
 			"wrong": args.Wrong, "right": args.Right, "file": args.File, "task": args.Task, "auto_merge": args.AutoMerge,
-		}), "local")
+		}), auditScope)
 	}()
 
 	if err := ratelimit.CheckLimit(s.toolLimiters, "floop_learn"); err != nil {
@@ -587,6 +590,7 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 	if err != nil {
 		return nil, FloopLearnOutput{}, fmt.Errorf("failed to process correction: %w", err)
 	}
+	auditScope = string(learningResult.Scope)
 
 	// Sync store to persist changes
 	if err := s.store.Sync(ctx); err != nil {
@@ -625,20 +629,22 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 	}
 	// Note: We don't fail if corrections.jsonl write fails - the behavior is already saved
 
-	// Build result message
-	message := fmt.Sprintf("Learned behavior: %s", learningResult.CandidateBehavior.Name)
+	// Build result message with scope info
+	scope := string(learningResult.Scope)
+	message := fmt.Sprintf("Learned behavior (%s): %s", scope, learningResult.CandidateBehavior.Name)
 	if learningResult.MergedIntoExisting {
-		message = fmt.Sprintf("Merged into existing behavior: %s (similarity: %.2f)",
-			learningResult.MergedBehaviorID, learningResult.MergeSimilarity)
+		message = fmt.Sprintf("Merged into existing behavior (%s): %s (similarity: %.2f)",
+			scope, learningResult.MergedBehaviorID, learningResult.MergeSimilarity)
 	} else if learningResult.RequiresReview {
-		message = fmt.Sprintf("Behavior requires review: %s (%s)",
-			learningResult.CandidateBehavior.Name,
+		message = fmt.Sprintf("Behavior requires review (%s): %s (%s)",
+			scope, learningResult.CandidateBehavior.Name,
 			strings.Join(learningResult.ReviewReasons, ", "))
 	}
 
 	return nil, FloopLearnOutput{
 		CorrectionID:    correction.ID,
 		BehaviorID:      learningResult.CandidateBehavior.ID,
+		Scope:           scope,
 		AutoAccepted:    learningResult.AutoAccepted,
 		Confidence:      learningResult.Placement.Confidence,
 		RequiresReview:  learningResult.RequiresReview,

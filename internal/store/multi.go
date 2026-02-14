@@ -95,6 +95,49 @@ func (m *MultiGraphStore) AddNode(ctx context.Context, node Node) (string, error
 	}
 }
 
+// AddNodeToScope adds a node to a specific scope, overriding the default writeScope.
+// The requested scope is clamped to the store's writeScope: if writeScope is ScopeLocal
+// or ScopeGlobal, all writes go to that single store regardless of the requested scope.
+// Only when writeScope is ScopeBoth does the requested scope control routing.
+// This is used by the learning pipeline to route behaviors to the correct store
+// based on scope classification, without mutating shared state.
+func (m *MultiGraphStore) AddNodeToScope(ctx context.Context, node Node, scope StoreScope) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Clamp: if the store is configured for a single scope, honor that.
+	effectiveScope := scope
+	if m.writeScope == ScopeLocal || m.writeScope == ScopeGlobal {
+		effectiveScope = m.writeScope
+	}
+
+	// Ensure metadata map exists
+	if node.Metadata == nil {
+		node.Metadata = make(map[string]interface{})
+	}
+
+	switch effectiveScope {
+	case ScopeLocal:
+		node.Metadata["scope"] = string(constants.ScopeLocal)
+		return m.localStore.AddNode(ctx, node)
+	case ScopeGlobal:
+		node.Metadata["scope"] = string(constants.ScopeGlobal)
+		return m.globalStore.AddNode(ctx, node)
+	case ScopeBoth:
+		node.Metadata["scope"] = string(constants.ScopeBoth)
+		id, err := m.localStore.AddNode(ctx, node)
+		if err != nil {
+			return "", fmt.Errorf("failed to add to local store: %w", err)
+		}
+		if _, err := m.globalStore.AddNode(ctx, node); err != nil {
+			return "", fmt.Errorf("failed to add to global store: %w", err)
+		}
+		return id, nil
+	default:
+		return "", fmt.Errorf("invalid scope: %s", effectiveScope)
+	}
+}
+
 // UpdateNode updates a node in whichever store contains it.
 func (m *MultiGraphStore) UpdateNode(ctx context.Context, node Node) error {
 	m.mu.Lock()

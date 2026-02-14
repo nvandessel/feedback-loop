@@ -24,6 +24,9 @@ type LearningResult struct {
 	// Placement describes where the behavior was/should be placed
 	Placement PlacementDecision
 
+	// Scope indicates where the behavior was stored (local or global)
+	Scope constants.Scope
+
 	// AutoAccepted indicates whether the behavior was automatically accepted
 	AutoAccepted bool
 
@@ -177,7 +180,8 @@ func (l *learningLoop) ProcessCorrection(ctx context.Context, correction models.
 	autoAccepted := !requiresReview && placement.Confidence >= l.autoAcceptThreshold
 
 	// Step 5: Commit to graph
-	if err := l.commitBehavior(ctx, candidate, placement); err != nil {
+	scope, err := l.commitBehavior(ctx, candidate, placement)
+	if err != nil {
 		return nil, fmt.Errorf("commit failed: %w", err)
 	}
 
@@ -185,6 +189,7 @@ func (l *learningLoop) ProcessCorrection(ctx context.Context, correction models.
 		Correction:        correction,
 		CandidateBehavior: *candidate,
 		Placement:         *placement,
+		Scope:             scope,
 		AutoAccepted:      autoAccepted,
 		RequiresReview:    requiresReview,
 		ReviewReasons:     reasons,
@@ -256,6 +261,7 @@ func (l *learningLoop) tryAutoMerge(ctx context.Context, candidate *models.Behav
 		Correction:         models.Correction{}, // Original correction not needed for merge
 		CandidateBehavior:  *merged,
 		Placement:          *placement,
+		Scope:              ClassifyScope(merged),
 		AutoAccepted:       true,
 		RequiresReview:     false,
 		MergedIntoExisting: true,
@@ -328,8 +334,15 @@ func (l *learningLoop) needsReview(candidate *models.Behavior, placement *Placem
 	return needsRev, reasons
 }
 
+// ScopedNodeAdder is implemented by stores that support writing to a specific scope.
+// MultiGraphStore implements this; InMemoryGraphStore (used in tests) does not.
+type ScopedNodeAdder interface {
+	AddNodeToScope(ctx context.Context, node store.Node, scope constants.Scope) (string, error)
+}
+
 // commitBehavior saves the behavior to the graph.
-func (l *learningLoop) commitBehavior(ctx context.Context, behavior *models.Behavior, placement *PlacementDecision) error {
+// Returns the scope the behavior was written to.
+func (l *learningLoop) commitBehavior(ctx context.Context, behavior *models.Behavior, placement *PlacementDecision) (constants.Scope, error) {
 	// Convert behavior to node
 	node := store.Node{
 		ID:   behavior.ID,
@@ -351,9 +364,18 @@ func (l *learningLoop) commitBehavior(ctx context.Context, behavior *models.Beha
 		},
 	}
 
-	// Add the node
-	if _, err := l.store.AddNode(ctx, node); err != nil {
-		return err
+	// Classify scope based on behavior's When conditions
+	scope := ClassifyScope(behavior)
+
+	// Use scoped write if the store supports it; fall back to AddNode for plain stores (tests)
+	if scoped, ok := l.store.(ScopedNodeAdder); ok {
+		if _, err := scoped.AddNodeToScope(ctx, node, scope); err != nil {
+			return scope, err
+		}
+	} else {
+		if _, err := l.store.AddNode(ctx, node); err != nil {
+			return scope, err
+		}
 	}
 
 	// Add edges
@@ -364,9 +386,9 @@ func (l *learningLoop) commitBehavior(ctx context.Context, behavior *models.Beha
 			Kind:   e.Kind,
 		}
 		if err := l.store.AddEdge(ctx, edge); err != nil {
-			return err
+			return scope, err
 		}
 	}
 
-	return l.store.Sync(ctx)
+	return scope, l.store.Sync(ctx)
 }

@@ -94,6 +94,8 @@ floop deduplicate --scope both
 
 Cross-store dedup uses the same fallback chain and threshold. When duplicates span stores, the merge target is chosen based on the surviving behavior's store.
 
+**Note:** When using `floop_learn` via MCP, behaviors are automatically classified into the correct store (local for project-specific, global for universal) based on their activation conditions. This reduces cross-store duplicates at the source. See the [MCP server integration guide](integrations/mcp-server.md#scope-classification) for details.
+
 ## Configuration
 
 ### Provider Setup
