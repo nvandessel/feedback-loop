@@ -53,6 +53,10 @@ type Server struct {
 	// Bounded worker pool for background goroutines
 	workerPool chan struct{}
 
+	// Feedback loop: track previously active behavior IDs for implicit confirmation
+	prevActiveMu sync.Mutex
+	prevActiveIDs map[string]struct{}
+
 	// Shutdown coordination
 	done      chan struct{} // closed on shutdown
 	closeOnce sync.Once
@@ -111,6 +115,7 @@ func NewServer(cfg *Config) (*Server, error) {
 		backupConfig:    &floopCfg.Backup,
 		retentionPolicy: retPolicy,
 		workerPool:      make(chan struct{}, maxBackgroundWorkers),
+		prevActiveIDs:   make(map[string]struct{}),
 		done:            make(chan struct{}),
 	}
 

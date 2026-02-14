@@ -375,3 +375,91 @@ func TestShouldReinforce_MaxReinjections(t *testing.T) {
 		t.Error("expected ShouldReinforce=true at exactly MaxReinjections count")
 	}
 }
+
+func TestIsViolated(t *testing.T) {
+	tests := []struct {
+		name string
+		stats models.BehaviorStats
+		want  bool
+	}{
+		{
+			name:  "no activations",
+			stats: models.BehaviorStats{TimesActivated: 0},
+			want:  false,
+		},
+		{
+			name:  "activations but no feedback data",
+			stats: models.BehaviorStats{TimesActivated: 10},
+			want:  false,
+		},
+		{
+			name: "low positive rate with feedback",
+			stats: models.BehaviorStats{
+				TimesActivated:  10,
+				TimesFollowed:   1,
+				TimesOverridden: 5,
+			},
+			want: true,
+		},
+		{
+			name: "positive rate at 40% threshold — not violated",
+			stats: models.BehaviorStats{
+				TimesActivated: 10,
+				TimesFollowed:  4,
+			},
+			want: false,
+		},
+		{
+			name: "positive rate below 40% — violated",
+			stats: models.BehaviorStats{
+				TimesActivated: 10,
+				TimesFollowed:  3,
+			},
+			want: true,
+		},
+		{
+			name: "confirmed signals count as positive",
+			stats: models.BehaviorStats{
+				TimesActivated: 10,
+				TimesFollowed:  1,
+				TimesConfirmed: 3,
+			},
+			want: false, // (1+3)/10 = 0.4, not violated
+		},
+		{
+			name: "confirmed alone prevents violation",
+			stats: models.BehaviorStats{
+				TimesActivated: 10,
+				TimesConfirmed: 5,
+			},
+			want: false, // 5/10 = 0.5 >= 0.4
+		},
+		{
+			name: "overridden alone triggers violation",
+			stats: models.BehaviorStats{
+				TimesActivated:  10,
+				TimesOverridden: 3,
+			},
+			want: true, // 0/10 = 0.0 < 0.4
+		},
+		{
+			name: "mixed signals — positive rate high enough",
+			stats: models.BehaviorStats{
+				TimesActivated:  10,
+				TimesFollowed:   3,
+				TimesConfirmed:  2,
+				TimesOverridden: 2,
+			},
+			want: false, // (3+2)/10 = 0.5 >= 0.4
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isViolated(tt.stats)
+			if got != tt.want {
+				t.Errorf("isViolated() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

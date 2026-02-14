@@ -286,6 +286,95 @@ func TestUsageScore_NoFeedback(t *testing.T) {
 	}
 }
 
+func TestUsageScore_WithFeedback(t *testing.T) {
+	scorer := NewRelevanceScorer(DefaultScorerConfig())
+	now := time.Now()
+
+	tests := []struct {
+		name    string
+		stats   models.BehaviorStats
+		wantMin float64
+		wantMax float64
+	}{
+		{
+			name: "high follow rate",
+			stats: models.BehaviorStats{
+				TimesActivated: 10,
+				TimesFollowed:  8,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+			},
+			wantMin: 0.75,
+			wantMax: 0.85,
+		},
+		{
+			name: "confirmed signals boost score",
+			stats: models.BehaviorStats{
+				TimesActivated: 10,
+				TimesFollowed:  3,
+				TimesConfirmed: 5,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+			},
+			wantMin: 0.75,
+			wantMax: 0.85,
+		},
+		{
+			name: "overrides penalize score",
+			stats: models.BehaviorStats{
+				TimesActivated:  10,
+				TimesFollowed:   6,
+				TimesOverridden: 4,
+				CreatedAt:       now,
+				UpdatedAt:       now,
+			},
+			wantMin: 0.35,
+			wantMax: 0.45,
+		},
+		{
+			name: "zero positive signals with overrides",
+			stats: models.BehaviorStats{
+				TimesActivated:  10,
+				TimesOverridden: 5,
+				CreatedAt:       now,
+				UpdatedAt:       now,
+			},
+			wantMin: 0.0,
+			wantMax: 0.01,
+		},
+		{
+			name: "all signals combined",
+			stats: models.BehaviorStats{
+				TimesActivated:  20,
+				TimesFollowed:   10,
+				TimesConfirmed:  5,
+				TimesOverridden: 3,
+				CreatedAt:       now,
+				UpdatedAt:       now,
+			},
+			// ratio = (10+5)/20 = 0.75, penalty = (3/20)*0.5 = 0.075, result = 0.675
+			wantMin: 0.60,
+			wantMax: 0.70,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			behavior := &models.Behavior{
+				ID:         "feedback-test",
+				Kind:       models.BehaviorKindDirective,
+				Confidence: 0.8,
+				Priority:   5,
+				Stats:      tt.stats,
+			}
+			result := scorer.Score(behavior, nil)
+			if result.UsageScore < tt.wantMin || result.UsageScore > tt.wantMax {
+				t.Errorf("UsageScore = %f, want in [%f, %f]", result.UsageScore, tt.wantMin, tt.wantMax)
+			}
+		})
+	}
+}
+
 func TestExponentialDecay(t *testing.T) {
 	halfLife := 7 * 24 * time.Hour
 

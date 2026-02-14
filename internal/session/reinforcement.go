@@ -108,12 +108,22 @@ func (c ReinforcementConfig) effectiveBackoff(injectionCount int, kind models.Be
 	return backoff
 }
 
-// isViolated returns true when a behavior has been activated but not followed
-// at least half the time (follow rate < 50%).
+// isViolated returns true when a behavior has been activated but not positively
+// reinforced (followed + confirmed) at least 40% of the time. A behavior needs
+// at least some feedback data before it can be considered violated — without
+// any follow/confirm/override signals, we stay neutral.
 func isViolated(stats models.BehaviorStats) bool {
 	if stats.TimesActivated == 0 {
 		return false
 	}
-	followRate := float64(stats.TimesFollowed) / float64(stats.TimesActivated)
-	return followRate < 0.5
+
+	// No feedback data yet — can't determine violation.
+	totalFeedback := stats.TimesFollowed + stats.TimesConfirmed + stats.TimesOverridden
+	if totalFeedback == 0 {
+		return false
+	}
+
+	positiveSignals := float64(stats.TimesFollowed + stats.TimesConfirmed)
+	positiveRate := positiveSignals / float64(stats.TimesActivated)
+	return positiveRate < 0.4
 }
