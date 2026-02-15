@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -120,6 +121,13 @@ func (s *SQLiteGraphStore) ValidateBehaviorGraph(ctx context.Context) ([]Validat
 	}
 	errors = append(errors, edgeErrors...)
 
+	// Check edge properties (zero weight, missing timestamps)
+	propErrors, err := s.validateEdgeProperties(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate edge properties: %w", err)
+	}
+	errors = append(errors, propErrors...)
+
 	// Detect cycles in requires graph
 	cycles := detectCycles(requiresGraph)
 	for _, cycle := range cycles {
@@ -166,6 +174,42 @@ func (s *SQLiteGraphStore) validateEdges(ctx context.Context, allIDs map[string]
 				Field:      "edge-target",
 				RefID:      target,
 				Issue:      "dangling",
+			})
+		}
+	}
+	return errors, rows.Err()
+}
+
+// validateEdgeProperties checks edges for invalid property values (zero weight, missing timestamps).
+func (s *SQLiteGraphStore) validateEdgeProperties(ctx context.Context) ([]ValidationError, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT source, target, kind, weight, created_at FROM edges WHERE weight <= 0 OR created_at IS NULL OR created_at = ''`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query edge properties: %w", err)
+	}
+	defer rows.Close()
+
+	var errors []ValidationError
+	for rows.Next() {
+		var source, target, kind string
+		var weight float64
+		var createdAt sql.NullString
+		if err := rows.Scan(&source, &target, &kind, &weight, &createdAt); err != nil {
+			return nil, fmt.Errorf("failed to scan edge: %w", err)
+		}
+		if weight <= 0 {
+			errors = append(errors, ValidationError{
+				BehaviorID: source,
+				Field:      "edge-weight",
+				RefID:      target,
+				Issue:      "zero-weight",
+			})
+		}
+		if !createdAt.Valid || createdAt.String == "" {
+			errors = append(errors, ValidationError{
+				BehaviorID: source,
+				Field:      "edge-created-at",
+				RefID:      target,
+				Issue:      "zero-created-at",
 			})
 		}
 	}
