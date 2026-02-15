@@ -21,6 +21,7 @@ This command checks for:
   - Dangling references (behaviors referencing non-existent IDs)
   - Self-references (behaviors that require/override/conflict with themselves)
   - Cycles in relationship graphs
+  - Edge property issues (zero weight, missing timestamps)
 
 Examples:
   floop validate                  # Validate local store
