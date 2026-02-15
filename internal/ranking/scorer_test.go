@@ -16,10 +16,9 @@ func TestNewRelevanceScorer(t *testing.T) {
 		t.Fatal("expected scorer to be non-nil")
 	}
 
-	// Check weights are normalized
-	totalWeight := scorer.config.ContextWeight + scorer.config.UsageWeight +
-		scorer.config.RecencyWeight + scorer.config.ConfidenceWeight +
-		scorer.config.PriorityWeight
+	// Check weights are normalized (4-signal model)
+	totalWeight := scorer.config.ContextWeight + scorer.config.BaseLevelWeight +
+		scorer.config.FeedbackWeight + scorer.config.PriorityWeight
 
 	if math.Abs(totalWeight-1.0) > 0.001 {
 		t.Errorf("weights should sum to 1.0, got %f", totalWeight)
@@ -110,44 +109,63 @@ func TestRelevanceScorer_Score_ConstraintBoost(t *testing.T) {
 	}
 }
 
-func TestRelevanceScorer_Score_UsageSignals(t *testing.T) {
+func TestRelevanceScorer_Score_BaseLevelScore(t *testing.T) {
 	scorer := NewRelevanceScorer(DefaultScorerConfig())
 	now := time.Now()
 
-	wellUsed := &models.Behavior{
-		ID:         "well-used",
+	// Frequently activated behavior should have higher base-level score
+	frequentlyUsed := &models.Behavior{
+		ID:         "frequent",
 		Kind:       models.BehaviorKindDirective,
 		Confidence: 0.8,
 		Priority:   5,
 		Stats: models.BehaviorStats{
 			TimesActivated: 100,
-			TimesFollowed:  90,
-			TimesConfirmed: 5,
-			CreatedAt:      now,
+			CreatedAt:      now.Add(-24 * time.Hour),
 			UpdatedAt:      now,
 		},
 	}
 
-	poorlyUsed := &models.Behavior{
-		ID:         "poorly-used",
+	rarelyUsed := &models.Behavior{
+		ID:         "rare",
 		Kind:       models.BehaviorKindDirective,
 		Confidence: 0.8,
 		Priority:   5,
 		Stats: models.BehaviorStats{
-			TimesActivated:  100,
-			TimesFollowed:   10,
-			TimesOverridden: 80,
-			CreatedAt:       now,
-			UpdatedAt:       now,
+			TimesActivated: 1,
+			CreatedAt:      now.Add(-24 * time.Hour),
+			UpdatedAt:      now,
 		},
 	}
 
-	wellUsedScore := scorer.Score(wellUsed, nil)
-	poorlyUsedScore := scorer.Score(poorlyUsed, nil)
+	frequentScore := scorer.Score(frequentlyUsed, nil)
+	rareScore := scorer.Score(rarelyUsed, nil)
 
-	if wellUsedScore.UsageScore <= poorlyUsedScore.UsageScore {
-		t.Errorf("well-used score (%f) should be > poorly-used score (%f)",
-			wellUsedScore.UsageScore, poorlyUsedScore.UsageScore)
+	if frequentScore.BaseLevelScore <= rareScore.BaseLevelScore {
+		t.Errorf("frequent base-level (%f) should be > rare base-level (%f)",
+			frequentScore.BaseLevelScore, rareScore.BaseLevelScore)
+	}
+}
+
+func TestRelevanceScorer_Score_BaseLevelNewBehavior(t *testing.T) {
+	scorer := NewRelevanceScorer(DefaultScorerConfig())
+
+	// New behavior with no activations should get neutral score (0.5)
+	newBehavior := &models.Behavior{
+		ID:         "new",
+		Kind:       models.BehaviorKindDirective,
+		Confidence: 0.8,
+		Priority:   5,
+		Stats: models.BehaviorStats{
+			TimesActivated: 0,
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
+		},
+	}
+
+	result := scorer.Score(newBehavior, nil)
+	if result.BaseLevelScore != 0.5 {
+		t.Errorf("new behavior BaseLevelScore = %f, want 0.5", result.BaseLevelScore)
 	}
 }
 
@@ -155,14 +173,16 @@ func TestRelevanceScorer_Score_Recency(t *testing.T) {
 	scorer := NewRelevanceScorer(DefaultScorerConfig())
 	now := time.Now()
 
+	// ACT-R captures recency: same activation count, different ages
 	recent := &models.Behavior{
 		ID:         "recent",
 		Kind:       models.BehaviorKindDirective,
 		Confidence: 0.8,
 		Priority:   5,
 		Stats: models.BehaviorStats{
-			CreatedAt: now.Add(-1 * time.Hour),
-			UpdatedAt: now.Add(-1 * time.Hour),
+			TimesActivated: 10,
+			CreatedAt:      now.Add(-1 * time.Hour),
+			UpdatedAt:      now.Add(-1 * time.Hour),
 		},
 	}
 
@@ -172,17 +192,19 @@ func TestRelevanceScorer_Score_Recency(t *testing.T) {
 		Confidence: 0.8,
 		Priority:   5,
 		Stats: models.BehaviorStats{
-			CreatedAt: now.Add(-30 * 24 * time.Hour),
-			UpdatedAt: now.Add(-30 * 24 * time.Hour),
+			TimesActivated: 10,
+			CreatedAt:      now.Add(-30 * 24 * time.Hour),
+			UpdatedAt:      now.Add(-30 * 24 * time.Hour),
 		},
 	}
 
 	recentScore := scorer.Score(recent, nil)
 	oldScore := scorer.Score(old, nil)
 
-	if recentScore.RecencyScore <= oldScore.RecencyScore {
-		t.Errorf("recent score (%f) should be > old score (%f)",
-			recentScore.RecencyScore, oldScore.RecencyScore)
+	// Recent behavior should have higher base-level score (ACT-R captures recency)
+	if recentScore.BaseLevelScore <= oldScore.BaseLevelScore {
+		t.Errorf("recent base-level (%f) should be > old base-level (%f)",
+			recentScore.BaseLevelScore, oldScore.BaseLevelScore)
 	}
 }
 
@@ -258,11 +280,11 @@ func TestRelevanceScorer_ScoreBatch(t *testing.T) {
 	}
 }
 
-func TestUsageScore_NoFeedback(t *testing.T) {
+func TestFeedbackScore_NoFeedback(t *testing.T) {
 	scorer := NewRelevanceScorer(DefaultScorerConfig())
 	now := time.Now()
 
-	// Behavior has been activated 5 times but has no follow/confirm/override feedback
+	// Behavior with no feedback should get neutral score (0.5)
 	behavior := &models.Behavior{
 		ID:         "no-feedback",
 		Kind:       models.BehaviorKindDirective,
@@ -279,10 +301,97 @@ func TestUsageScore_NoFeedback(t *testing.T) {
 	}
 
 	result := scorer.Score(behavior, nil)
+	if result.FeedbackScore != 0.5 {
+		t.Errorf("FeedbackScore = %f, want 0.5 (neutral when no feedback data)", result.FeedbackScore)
+	}
+}
 
-	// UsageScore should be 0.5 (neutral), NOT 0.0 (penalty from 0/5 ratio)
-	if result.UsageScore != 0.5 {
-		t.Errorf("UsageScore = %f, want 0.5 (neutral when no feedback data)", result.UsageScore)
+func TestFeedbackScore_WithFeedback(t *testing.T) {
+	scorer := NewRelevanceScorer(DefaultScorerConfig())
+	now := time.Now()
+
+	tests := []struct {
+		name    string
+		stats   models.BehaviorStats
+		wantMin float64
+		wantMax float64
+	}{
+		{
+			name: "below min sample — neutral",
+			stats: models.BehaviorStats{
+				TimesActivated: 10,
+				TimesFollowed:  1,
+				TimesConfirmed: 1,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+			},
+			wantMin: 0.5,
+			wantMax: 0.5,
+		},
+		{
+			name: "all positive feedback",
+			stats: models.BehaviorStats{
+				TimesActivated: 10,
+				TimesFollowed:  2,
+				TimesConfirmed: 3,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+			},
+			wantMin: 1.0,
+			wantMax: 1.0, // 5/5 = 1.0
+		},
+		{
+			name: "all negative feedback",
+			stats: models.BehaviorStats{
+				TimesActivated:  10,
+				TimesOverridden: 5,
+				CreatedAt:       now,
+				UpdatedAt:       now,
+			},
+			wantMin: 0.0,
+			wantMax: 0.0, // 0/5 = 0.0
+		},
+		{
+			name: "mixed feedback — 60% positive",
+			stats: models.BehaviorStats{
+				TimesActivated:  10,
+				TimesFollowed:   3,
+				TimesOverridden: 2,
+				CreatedAt:       now,
+				UpdatedAt:       now,
+			},
+			wantMin: 0.6,
+			wantMax: 0.6, // 3/5 = 0.6
+		},
+		{
+			name: "confirmed counts as positive",
+			stats: models.BehaviorStats{
+				TimesActivated:  10,
+				TimesFollowed:   1,
+				TimesConfirmed:  2,
+				TimesOverridden: 2,
+				CreatedAt:       now,
+				UpdatedAt:       now,
+			},
+			wantMin: 0.6,
+			wantMax: 0.6, // (1+2)/5 = 0.6
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			behavior := &models.Behavior{
+				ID:         "feedback-test",
+				Kind:       models.BehaviorKindDirective,
+				Confidence: 0.8,
+				Priority:   5,
+				Stats:      tt.stats,
+			}
+			result := scorer.Score(behavior, nil)
+			if result.FeedbackScore < tt.wantMin-0.001 || result.FeedbackScore > tt.wantMax+0.001 {
+				t.Errorf("FeedbackScore = %f, want in [%f, %f]", result.FeedbackScore, tt.wantMin, tt.wantMax)
+			}
+		})
 	}
 }
 
@@ -328,5 +437,25 @@ func TestExponentialDecay(t *testing.T) {
 				t.Errorf("ExponentialDecay() = %f, want in [%f, %f]", score, tt.wantMin, tt.wantMax)
 			}
 		})
+	}
+}
+
+func TestDefaultScorerConfig_Weights(t *testing.T) {
+	cfg := DefaultScorerConfig()
+
+	if cfg.ContextWeight != 0.35 {
+		t.Errorf("ContextWeight = %f, want 0.35", cfg.ContextWeight)
+	}
+	if cfg.BaseLevelWeight != 0.30 {
+		t.Errorf("BaseLevelWeight = %f, want 0.30", cfg.BaseLevelWeight)
+	}
+	if cfg.FeedbackWeight != 0.15 {
+		t.Errorf("FeedbackWeight = %f, want 0.15", cfg.FeedbackWeight)
+	}
+	if cfg.PriorityWeight != 0.20 {
+		t.Errorf("PriorityWeight = %f, want 0.20", cfg.PriorityWeight)
+	}
+	if cfg.FeedbackMinSample != 3 {
+		t.Errorf("FeedbackMinSample = %d, want 3", cfg.FeedbackMinSample)
 	}
 }

@@ -19,7 +19,7 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/learning"
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/pathutil"
-	"github.com/nvandessel/feedback-loop/internal/ranking"
+
 	"github.com/nvandessel/feedback-loop/internal/ratelimit"
 	"github.com/nvandessel/feedback-loop/internal/sanitize"
 	"github.com/nvandessel/feedback-loop/internal/spreading"
@@ -442,33 +442,12 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 		"repo":     actCtx.RepoRoot,
 	}
 
-	// Bounded confidence reinforcement + activation hit recording (background worker pool)
+	// Record activation hits for user behaviors in background (skip seed behaviors —
+	// they activate every call and don't provide useful signal).
+	// Note: confidence reinforcement has been replaced by ACT-R base-level activation
+	// (see ranking/actr.go), which derives frequency+recency from existing data.
 	activeBehaviors := result.Active
-	allBehaviors := behaviors
-	s.runBackground("confidence-reinforcement", func() {
-		// Build active and all behavior ID->confidence maps
-		activeConfs := make(map[string]float64, len(activeBehaviors))
-		for _, b := range activeBehaviors {
-			activeConfs[b.ID] = b.Confidence
-		}
-		allConfs := make(map[string]float64, len(allBehaviors))
-		for _, b := range allBehaviors {
-			allConfs[b.ID] = b.Confidence
-		}
-
-		// Apply reinforcement via ConfidenceUpdater interface
-		type confidenceUpdater interface {
-			UpdateConfidence(ctx context.Context, behaviorID string, newConfidence float64) error
-		}
-		if updater, ok := s.store.(confidenceUpdater); ok {
-			cfg := ranking.DefaultReinforcementConfig()
-			if err := ranking.ApplyReinforcement(context.Background(), updater, activeConfs, allConfs, cfg, s.boostTracker); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: confidence reinforcement failed: %v\n", err)
-			}
-		}
-
-		// Record activation hits for user behaviors (skip seed behaviors —
-		// they activate every call and don't provide useful signal).
+	s.runBackground("activation-recording", func() {
 		type activationRecorder interface {
 			RecordActivationHit(ctx context.Context, behaviorID string) error
 		}

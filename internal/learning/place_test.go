@@ -598,6 +598,114 @@ func TestNodeToBehavior_NoTags(t *testing.T) {
 	}
 }
 
+func TestNodeToBehavior_StatsTimeFields(t *testing.T) {
+	createdAt := "2026-01-15T08:00:00Z"
+	updatedAt := "2026-02-10T14:30:00Z"
+	lastActivated := "2026-02-10T14:00:00Z"
+	lastConfirmed := "2026-02-09T12:00:00Z"
+
+	node := store.Node{
+		ID:   "stats-time-test",
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"kind": "directive",
+			"name": "time-test",
+			"content": map[string]interface{}{
+				"canonical": "Test stats time extraction",
+			},
+		},
+		Metadata: map[string]interface{}{
+			"confidence": 0.8,
+			"stats": map[string]interface{}{
+				"times_activated":  10,
+				"times_followed":   3,
+				"times_confirmed":  2,
+				"times_overridden": 1,
+				"created_at":       createdAt,
+				"updated_at":       updatedAt,
+				"last_activated":   lastActivated,
+				"last_confirmed":   lastConfirmed,
+			},
+		},
+	}
+
+	b := NodeToBehavior(node)
+
+	// Counter fields
+	if b.Stats.TimesActivated != 10 {
+		t.Errorf("TimesActivated = %d, want 10", b.Stats.TimesActivated)
+	}
+	if b.Stats.TimesFollowed != 3 {
+		t.Errorf("TimesFollowed = %d, want 3", b.Stats.TimesFollowed)
+	}
+	if b.Stats.TimesConfirmed != 2 {
+		t.Errorf("TimesConfirmed = %d, want 2", b.Stats.TimesConfirmed)
+	}
+	if b.Stats.TimesOverridden != 1 {
+		t.Errorf("TimesOverridden = %d, want 1", b.Stats.TimesOverridden)
+	}
+
+	// Time fields
+	if b.Stats.CreatedAt.IsZero() {
+		t.Error("CreatedAt is zero, want parsed time")
+	}
+	if b.Stats.CreatedAt.Year() != 2026 || b.Stats.CreatedAt.Month() != 1 {
+		t.Errorf("CreatedAt = %v, want 2026-01-15", b.Stats.CreatedAt)
+	}
+
+	if b.Stats.UpdatedAt.IsZero() {
+		t.Error("UpdatedAt is zero, want parsed time")
+	}
+	if b.Stats.UpdatedAt.Month() != 2 || b.Stats.UpdatedAt.Day() != 10 {
+		t.Errorf("UpdatedAt = %v, want 2026-02-10", b.Stats.UpdatedAt)
+	}
+
+	if b.Stats.LastActivated == nil {
+		t.Fatal("LastActivated is nil, want parsed time")
+	}
+	if b.Stats.LastActivated.Hour() != 14 {
+		t.Errorf("LastActivated hour = %d, want 14", b.Stats.LastActivated.Hour())
+	}
+
+	if b.Stats.LastConfirmed == nil {
+		t.Fatal("LastConfirmed is nil, want parsed time")
+	}
+	if b.Stats.LastConfirmed.Day() != 9 {
+		t.Errorf("LastConfirmed day = %d, want 9", b.Stats.LastConfirmed.Day())
+	}
+}
+
+func TestNodeToBehavior_StatsNoTimeFields(t *testing.T) {
+	node := store.Node{
+		ID:   "stats-no-time",
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"kind": "directive",
+			"content": map[string]interface{}{
+				"canonical": "No time fields in stats",
+			},
+		},
+		Metadata: map[string]interface{}{
+			"stats": map[string]interface{}{
+				"times_activated": 5,
+			},
+		},
+	}
+
+	b := NodeToBehavior(node)
+
+	if b.Stats.TimesActivated != 5 {
+		t.Errorf("TimesActivated = %d, want 5", b.Stats.TimesActivated)
+	}
+	// Time fields should be zero-valued, not cause a panic
+	if !b.Stats.CreatedAt.IsZero() {
+		t.Errorf("CreatedAt should be zero, got %v", b.Stats.CreatedAt)
+	}
+	if b.Stats.LastActivated != nil {
+		t.Errorf("LastActivated should be nil, got %v", b.Stats.LastActivated)
+	}
+}
+
 func TestGraphPlacer_determineEdges(t *testing.T) {
 	s := store.NewInMemoryGraphStore()
 	gp := NewGraphPlacer(s).(*graphPlacer)
