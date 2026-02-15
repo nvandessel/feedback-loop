@@ -223,8 +223,8 @@ func TestBaseLevelScore_FrequencyBeatsRecency(t *testing.T) {
 	cfg := DefaultACTRConfig()
 
 	// A frequently-used old behavior should score higher than a rarely-used recent one
-	frequentOld := BaseLevelScore(50, 720*time.Hour, cfg)  // 50 activations, 30 days old
-	rareRecent := BaseLevelScore(1, 1*time.Hour, cfg)       // 1 activation, 1 hour old
+	frequentOld := BaseLevelScore(50, 720*time.Hour, cfg) // 50 activations, 30 days old
+	rareRecent := BaseLevelScore(1, 1*time.Hour, cfg)     // 1 activation, 1 hour old
 
 	if frequentOld <= rareRecent {
 		t.Errorf("frequent+old (%f) should score higher than rare+recent (%f)",
