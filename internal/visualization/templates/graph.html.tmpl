@@ -198,10 +198,17 @@
   };
   var defaultEdgeColor = 'rgba(147,153,178,0.45)';
 
+  // Build node ID set and filter dangling edges
+  var nodeIds = {};
+  (graphData.nodes || []).forEach(function(n) { nodeIds[n.id] = true; });
+  var validEdges = (graphData.edges || []).filter(function(e) {
+    return nodeIds[e.source] && nodeIds[e.target];
+  });
+
   // Build degree map for node sizing
   var degree = {};
   (graphData.nodes || []).forEach(function(n) { degree[n.id] = 0; });
-  (graphData.edges || []).forEach(function(e) {
+  validEdges.forEach(function(e) {
     degree[e.source] = (degree[e.source] || 0) + 1;
     degree[e.target] = (degree[e.target] || 0) + 1;
   });
@@ -215,7 +222,7 @@
 
   // Update stats
   document.getElementById('stat-nodes').textContent = (graphData.nodes || []).length;
-  document.getElementById('stat-edges').textContent = (graphData.edges || []).length;
+  document.getElementById('stat-edges').textContent = validEdges.length;
 
   // Tooltip
   var tooltip = document.getElementById('tooltip');
@@ -223,11 +230,11 @@
   // Detail panel
   var panel = document.getElementById('detail-panel');
 
-  // Create force graph
-  var graph = ForceGraph()(document.getElementById('graph'))
+  // Create force graph (exposed on window for testing)
+  var graph = window.__graph = ForceGraph()(document.getElementById('graph'))
     .graphData({
       nodes: graphData.nodes || [],
-      links: (graphData.edges || []).map(function(e) {
+      links: validEdges.map(function(e) {
         return { source: e.source, target: e.target, kind: e.kind, weight: e.weight };
       })
     })
@@ -239,7 +246,7 @@
       var r = Math.sqrt(node.val || 1) * 2.5;
       var color = kindColors[node.kind] || defaultColor;
 
-      // Draw node circle
+      // Filled circle with subtle stroke
       ctx.beginPath();
       ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
       ctx.fillStyle = color;
@@ -248,8 +255,8 @@
       ctx.lineWidth = 0.6;
       ctx.stroke();
 
-      // Draw label only when zoomed in very close (scroll-wheel zoom on a cluster)
-      if (globalScale > 8) {
+      // Labels appear when zoomed in
+      if (globalScale > 5) {
         var label = node.name || node.id;
         if (label.length > 30) label = label.substring(0, 27) + '...';
         var fontSize = 10 / globalScale;
@@ -267,16 +274,23 @@
       ctx.fillStyle = color;
       ctx.fill();
     })
+    .enableNodeDrag(true)
+    .autoPauseRedraw(false)
     .linkColor(function(l) { return edgeColors[l.kind] || defaultEdgeColor; })
     .linkWidth(function(l) { return edgeWidth[l.kind] || 1; })
     .linkLineDash(function(l) { return edgeDash[l.kind] || null; })
     .linkDirectionalArrowLength(5)
     .linkDirectionalArrowRelPos(0.92)
     .linkDirectionalArrowColor(function() { return 'rgba(147,153,178,0.6)'; })
-    .d3AlphaDecay(0.006)
-    .d3VelocityDecay(0.2)
+    .d3AlphaDecay(0.02)
+    .d3VelocityDecay(0.4)
     .warmupTicks(300)
-    .cooldownTicks(500)
+    .cooldownTime(Infinity)
+    .onNodeDragEnd(function(node) {
+      // Release the node so it rejoins the simulation
+      node.fx = undefined;
+      node.fy = undefined;
+    })
     .onNodeHover(function(node, prevNode) {
       document.body.style.cursor = node ? 'pointer' : 'default';
       if (node) {
@@ -313,19 +327,29 @@
       }
     });
 
-  // d3-force tuning — scale repulsion with graph density
+  // d3-force tuning — moderate forces safe for interactive drag
   var nodeCount = (graphData.nodes || []).length;
-  var edgeCount = (graphData.edges || []).length;
-  var density = nodeCount > 0 ? edgeCount / nodeCount : 0;
+  var chargeStrength = Math.max(-400, -150 - nodeCount * 1.5);
 
-  // Very strong repulsion — nodes push apart aggressively
-  var chargeStrength = -1000 - nodeCount * 20;
+  graph.d3Force('charge')
+    .strength(chargeStrength)
+    .distanceMax(350);
+  graph.d3Force('link').distance(80).strength(0.12);
+  graph.d3Force('center').strength(0.1);
 
-  graph.d3Force('charge').strength(chargeStrength);
-  // Weak but visible links — enough to pull connected nodes closer together
-  graph.d3Force('link').distance(180).strength(0.08);
-  // Stronger centering to keep the spread graph on screen
-  graph.d3Force('center').strength(0.05);
+  // Gentle gravity: pulls each node toward origin so nothing drifts to infinity
+  graph.d3Force('gravity', (function() {
+    var strength = 0.04;
+    var nodes;
+    function force(alpha) {
+      for (var i = 0, n = nodes.length; i < n; i++) {
+        nodes[i].vx -= nodes[i].x * strength * alpha;
+        nodes[i].vy -= nodes[i].y * strength * alpha;
+      }
+    }
+    force.initialize = function(_nodes) { nodes = _nodes; };
+    return force;
+  })());
 
   // Track mouse for tooltip positioning
   document.addEventListener('mousemove', function(e) {

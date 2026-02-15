@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Usage: node scripts/screenshot.js <input.html> [output.png] [--width 1920] [--height 1080] [--wait 2000]
-// Requires: npx puppeteer (auto-downloads Chromium on first run)
+// Requires: npm install playwright (in build/ prefix)
 
-const puppeteer = require("puppeteer");
+const { chromium } = require("playwright");
 const path = require("path");
 
 function parseArgs(argv) {
@@ -38,11 +38,11 @@ function parseArgs(argv) {
 }
 
 async function screenshot(opts) {
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();
-    await page.setViewport({ width: opts.width, height: opts.height });
-    await page.goto(`file://${opts.input}`, { waitUntil: "networkidle0" });
+    await page.setViewportSize({ width: opts.width, height: opts.height });
+    await page.goto(`file://${opts.input}`, { waitUntil: "networkidle" });
 
     // Wait for force-graph physics to settle
     await new Promise((r) => setTimeout(r, opts.wait));
