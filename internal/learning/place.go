@@ -523,6 +523,28 @@ func NodeToBehavior(node store.Node) models.Behavior {
 		if overridden, ok := stats["times_overridden"].(int); ok {
 			b.Stats.TimesOverridden = overridden
 		}
+
+		// Extract time fields (stored as RFC3339 strings by SQLite store)
+		if ca, ok := stats["created_at"].(string); ok {
+			if t, err := time.Parse(time.RFC3339, ca); err == nil {
+				b.Stats.CreatedAt = t
+			}
+		}
+		if ua, ok := stats["updated_at"].(string); ok {
+			if t, err := time.Parse(time.RFC3339, ua); err == nil {
+				b.Stats.UpdatedAt = t
+			}
+		}
+		if la, ok := stats["last_activated"].(string); ok {
+			if t, err := time.Parse(time.RFC3339, la); err == nil {
+				b.Stats.LastActivated = &t
+			}
+		}
+		if lc, ok := stats["last_confirmed"].(string); ok {
+			if t, err := time.Parse(time.RFC3339, lc); err == nil {
+				b.Stats.LastConfirmed = &t
+			}
+		}
 	}
 
 	return b

@@ -86,7 +86,11 @@ func (bt *BoostTracker) AllowBoost(behaviorID string) bool {
 	return true
 }
 
-// ApplyReinforcement adjusts confidence for active and inactive behaviors.
+// Deprecated: ApplyReinforcement adjusts confidence for active and inactive behaviors.
+// This function is superseded by the ACT-R base-level activation model (see actr.go),
+// which captures both frequency and recency in a principled formula using data already
+// stored (TimesActivated, CreatedAt). Confidence is now a static user-assignable field.
+//
 // Active behaviors get a boost; all other behaviors decay slightly.
 // If tracker is non-nil, boosts are rate-limited per behavior.
 // A nil tracker disables rate limiting (backward-compatible).
