@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"testing"
+	"time"
 )
 
 // setupTestSQLiteStore creates a new SQLite store in a temp directory for testing.
@@ -380,7 +381,7 @@ func TestValidateBehaviorGraph_ValidEdges(t *testing.T) {
 		t.Fatalf("failed to add B: %v", err)
 	}
 
-	edge := Edge{Source: "behavior-a", Target: "behavior-b", Kind: "similar-to", Weight: 0.8}
+	edge := Edge{Source: "behavior-a", Target: "behavior-b", Kind: "similar-to", Weight: 0.8, CreatedAt: time.Now()}
 	if err := store.AddEdge(ctx, edge); err != nil {
 		t.Fatalf("failed to add edge: %v", err)
 	}
@@ -569,6 +570,102 @@ func TestParseStringArray_EmptyString(t *testing.T) {
 	result := parseStringArray(&empty)
 	if result != nil {
 		t.Errorf("expected nil for empty string, got %v", result)
+	}
+}
+
+func TestValidateBehaviorGraph_ZeroWeightEdge(t *testing.T) {
+	store, cleanup := setupTestSQLiteStore(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	// Add two behaviors
+	nodeA := createTestBehavior("behavior-a", "Behavior A")
+	nodeB := createTestBehavior("behavior-b", "Behavior B")
+	if _, err := store.AddNode(ctx, nodeA); err != nil {
+		t.Fatalf("failed to add behavior A: %v", err)
+	}
+	if _, err := store.AddNode(ctx, nodeB); err != nil {
+		t.Fatalf("failed to add behavior B: %v", err)
+	}
+
+	// Insert edge with zero weight directly into DB (bypass AddEdge validation)
+	_, err := store.db.ExecContext(ctx, `INSERT INTO edges (source, target, kind, weight, created_at) VALUES (?, ?, ?, ?, ?)`,
+		"behavior-a", "behavior-b", "requires", 0.0, time.Now().Format(time.RFC3339))
+	if err != nil {
+		t.Fatalf("failed to insert edge: %v", err)
+	}
+
+	errors, err := store.ValidateBehaviorGraph(ctx)
+	if err != nil {
+		t.Fatalf("validation failed: %v", err)
+	}
+
+	// Should find the zero-weight edge
+	found := false
+	for _, e := range errors {
+		if e.Issue == "zero-weight" {
+			found = true
+			if e.BehaviorID != "behavior-a" {
+				t.Errorf("expected BehaviorID 'behavior-a', got %q", e.BehaviorID)
+			}
+			if e.Field != "edge-weight" {
+				t.Errorf("expected Field 'edge-weight', got %q", e.Field)
+			}
+			if e.RefID != "behavior-b" {
+				t.Errorf("expected RefID 'behavior-b', got %q", e.RefID)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("expected zero-weight validation error, got none")
+	}
+}
+
+func TestValidateBehaviorGraph_ZeroCreatedAtEdge(t *testing.T) {
+	store, cleanup := setupTestSQLiteStore(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	nodeA := createTestBehavior("behavior-a", "Behavior A")
+	nodeB := createTestBehavior("behavior-b", "Behavior B")
+	if _, err := store.AddNode(ctx, nodeA); err != nil {
+		t.Fatalf("failed to add behavior A: %v", err)
+	}
+	if _, err := store.AddNode(ctx, nodeB); err != nil {
+		t.Fatalf("failed to add behavior B: %v", err)
+	}
+
+	// Insert edge with null created_at directly into DB
+	_, err := store.db.ExecContext(ctx, `INSERT INTO edges (source, target, kind, weight, created_at) VALUES (?, ?, ?, ?, NULL)`,
+		"behavior-a", "behavior-b", "requires", 1.0)
+	if err != nil {
+		t.Fatalf("failed to insert edge: %v", err)
+	}
+
+	errors, err := store.ValidateBehaviorGraph(ctx)
+	if err != nil {
+		t.Fatalf("validation failed: %v", err)
+	}
+
+	found := false
+	for _, e := range errors {
+		if e.Issue == "zero-created-at" {
+			found = true
+			if e.BehaviorID != "behavior-a" {
+				t.Errorf("expected BehaviorID 'behavior-a', got %q", e.BehaviorID)
+			}
+			if e.Field != "edge-created-at" {
+				t.Errorf("expected Field 'edge-created-at', got %q", e.Field)
+			}
+			if e.RefID != "behavior-b" {
+				t.Errorf("expected RefID 'behavior-b', got %q", e.RefID)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("expected zero-created-at validation error, got none")
 	}
 }
 

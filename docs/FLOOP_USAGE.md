@@ -130,7 +130,7 @@ floop stats --json         # Machine-readable output
 floop deduplicate --dry-run    # Preview what would merge
 floop deduplicate              # Actually merge duplicates
 
-# Validate graph consistency
+# Validate graph consistency (dangling refs, cycles, self-refs, edge properties)
 floop validate
 
 # Backup and restore (V2: compressed + integrity verification)
@@ -224,7 +224,7 @@ floop list
 # Test activation for a file
 floop active --file "any/file.go"
 
-# Validate graph consistency
+# Validate graph consistency (dangling refs, cycles, self-refs, edge properties)
 floop validate
 ```
 

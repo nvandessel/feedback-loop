@@ -546,7 +546,7 @@ Validate the behavior graph for consistency issues.
 floop validate [flags]
 ```
 
-Checks for dangling references (behaviors referencing non-existent IDs), self-references (behaviors that require/override/conflict with themselves), and cycles in relationship graphs.
+Checks for dangling references (behaviors referencing non-existent IDs), self-references (behaviors that require/override/conflict with themselves), cycles in relationship graphs, and edge property issues (zero weight, missing timestamps).
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
