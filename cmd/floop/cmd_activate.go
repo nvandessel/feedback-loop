@@ -10,6 +10,7 @@ import (
 
 	"github.com/nvandessel/feedback-loop/internal/activation"
 	"github.com/nvandessel/feedback-loop/internal/config"
+	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/session"
 	"github.com/nvandessel/feedback-loop/internal/spreading"
@@ -169,9 +170,9 @@ func sessionStateDir(sessionID string) string {
 // activationToTier maps an activation level to an injection tier.
 func activationToTier(activation float64) models.InjectionTier {
 	switch {
-	case activation >= 0.7:
+	case activation >= constants.FullTierActivationThreshold:
 		return models.TierFull
-	case activation >= 0.4:
+	case activation >= constants.SummaryTierActivationThreshold:
 		return models.TierSummary
 	default:
 		return models.TierNameOnly
@@ -182,11 +183,11 @@ func activationToTier(activation float64) models.InjectionTier {
 func estimateTokenCost(behaviorID string, tier models.InjectionTier) int {
 	switch tier {
 	case models.TierFull:
-		return 80
+		return constants.FullTierTokenCost
 	case models.TierSummary:
-		return 30
+		return constants.SummaryTierTokenCost
 	case models.TierNameOnly:
-		return 10
+		return constants.NameOnlyTierTokenCost
 	default:
 		return 0
 	}

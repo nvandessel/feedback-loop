@@ -5,6 +5,7 @@ package dedup
 import (
 	"context"
 
+	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/store"
 )
@@ -67,7 +68,7 @@ type DeduplicatorConfig struct {
 // DefaultConfig returns a DeduplicatorConfig with sensible defaults.
 func DefaultConfig() DeduplicatorConfig {
 	return DeduplicatorConfig{
-		SimilarityThreshold: 0.9,
+		SimilarityThreshold: constants.DefaultAutoMergeThreshold,
 		AutoMerge:           false,
 		UseLLM:              false,
 		MaxBatchSize:        100,

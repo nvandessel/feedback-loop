@@ -68,7 +68,10 @@ Examples:
 			ctx := context.Background()
 
 			// Load config to check for LLM settings
-			floopCfg, _ := config.Load()
+			floopCfg, err := config.Load()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to load config: %v\n", err)
+			}
 			useLLM := floopCfg != nil && floopCfg.LLM.Enabled && floopCfg.LLM.Provider != ""
 
 			// Configure deduplication
@@ -90,7 +93,7 @@ Examples:
 	}
 
 	cmd.Flags().Bool("dry-run", false, "Show duplicates without merging")
-	cmd.Flags().Float64("threshold", 0.9, "Similarity threshold for duplicate detection (0.0-1.0)")
+	cmd.Flags().Float64("threshold", constants.DefaultAutoMergeThreshold, "Similarity threshold for duplicate detection (0.0-1.0)")
 	cmd.Flags().String("scope", "local", "Store scope: local, global, or both")
 
 	return cmd
@@ -145,7 +148,10 @@ func runSingleStoreDedup(ctx context.Context, root string, scope store.StoreScop
 	}
 
 	// Create LLM client for similarity comparison
-	floopCfg, _ := config.Load()
+	floopCfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to load config: %v\n", err)
+	}
 	llmClient := createLLMClient(floopCfg)
 	useLLM := cfg.UseLLM && llmClient != nil
 
@@ -211,20 +217,23 @@ func runSingleStoreDedup(ctx context.Context, root string, scope store.StoreScop
 	mergeCount := 0
 	merged := make(map[string]bool) // Track already-merged behavior IDs
 
+	// Create LLM client and merger once, outside the loop
+	floopCfg2, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to load config: %v\n", err)
+	}
+	llmClientMerge := createLLMClient(floopCfg2)
+	merger := dedup.NewBehaviorMerger(dedup.MergerConfig{
+		UseLLM:    llmClientMerge != nil,
+		LLMClient: llmClientMerge,
+	})
+
 	for _, dup := range duplicates {
 		// Skip if either behavior has already been merged
 		if merged[dup.BehaviorA.ID] || merged[dup.BehaviorB.ID] {
 			continue
 		}
 
-		// Use the existing merge command logic (behavior A survives, B is merged into A)
-		// Create LLM client if configured
-		floopCfg, _ := config.Load()
-		llmClient := createLLMClient(floopCfg)
-		merger := dedup.NewBehaviorMerger(dedup.MergerConfig{
-			UseLLM:    llmClient != nil,
-			LLMClient: llmClient,
-		})
 		mergedBehavior, err := merger.Merge(ctx, []*models.Behavior{dup.BehaviorA, dup.BehaviorB})
 		if err != nil {
 			if !jsonOut {
@@ -302,7 +311,10 @@ func runCrossStoreDedup(ctx context.Context, root string, cfg dedup.Deduplicator
 	defer globalStore.Close()
 
 	// Create merger with LLM client if configured
-	floopCfg, _ := config.Load()
+	floopCfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to load config: %v\n", err)
+	}
 	llmClient := createLLMClient(floopCfg)
 	merger := dedup.NewBehaviorMerger(dedup.MergerConfig{
 		UseLLM:    cfg.UseLLM && llmClient != nil,

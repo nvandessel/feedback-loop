@@ -599,15 +599,15 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 	// Configure learning loop - auto-merge is ON by default
 	// This prevents duplicate behaviors from accumulating
 	loopConfig := &learning.LearningLoopConfig{
-		AutoAcceptThreshold: 0.8,
+		AutoAcceptThreshold: constants.DefaultAutoAcceptThreshold,
 		AutoMerge:           true, // Always deduplicate
-		AutoMergeThreshold:  0.9,
+		AutoMergeThreshold:  constants.DefaultAutoMergeThreshold,
 	}
 
 	// Create deduplicator for automatic merging
 	merger := dedup.NewBehaviorMerger(dedup.MergerConfig{})
 	dedupConfig := dedup.DeduplicatorConfig{
-		SimilarityThreshold: 0.9,
+		SimilarityThreshold: constants.DefaultAutoMergeThreshold,
 		AutoMerge:           true,
 	}
 	loopConfig.Deduplicator = dedup.NewStoreDeduplicator(s.store, merger, dedupConfig)
@@ -929,7 +929,7 @@ func (s *Server) handleFloopDeduplicate(ctx context.Context, req *sdk.CallToolRe
 	// Set defaults
 	threshold := args.Threshold
 	if threshold <= 0 || threshold > 1.0 {
-		threshold = 0.9
+		threshold = constants.DefaultAutoMergeThreshold
 	}
 
 	scope := constants.Scope(args.Scope)
@@ -1105,15 +1105,6 @@ func (s *Server) handleFloopRestore(ctx context.Context, req *sdk.CallToolReques
 	}, nil
 }
 
-// validEdgeKinds defines the allowed edge kinds for floop_connect.
-var validEdgeKinds = map[string]bool{
-	"requires":     true,
-	"overrides":    true,
-	"conflicts":    true,
-	"similar-to":   true,
-	"learned-from": true,
-}
-
 // handleFloopConnect implements the floop_connect tool.
 func (s *Server) handleFloopConnect(ctx context.Context, req *sdk.CallToolRequest, args FloopConnectInput) (_ *sdk.CallToolResult, _ FloopConnectOutput, retErr error) {
 	start := time.Now()
@@ -1140,7 +1131,7 @@ func (s *Server) handleFloopConnect(ctx context.Context, req *sdk.CallToolReques
 	}
 
 	// Validate kind
-	if !validEdgeKinds[args.Kind] {
+	if !constants.ValidUserEdgeKinds[args.Kind] {
 		return nil, FloopConnectOutput{}, fmt.Errorf("invalid edge kind: %s (must be one of: requires, overrides, conflicts, similar-to, learned-from)", args.Kind)
 	}
 

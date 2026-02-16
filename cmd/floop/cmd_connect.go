@@ -8,19 +8,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/ranking"
 	"github.com/nvandessel/feedback-loop/internal/store"
 	"github.com/spf13/cobra"
 )
-
-// validEdgeKinds defines the allowed edge kinds for floop connect.
-var validEdgeKinds = map[string]bool{
-	"requires":     true,
-	"overrides":    true,
-	"conflicts":    true,
-	"similar-to":   true,
-	"learned-from": true,
-}
 
 func newConnectCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -53,7 +45,7 @@ Examples:
 			bidirectional, _ := cmd.Flags().GetBool("bidirectional")
 
 			// Validate kind
-			if !validEdgeKinds[kind] {
+			if !constants.ValidUserEdgeKinds[kind] {
 				return fmt.Errorf("invalid edge kind: %s (must be one of: requires, overrides, conflicts, similar-to, learned-from)", kind)
 			}
 

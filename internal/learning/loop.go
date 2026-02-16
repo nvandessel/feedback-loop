@@ -95,9 +95,9 @@ type LearningLoopConfig struct {
 // DefaultLearningLoopConfig returns sensible defaults for the learning loop.
 func DefaultLearningLoopConfig() LearningLoopConfig {
 	return LearningLoopConfig{
-		AutoAcceptThreshold: 0.8,
+		AutoAcceptThreshold: constants.DefaultAutoAcceptThreshold,
 		AutoMerge:           false,
-		AutoMergeThreshold:  0.9,
+		AutoMergeThreshold:  constants.DefaultAutoMergeThreshold,
 	}
 }
 

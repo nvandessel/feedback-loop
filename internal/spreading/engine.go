@@ -11,6 +11,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/ranking"
 	"github.com/nvandessel/feedback-loop/internal/store"
 )
@@ -223,7 +224,7 @@ func (e *Engine) Activate(ctx context.Context, seeds []Seed) ([]Result, error) {
 // into a sharper [0, 1] range. Values below 0.3 are suppressed toward 0;
 // values above 0.3 are amplified toward 1.
 func sigmoid(x float64) float64 {
-	return 1.0 / (1.0 + math.Exp(-10.0*(x-0.3)))
+	return 1.0 / (1.0 + math.Exp(-constants.SigmoidGain*(x-constants.SigmoidCenter)))
 }
 
 // neighborID returns the ID of the node on the other end of the edge

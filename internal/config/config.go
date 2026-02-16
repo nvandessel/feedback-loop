@@ -180,7 +180,7 @@ func Default() *FloopConfig {
 			Compression: true,
 			AutoBackup:  true,
 			Retention: RetentionConfig{
-				MaxCount: 10,
+				MaxCount: constants.MaxBackupRotation,
 			},
 		},
 	}

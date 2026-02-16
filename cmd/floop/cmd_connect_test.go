@@ -2,6 +2,8 @@ package main
 
 import (
 	"testing"
+
+	"github.com/nvandessel/feedback-loop/internal/constants"
 )
 
 func TestValidEdgeKinds(t *testing.T) {
@@ -21,8 +23,8 @@ func TestValidEdgeKinds(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.kind, func(t *testing.T) {
-			if got := validEdgeKinds[tt.kind]; got != tt.want {
-				t.Errorf("validEdgeKinds[%q] = %v, want %v", tt.kind, got, tt.want)
+			if got := constants.ValidUserEdgeKinds[tt.kind]; got != tt.want {
+				t.Errorf("constants.ValidUserEdgeKinds[%q] = %v, want %v", tt.kind, got, tt.want)
 			}
 		})
 	}
