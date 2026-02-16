@@ -4,7 +4,6 @@ on:
   pull_request:
     paths:
       - '.goreleaser.yml'
-      - '.github/workflows/release.yml'
       - '.github/workflows/version-bump.yml'
       - '.github/workflows/test-release.yml'
       - 'Makefile'
@@ -13,6 +12,9 @@ on:
 
 permissions:
   contents: read
+
+env:
+  GORELEASER_VERSION: v2.8.0
 
 jobs:
   test-release:
@@ -33,7 +35,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
-          version: latest
+          version: ${{ env.GORELEASER_VERSION }}
           args: build --snapshot --clean
 
       - name: Verify binaries
