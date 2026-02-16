@@ -6,9 +6,10 @@ This document describes the automated release process for feedback-loop using Go
 
 The release pipeline is fully automated:
 1. Maintainer triggers version bump workflow
-2. Workflow creates and pushes a new git tag
-3. Same workflow runs GoReleaser on the new tag
-4. GoReleaser builds binaries and publishes to GitHub Releases with auto-generated notes
+2. Workflow calculates the next version and auto-generates `CHANGELOG.md`
+3. Workflow commits changelog updates and creates/pushes a new git tag
+4. Same workflow runs GoReleaser on the new tag
+5. GoReleaser builds binaries and publishes to GitHub Releases with auto-generated notes
 
 ## Prerequisites
 
