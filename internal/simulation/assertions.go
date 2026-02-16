@@ -3,8 +3,6 @@ package simulation
 import (
 	"math"
 	"testing"
-
-	"github.com/nvandessel/feedback-loop/internal/models"
 )
 
 // AssertWeightConverges asserts that a specific edge weight settles within
@@ -102,20 +100,6 @@ func AssertDiverseCoActivation(t *testing.T, result SimulationResult, minUnique 
 	if len(unique) < minUnique {
 		t.Errorf("AssertDiverseCoActivation: only %d unique behaviors in co-activation pairs (need %d)", len(unique), minUnique)
 	}
-}
-
-// AssertConstraintsSurvive asserts that all constraint behaviors appear at or
-// above the given minimum tier in the tiering results. This requires the
-// simulation to have been run with a TokenBudget > 0.
-//
-// Since the runner doesn't capture tiering results in SessionResult (tiering
-// is stateless), this assertion re-runs tiering on the last session's results.
-func AssertConstraintsSurvive(t *testing.T, result SimulationResult, minTier models.InjectionTier) {
-	t.Helper()
-	// This assertion is validated within budget_test.go using direct tiering calls.
-	// Placeholder here for API completeness.
-	_ = result
-	_ = minTier
 }
 
 // AssertEdgeCreated asserts that an edge exists between two behaviors in the
