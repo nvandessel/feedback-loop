@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -111,7 +112,7 @@ Use 'floop restore' to undo this action.`,
 			if reason != "" {
 				node.Metadata["forget_reason"] = reason
 			}
-			node.Kind = "forgotten-behavior"
+			node.Kind = string(models.BehaviorKindForgotten)
 
 			if err := graphStore.UpdateNode(ctx, *node); err != nil {
 				return fmt.Errorf("failed to update behavior: %w", err)
@@ -237,7 +238,7 @@ Use --replacement to link to a newer behavior.`,
 			if replacement != "" {
 				node.Metadata["replacement_id"] = replacement
 			}
-			node.Kind = "deprecated-behavior"
+			node.Kind = string(models.BehaviorKindDeprecated)
 
 			if err := graphStore.UpdateNode(ctx, *node); err != nil {
 				return fmt.Errorf("failed to update behavior: %w", err)
@@ -339,7 +340,7 @@ This undoes 'floop forget' or 'floop deprecate'.`,
 			}
 
 			// Verify it's restorable (deprecated or forgotten)
-			if node.Kind != "deprecated-behavior" && node.Kind != "forgotten-behavior" {
+			if node.Kind != string(models.BehaviorKindDeprecated) && node.Kind != string(models.BehaviorKindForgotten) {
 				if jsonOut {
 					json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 						"error":        "behavior is not deprecated or forgotten",
@@ -386,7 +387,7 @@ This undoes 'floop forget' or 'floop deprecate'.`,
 			}
 
 			// Remove deprecated-to edges if this was deprecated
-			if previousKind == "deprecated-behavior" {
+			if previousKind == string(models.BehaviorKindDeprecated) {
 				edges, err := graphStore.GetEdges(ctx, id, store.DirectionOutbound, "deprecated-to")
 				if err == nil {
 					for _, e := range edges {
@@ -562,7 +563,7 @@ This action cannot be undone with restore.`,
 			sourceNode.Metadata["merged_into"] = targetID
 			sourceNode.Metadata["merged_at"] = now.Format(time.RFC3339)
 			sourceNode.Metadata["merged_by"] = os.Getenv("USER")
-			sourceNode.Kind = "merged-behavior"
+			sourceNode.Kind = string(models.BehaviorKindMerged)
 
 			if err := graphStore.UpdateNode(ctx, *sourceNode); err != nil {
 				return fmt.Errorf("failed to update source behavior: %w", err)

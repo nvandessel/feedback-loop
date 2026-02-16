@@ -111,7 +111,9 @@ func runActivate(cmd *cobra.Command, args []string) error {
 
 	if len(results) == 0 {
 		// Save state (prompt count) even if no results
-		_ = session.SaveState(sessState, sessionDir)
+		if err := session.SaveState(sessState, sessionDir); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save session state: %v\n", err)
+		}
 		return nil
 	}
 
@@ -119,7 +121,9 @@ func runActivate(cmd *cobra.Command, args []string) error {
 	filtered := sessState.FilterResults(results, activationToTier, estimateTokenCost)
 
 	if len(filtered) == 0 {
-		_ = session.SaveState(sessState, sessionDir)
+		if err := session.SaveState(sessState, sessionDir); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save session state: %v\n", err)
+		}
 		return nil
 	}
 
@@ -132,7 +136,9 @@ func runActivate(cmd *cobra.Command, args []string) error {
 	// Apply token budget
 	budgeted := applyTokenBudget(filtered, tokenBudget)
 	if len(budgeted) == 0 {
-		_ = session.SaveState(sessState, sessionDir)
+		if err := session.SaveState(sessState, sessionDir); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save session state: %v\n", err)
+		}
 		return nil
 	}
 
@@ -143,7 +149,9 @@ func runActivate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Save session state
-	_ = session.SaveState(sessState, sessionDir)
+	if err := session.SaveState(sessState, sessionDir); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to save session state: %v\n", err)
+	}
 
 	// Build trigger reason
 	triggerReason := buildTriggerReason(file, task)

@@ -100,6 +100,15 @@ const (
 	ContextSpecificityFactor = 0.1
 )
 
+// Behavior status kind strings represent lifecycle states set by curation commands.
+// Defined as plain strings here (not models.BehaviorKind) to avoid import cycles
+// between the store and models packages.
+const (
+	BehaviorKindForgotten  = "forgotten-behavior"  // Marked as forgotten via floop forget
+	BehaviorKindDeprecated = "deprecated-behavior" // Marked as deprecated via floop deprecate
+	BehaviorKindMerged     = "merged-behavior"     // Result of merging duplicate behaviors
+)
+
 // Edge kind constants
 const (
 	// CoActivatedEdgeKind is the edge kind used for Hebbian co-activation edges.

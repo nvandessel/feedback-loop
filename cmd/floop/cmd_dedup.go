@@ -99,6 +99,13 @@ Examples:
 	return cmd
 }
 
+// duplicatePair represents a pair of behaviors detected as duplicates.
+type duplicatePair struct {
+	BehaviorA  *models.Behavior
+	BehaviorB  *models.Behavior
+	Similarity float64
+}
+
 // runSingleStoreDedup runs deduplication on a single store.
 func runSingleStoreDedup(ctx context.Context, root string, scope store.StoreScope, cfg dedup.DeduplicatorConfig, dryRun, jsonOut bool) error {
 	// Open the appropriate store
@@ -140,35 +147,8 @@ func runSingleStoreDedup(ctx context.Context, root string, scope store.StoreScop
 		return nil
 	}
 
-	// Find duplicates using pairwise comparison
-	type duplicatePair struct {
-		BehaviorA  *models.Behavior
-		BehaviorB  *models.Behavior
-		Similarity float64
-	}
-
-	// Create LLM client for similarity comparison
-	floopCfg, err := config.Load()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to load config: %v\n", err)
-	}
-	llmClient := createLLMClient(floopCfg)
-	useLLM := cfg.UseLLM && llmClient != nil
-
-	var duplicates []duplicatePair
-
-	for i := 0; i < len(behaviors); i++ {
-		for j := i + 1; j < len(behaviors); j++ {
-			sim := computeBehaviorSimilarity(&behaviors[i], &behaviors[j], llmClient, useLLM)
-			if sim >= cfg.SimilarityThreshold {
-				duplicates = append(duplicates, duplicatePair{
-					BehaviorA:  &behaviors[i],
-					BehaviorB:  &behaviors[j],
-					Similarity: sim,
-				})
-			}
-		}
-	}
+	// Find duplicate pairs
+	duplicates := findDuplicatePairs(behaviors, cfg)
 
 	if len(duplicates) == 0 {
 		if jsonOut {
@@ -214,63 +194,7 @@ func runSingleStoreDedup(ctx context.Context, root string, scope store.StoreScop
 	}
 
 	// Perform merges
-	mergeCount := 0
-	merged := make(map[string]bool) // Track already-merged behavior IDs
-
-	// Create LLM client and merger once, outside the loop
-	floopCfg2, err := config.Load()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to load config: %v\n", err)
-	}
-	llmClientMerge := createLLMClient(floopCfg2)
-	merger := dedup.NewBehaviorMerger(dedup.MergerConfig{
-		UseLLM:    llmClientMerge != nil,
-		LLMClient: llmClientMerge,
-	})
-
-	for _, dup := range duplicates {
-		// Skip if either behavior has already been merged
-		if merged[dup.BehaviorA.ID] || merged[dup.BehaviorB.ID] {
-			continue
-		}
-
-		mergedBehavior, err := merger.Merge(ctx, []*models.Behavior{dup.BehaviorA, dup.BehaviorB})
-		if err != nil {
-			if !jsonOut {
-				fmt.Fprintf(os.Stderr, "Warning: failed to merge %s and %s: %v\n",
-					dup.BehaviorA.ID, dup.BehaviorB.ID, err)
-			}
-			continue
-		}
-
-		// Update behavior A with merged content
-		mergedNode := models.BehaviorToNode(mergedBehavior)
-		mergedNode.ID = dup.BehaviorA.ID // Keep original ID
-		if err := graphStore.UpdateNode(ctx, mergedNode); err != nil {
-			if !jsonOut {
-				fmt.Fprintf(os.Stderr, "Warning: failed to save merged behavior: %v\n", err)
-			}
-			continue
-		}
-
-		// Delete behavior B
-		if err := graphStore.DeleteNode(ctx, dup.BehaviorB.ID); err != nil {
-			if !jsonOut {
-				fmt.Fprintf(os.Stderr, "Warning: failed to delete merged behavior %s: %v\n",
-					dup.BehaviorB.ID, err)
-			}
-			// Continue anyway - merge was successful even if cleanup failed
-		}
-
-		// Mark B as merged
-		merged[dup.BehaviorB.ID] = true
-		mergeCount++
-
-		if !jsonOut {
-			fmt.Printf("Merged: %s <- %s (similarity: %.2f)\n",
-				mergedBehavior.Name, dup.BehaviorB.Name, dup.Similarity)
-		}
-	}
+	mergeCount := mergeDuplicatePairs(ctx, graphStore, duplicates, jsonOut)
 
 	if err := graphStore.Sync(ctx); err != nil {
 		return fmt.Errorf("failed to sync changes: %w", err)
@@ -288,6 +212,89 @@ func runSingleStoreDedup(ctx context.Context, root string, scope store.StoreScop
 	}
 
 	return nil
+}
+
+// findDuplicatePairs performs pairwise similarity comparison across all behaviors,
+// returning pairs that exceed the configured similarity threshold.
+func findDuplicatePairs(behaviors []models.Behavior, cfg dedup.DeduplicatorConfig) []duplicatePair {
+	floopCfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to load config: %v\n", err)
+	}
+	llmClient := createLLMClient(floopCfg)
+	useLLM := cfg.UseLLM && llmClient != nil
+
+	var duplicates []duplicatePair
+	for i := 0; i < len(behaviors); i++ {
+		for j := i + 1; j < len(behaviors); j++ {
+			sim := computeBehaviorSimilarity(&behaviors[i], &behaviors[j], llmClient, useLLM)
+			if sim >= cfg.SimilarityThreshold {
+				duplicates = append(duplicates, duplicatePair{
+					BehaviorA:  &behaviors[i],
+					BehaviorB:  &behaviors[j],
+					Similarity: sim,
+				})
+			}
+		}
+	}
+	return duplicates
+}
+
+// mergeDuplicatePairs merges each duplicate pair, updating the store.
+// Returns the number of successful merges.
+func mergeDuplicatePairs(ctx context.Context, graphStore store.GraphStore, duplicates []duplicatePair, jsonOut bool) int {
+	mergeCount := 0
+	merged := make(map[string]bool)
+
+	floopCfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to load config: %v\n", err)
+	}
+	llmClient := createLLMClient(floopCfg)
+	merger := dedup.NewBehaviorMerger(dedup.MergerConfig{
+		UseLLM:    llmClient != nil,
+		LLMClient: llmClient,
+	})
+
+	for _, dup := range duplicates {
+		if merged[dup.BehaviorA.ID] || merged[dup.BehaviorB.ID] {
+			continue
+		}
+
+		mergedBehavior, err := merger.Merge(ctx, []*models.Behavior{dup.BehaviorA, dup.BehaviorB})
+		if err != nil {
+			if !jsonOut {
+				fmt.Fprintf(os.Stderr, "Warning: failed to merge %s and %s: %v\n",
+					dup.BehaviorA.ID, dup.BehaviorB.ID, err)
+			}
+			continue
+		}
+
+		mergedNode := models.BehaviorToNode(mergedBehavior)
+		mergedNode.ID = dup.BehaviorA.ID
+		if err := graphStore.UpdateNode(ctx, mergedNode); err != nil {
+			if !jsonOut {
+				fmt.Fprintf(os.Stderr, "Warning: failed to save merged behavior: %v\n", err)
+			}
+			continue
+		}
+
+		if err := graphStore.DeleteNode(ctx, dup.BehaviorB.ID); err != nil {
+			if !jsonOut {
+				fmt.Fprintf(os.Stderr, "Warning: failed to delete merged behavior %s: %v\n",
+					dup.BehaviorB.ID, err)
+			}
+		}
+
+		merged[dup.BehaviorB.ID] = true
+		mergeCount++
+
+		if !jsonOut {
+			fmt.Printf("Merged: %s <- %s (similarity: %.2f)\n",
+				mergedBehavior.Name, dup.BehaviorB.Name, dup.Similarity)
+		}
+	}
+	return mergeCount
 }
 
 // runCrossStoreDedup runs deduplication across local and global stores.
