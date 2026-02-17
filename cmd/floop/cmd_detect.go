@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/learning"
 	"github.com/nvandessel/feedback-loop/internal/llm"
 	"github.com/nvandessel/feedback-loop/internal/models"
@@ -128,7 +129,7 @@ Examples:
 			}
 
 			// Skip low confidence corrections
-			if confidence < 0.6 {
+			if confidence < constants.LowConfidenceThreshold {
 				if jsonOut {
 					json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 						"detected":   true,

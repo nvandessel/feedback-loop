@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/store"
 )
 
@@ -48,7 +49,7 @@ func (s *Seeder) SeedGlobalStore(ctx context.Context) (*SeedResult, error) {
 		}
 
 		// Respect user curation: don't re-add forgotten behaviors
-		if existing.Kind == "forgotten-behavior" {
+		if existing.Kind == string(models.BehaviorKindForgotten) {
 			result.Skipped = append(result.Skipped, seed.ID)
 			continue
 		}

@@ -2,6 +2,8 @@ package models
 
 import (
 	"time"
+
+	"github.com/nvandessel/feedback-loop/internal/constants"
 )
 
 // BehaviorKind categorizes what type of behavioral guidance this is
@@ -12,6 +14,14 @@ const (
 	BehaviorKindConstraint BehaviorKind = "constraint" // Never do Y
 	BehaviorKindProcedure  BehaviorKind = "procedure"  // Multi-step process
 	BehaviorKindPreference BehaviorKind = "preference" // Prefer X over Y
+)
+
+// Behavior status kinds represent lifecycle states set by curation commands.
+// String values are defined in internal/constants to avoid import cycles with store.
+const (
+	BehaviorKindForgotten  BehaviorKind = BehaviorKind(constants.BehaviorKindForgotten)
+	BehaviorKindDeprecated BehaviorKind = BehaviorKind(constants.BehaviorKindDeprecated)
+	BehaviorKindMerged     BehaviorKind = BehaviorKind(constants.BehaviorKindMerged)
 )
 
 // BehaviorContent holds multiple representations of the behavior's content

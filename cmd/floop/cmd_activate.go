@@ -10,7 +10,7 @@ import (
 
 	"github.com/nvandessel/feedback-loop/internal/activation"
 	"github.com/nvandessel/feedback-loop/internal/config"
-	"github.com/nvandessel/feedback-loop/internal/learning"
+	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/session"
 	"github.com/nvandessel/feedback-loop/internal/spreading"
@@ -111,7 +111,9 @@ func runActivate(cmd *cobra.Command, args []string) error {
 
 	if len(results) == 0 {
 		// Save state (prompt count) even if no results
-		_ = session.SaveState(sessState, sessionDir)
+		if err := session.SaveState(sessState, sessionDir); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save session state: %v\n", err)
+		}
 		return nil
 	}
 
@@ -119,7 +121,9 @@ func runActivate(cmd *cobra.Command, args []string) error {
 	filtered := sessState.FilterResults(results, activationToTier, estimateTokenCost)
 
 	if len(filtered) == 0 {
-		_ = session.SaveState(sessState, sessionDir)
+		if err := session.SaveState(sessState, sessionDir); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save session state: %v\n", err)
+		}
 		return nil
 	}
 
@@ -132,7 +136,9 @@ func runActivate(cmd *cobra.Command, args []string) error {
 	// Apply token budget
 	budgeted := applyTokenBudget(filtered, tokenBudget)
 	if len(budgeted) == 0 {
-		_ = session.SaveState(sessState, sessionDir)
+		if err := session.SaveState(sessState, sessionDir); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save session state: %v\n", err)
+		}
 		return nil
 	}
 
@@ -143,7 +149,9 @@ func runActivate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Save session state
-	_ = session.SaveState(sessState, sessionDir)
+	if err := session.SaveState(sessState, sessionDir); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to save session state: %v\n", err)
+	}
 
 	// Build trigger reason
 	triggerReason := buildTriggerReason(file, task)
@@ -170,9 +178,9 @@ func sessionStateDir(sessionID string) string {
 // activationToTier maps an activation level to an injection tier.
 func activationToTier(activation float64) models.InjectionTier {
 	switch {
-	case activation >= 0.7:
+	case activation >= constants.FullTierActivationThreshold:
 		return models.TierFull
-	case activation >= 0.4:
+	case activation >= constants.SummaryTierActivationThreshold:
 		return models.TierSummary
 	default:
 		return models.TierNameOnly
@@ -183,11 +191,11 @@ func activationToTier(activation float64) models.InjectionTier {
 func estimateTokenCost(behaviorID string, tier models.InjectionTier) int {
 	switch tier {
 	case models.TierFull:
-		return 80
+		return constants.FullTierTokenCost
 	case models.TierSummary:
-		return 30
+		return constants.SummaryTierTokenCost
 	case models.TierNameOnly:
-		return 10
+		return constants.NameOnlyTierTokenCost
 	default:
 		return 0
 	}
@@ -202,7 +210,7 @@ func loadBehaviorMap(ctx context.Context, graphStore store.GraphStore) (map[stri
 
 	bMap := make(map[string]models.Behavior, len(nodes))
 	for _, node := range nodes {
-		b := learning.NodeToBehavior(node)
+		b := models.NodeToBehavior(node)
 		bMap[b.ID] = b
 	}
 	return bMap, nil

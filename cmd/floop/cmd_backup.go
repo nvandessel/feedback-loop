@@ -9,6 +9,7 @@ import (
 
 	"github.com/nvandessel/feedback-loop/internal/backup"
 	"github.com/nvandessel/feedback-loop/internal/config"
+	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/pathutil"
 	"github.com/nvandessel/feedback-loop/internal/store"
 	"github.com/spf13/cobra"
@@ -141,7 +142,7 @@ func buildRetentionPolicy(cfg *config.BackupConfig) backup.RetentionPolicy {
 	}
 
 	if len(policies) == 0 {
-		return &backup.CountPolicy{MaxCount: 10}
+		return &backup.CountPolicy{MaxCount: constants.MaxBackupRotation}
 	}
 
 	if len(policies) == 1 {

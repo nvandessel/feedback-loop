@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -541,7 +542,7 @@ func TestCurationWorkflow(t *testing.T) {
 	// Verify node kind changed
 	graphStore, _ = store.NewMultiGraphStore(tmpDir)
 	node, _ := graphStore.GetNode(ctx, behaviorID)
-	if node.Kind != "forgotten-behavior" {
+	if node.Kind != string(models.BehaviorKindForgotten) {
 		t.Errorf("after forget, kind = %q, want 'forgotten-behavior'", node.Kind)
 	}
 	if node.Metadata["forget_reason"] != "testing" {
@@ -588,7 +589,7 @@ func TestCurationWorkflow(t *testing.T) {
 	// Verify deprecated
 	graphStore, _ = store.NewMultiGraphStore(tmpDir)
 	node, _ = graphStore.GetNode(ctx, behaviorID)
-	if node.Kind != "deprecated-behavior" {
+	if node.Kind != string(models.BehaviorKindDeprecated) {
 		t.Errorf("after deprecate, kind = %q, want 'deprecated-behavior'", node.Kind)
 	}
 	if node.Metadata["deprecation_reason"] != "outdated approach" {
@@ -693,7 +694,7 @@ func TestMergeWorkflow(t *testing.T) {
 	// Verify source is now merged-behavior
 	graphStore, _ = store.NewMultiGraphStore(tmpDir)
 	sourceNode, _ := graphStore.GetNode(ctx, id1)
-	if sourceNode.Kind != "merged-behavior" {
+	if sourceNode.Kind != string(models.BehaviorKindMerged) {
 		t.Errorf("source kind = %q, want 'merged-behavior'", sourceNode.Kind)
 	}
 	if sourceNode.Metadata["merged_into"] != id2 {

@@ -127,14 +127,6 @@ floop init --hooks=false
 
 You can still use floop's MCP server or CLI commands manually.
 
-### Specific Platform
-
-If multiple AI tools are detected and you only want to configure Claude Code:
-
-```bash
-floop init --platform "Claude Code"
-```
-
 ## Verification
 
 ### Check Hook Configuration

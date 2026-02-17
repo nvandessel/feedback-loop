@@ -69,3 +69,34 @@ type GraphStore interface {
 	Sync(ctx context.Context) error
 	Close() error
 }
+
+// ExtendedGraphStore provides additional operations beyond the base GraphStore.
+// SQLiteGraphStore implements this interface. MultiGraphStore delegates to it
+// via type assertion to avoid coupling the base interface to SQLite-specific features.
+type ExtendedGraphStore interface {
+	GraphStore
+
+	// UpdateConfidence updates the confidence for a behavior.
+	UpdateConfidence(ctx context.Context, behaviorID string, newConfidence float64) error
+
+	// RecordActivationHit records that a behavior was activated.
+	RecordActivationHit(ctx context.Context, behaviorID string) error
+
+	// RecordConfirmed records that a behavior was confirmed by the user.
+	RecordConfirmed(ctx context.Context, behaviorID string) error
+
+	// RecordOverridden records that a behavior was overridden by the user.
+	RecordOverridden(ctx context.Context, behaviorID string) error
+
+	// TouchEdges updates the last_activated timestamp on all edges involving the given behaviors.
+	TouchEdges(ctx context.Context, behaviorIDs []string) error
+
+	// BatchUpdateEdgeWeights applies multiple edge weight updates atomically.
+	BatchUpdateEdgeWeights(ctx context.Context, updates []EdgeWeightUpdate) error
+
+	// PruneWeakEdges removes edges of the given kind below the weight threshold.
+	PruneWeakEdges(ctx context.Context, kind string, threshold float64) (int, error)
+
+	// ValidateBehaviorGraph checks the graph for consistency issues.
+	ValidateBehaviorGraph(ctx context.Context) ([]ValidationError, error)
+}

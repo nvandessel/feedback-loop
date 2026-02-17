@@ -328,164 +328,101 @@ func (m *MultiGraphStore) Close() error {
 	return nil
 }
 
-// UpdateConfidence updates the confidence for a behavior in whichever store contains it.
-func (m *MultiGraphStore) UpdateConfidence(ctx context.Context, behaviorID string, newConfidence float64) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	// Try local first
-	if localStore, ok := m.localStore.(*SQLiteGraphStore); ok {
-		localNode, err := m.localStore.GetNode(ctx, behaviorID)
+// withExtendedStore finds the store containing the given behavior and calls fn
+// with the ExtendedGraphStore that owns it. Tries local first, then global.
+// The caller must hold m.mu.
+func (m *MultiGraphStore) withExtendedStore(ctx context.Context, behaviorID string, fn func(ExtendedGraphStore) error) error {
+	if es, ok := m.localStore.(ExtendedGraphStore); ok {
+		node, err := m.localStore.GetNode(ctx, behaviorID)
 		if err != nil {
 			return fmt.Errorf("error checking local store: %w", err)
 		}
-		if localNode != nil {
-			return localStore.UpdateConfidence(ctx, behaviorID, newConfidence)
+		if node != nil {
+			return fn(es)
 		}
 	}
 
-	// Try global
-	if globalStore, ok := m.globalStore.(*SQLiteGraphStore); ok {
-		globalNode, err := m.globalStore.GetNode(ctx, behaviorID)
+	if es, ok := m.globalStore.(ExtendedGraphStore); ok {
+		node, err := m.globalStore.GetNode(ctx, behaviorID)
 		if err != nil {
 			return fmt.Errorf("error checking global store: %w", err)
 		}
-		if globalNode != nil {
-			return globalStore.UpdateConfidence(ctx, behaviorID, newConfidence)
+		if node != nil {
+			return fn(es)
 		}
 	}
 
 	return fmt.Errorf("behavior not found in either store: %s", behaviorID)
+}
+
+// forEachExtendedStore calls fn on each store that implements ExtendedGraphStore.
+// The caller must hold m.mu.
+func (m *MultiGraphStore) forEachExtendedStore(scope string, fn func(ExtendedGraphStore) error) error {
+	if es, ok := m.localStore.(ExtendedGraphStore); ok {
+		if err := fn(es); err != nil {
+			return fmt.Errorf("local %s: %w", scope, err)
+		}
+	}
+	if es, ok := m.globalStore.(ExtendedGraphStore); ok {
+		if err := fn(es); err != nil {
+			return fmt.Errorf("global %s: %w", scope, err)
+		}
+	}
+	return nil
+}
+
+// UpdateConfidence updates the confidence for a behavior in whichever store contains it.
+func (m *MultiGraphStore) UpdateConfidence(ctx context.Context, behaviorID string, newConfidence float64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.withExtendedStore(ctx, behaviorID, func(es ExtendedGraphStore) error {
+		return es.UpdateConfidence(ctx, behaviorID, newConfidence)
+	})
 }
 
 // RecordActivationHit delegates to whichever store contains the behavior.
 func (m *MultiGraphStore) RecordActivationHit(ctx context.Context, behaviorID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	// Try local first
-	if localStore, ok := m.localStore.(*SQLiteGraphStore); ok {
-		localNode, err := m.localStore.GetNode(ctx, behaviorID)
-		if err != nil {
-			return fmt.Errorf("error checking local store: %w", err)
-		}
-		if localNode != nil {
-			return localStore.RecordActivationHit(ctx, behaviorID)
-		}
-	}
-
-	// Try global
-	if globalStore, ok := m.globalStore.(*SQLiteGraphStore); ok {
-		globalNode, err := m.globalStore.GetNode(ctx, behaviorID)
-		if err != nil {
-			return fmt.Errorf("error checking global store: %w", err)
-		}
-		if globalNode != nil {
-			return globalStore.RecordActivationHit(ctx, behaviorID)
-		}
-	}
-
-	return fmt.Errorf("behavior not found in either store: %s", behaviorID)
+	return m.withExtendedStore(ctx, behaviorID, func(es ExtendedGraphStore) error {
+		return es.RecordActivationHit(ctx, behaviorID)
+	})
 }
 
 // RecordConfirmed delegates to whichever store contains the behavior.
 func (m *MultiGraphStore) RecordConfirmed(ctx context.Context, behaviorID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	// Try local first
-	if localStore, ok := m.localStore.(*SQLiteGraphStore); ok {
-		localNode, err := m.localStore.GetNode(ctx, behaviorID)
-		if err != nil {
-			return fmt.Errorf("error checking local store: %w", err)
-		}
-		if localNode != nil {
-			return localStore.RecordConfirmed(ctx, behaviorID)
-		}
-	}
-
-	// Try global
-	if globalStore, ok := m.globalStore.(*SQLiteGraphStore); ok {
-		globalNode, err := m.globalStore.GetNode(ctx, behaviorID)
-		if err != nil {
-			return fmt.Errorf("error checking global store: %w", err)
-		}
-		if globalNode != nil {
-			return globalStore.RecordConfirmed(ctx, behaviorID)
-		}
-	}
-
-	return fmt.Errorf("behavior not found in either store: %s", behaviorID)
+	return m.withExtendedStore(ctx, behaviorID, func(es ExtendedGraphStore) error {
+		return es.RecordConfirmed(ctx, behaviorID)
+	})
 }
 
 // RecordOverridden delegates to whichever store contains the behavior.
 func (m *MultiGraphStore) RecordOverridden(ctx context.Context, behaviorID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	// Try local first
-	if localStore, ok := m.localStore.(*SQLiteGraphStore); ok {
-		localNode, err := m.localStore.GetNode(ctx, behaviorID)
-		if err != nil {
-			return fmt.Errorf("error checking local store: %w", err)
-		}
-		if localNode != nil {
-			return localStore.RecordOverridden(ctx, behaviorID)
-		}
-	}
-
-	// Try global
-	if globalStore, ok := m.globalStore.(*SQLiteGraphStore); ok {
-		globalNode, err := m.globalStore.GetNode(ctx, behaviorID)
-		if err != nil {
-			return fmt.Errorf("error checking global store: %w", err)
-		}
-		if globalNode != nil {
-			return globalStore.RecordOverridden(ctx, behaviorID)
-		}
-	}
-
-	return fmt.Errorf("behavior not found in either store: %s", behaviorID)
+	return m.withExtendedStore(ctx, behaviorID, func(es ExtendedGraphStore) error {
+		return es.RecordOverridden(ctx, behaviorID)
+	})
 }
 
 // TouchEdges delegates to both stores.
 func (m *MultiGraphStore) TouchEdges(ctx context.Context, behaviorIDs []string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	if localStore, ok := m.localStore.(*SQLiteGraphStore); ok {
-		if err := localStore.TouchEdges(ctx, behaviorIDs); err != nil {
-			return fmt.Errorf("local TouchEdges: %w", err)
-		}
-	}
-
-	if globalStore, ok := m.globalStore.(*SQLiteGraphStore); ok {
-		if err := globalStore.TouchEdges(ctx, behaviorIDs); err != nil {
-			return fmt.Errorf("global TouchEdges: %w", err)
-		}
-	}
-
-	return nil
+	return m.forEachExtendedStore("TouchEdges", func(es ExtendedGraphStore) error {
+		return es.TouchEdges(ctx, behaviorIDs)
+	})
 }
 
 // BatchUpdateEdgeWeights delegates to both stores.
 func (m *MultiGraphStore) BatchUpdateEdgeWeights(ctx context.Context, updates []EdgeWeightUpdate) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	if localStore, ok := m.localStore.(*SQLiteGraphStore); ok {
-		if err := localStore.BatchUpdateEdgeWeights(ctx, updates); err != nil {
-			return fmt.Errorf("local BatchUpdateEdgeWeights: %w", err)
-		}
-	}
-
-	if globalStore, ok := m.globalStore.(*SQLiteGraphStore); ok {
-		if err := globalStore.BatchUpdateEdgeWeights(ctx, updates); err != nil {
-			return fmt.Errorf("global BatchUpdateEdgeWeights: %w", err)
-		}
-	}
-
-	return nil
+	return m.forEachExtendedStore("BatchUpdateEdgeWeights", func(es ExtendedGraphStore) error {
+		return es.BatchUpdateEdgeWeights(ctx, updates)
+	})
 }
 
 // PruneWeakEdges delegates to both stores and returns the total count pruned.
@@ -494,60 +431,50 @@ func (m *MultiGraphStore) PruneWeakEdges(ctx context.Context, kind string, thres
 	defer m.mu.Unlock()
 
 	total := 0
-
-	if localStore, ok := m.localStore.(*SQLiteGraphStore); ok {
-		n, err := localStore.PruneWeakEdges(ctx, kind, threshold)
+	if es, ok := m.localStore.(ExtendedGraphStore); ok {
+		n, err := es.PruneWeakEdges(ctx, kind, threshold)
 		if err != nil {
 			return 0, fmt.Errorf("local PruneWeakEdges: %w", err)
 		}
 		total += n
 	}
-
-	if globalStore, ok := m.globalStore.(*SQLiteGraphStore); ok {
-		n, err := globalStore.PruneWeakEdges(ctx, kind, threshold)
+	if es, ok := m.globalStore.(ExtendedGraphStore); ok {
+		n, err := es.PruneWeakEdges(ctx, kind, threshold)
 		if err != nil {
 			return 0, fmt.Errorf("global PruneWeakEdges: %w", err)
 		}
 		total += n
 	}
-
 	return total, nil
 }
 
 // ValidateBehaviorGraph validates both stores and combines errors.
-// Errors from local store are prefixed with "local: " and global with "global: ".
+// Errors from local store are prefixed with "local:" and global with "global:".
 func (m *MultiGraphStore) ValidateBehaviorGraph(ctx context.Context) ([]ValidationError, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	var allErrors []ValidationError
-
-	// Validate local store
-	if localStore, ok := m.localStore.(*SQLiteGraphStore); ok {
-		localErrors, err := localStore.ValidateBehaviorGraph(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to validate local store: %w", err)
+	for _, pair := range []struct {
+		store GraphStore
+		scope string
+	}{
+		{m.localStore, "local"},
+		{m.globalStore, "global"},
+	} {
+		es, ok := pair.store.(ExtendedGraphStore)
+		if !ok {
+			continue
 		}
-		for _, e := range localErrors {
-			// Add scope marker to behavior ID for clarity
-			e.BehaviorID = "local:" + e.BehaviorID
+		errors, err := es.ValidateBehaviorGraph(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to validate %s store: %w", pair.scope, err)
+		}
+		for _, e := range errors {
+			e.BehaviorID = pair.scope + ":" + e.BehaviorID
 			allErrors = append(allErrors, e)
 		}
 	}
-
-	// Validate global store
-	if globalStore, ok := m.globalStore.(*SQLiteGraphStore); ok {
-		globalErrors, err := globalStore.ValidateBehaviorGraph(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to validate global store: %w", err)
-		}
-		for _, e := range globalErrors {
-			// Add scope marker to behavior ID for clarity
-			e.BehaviorID = "global:" + e.BehaviorID
-			allErrors = append(allErrors, e)
-		}
-	}
-
 	return allErrors, nil
 }
 

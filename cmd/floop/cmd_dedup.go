@@ -6,15 +6,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/nvandessel/feedback-loop/internal/config"
 	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/dedup"
-	"github.com/nvandessel/feedback-loop/internal/learning"
 	"github.com/nvandessel/feedback-loop/internal/llm"
 	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/feedback-loop/internal/similarity"
 	"github.com/nvandessel/feedback-loop/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -68,9 +67,13 @@ Examples:
 
 			ctx := context.Background()
 
-			// Load config to check for LLM settings
-			floopCfg, _ := config.Load()
+			// Load config and create LLM client once
+			floopCfg, err := config.Load()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to load config: %v\n", err)
+			}
 			useLLM := floopCfg != nil && floopCfg.LLM.Enabled && floopCfg.LLM.Provider != ""
+			llmClient := createLLMClient(floopCfg)
 
 			// Configure deduplication
 			dedupConfig := dedup.DeduplicatorConfig{
@@ -82,23 +85,30 @@ Examples:
 
 			// Handle cross-store deduplication
 			if storeScope == store.ScopeBoth {
-				return runCrossStoreDedup(ctx, root, dedupConfig, dryRun, jsonOut)
+				return runCrossStoreDedup(ctx, root, dedupConfig, llmClient, dryRun, jsonOut)
 			}
 
 			// Single store deduplication
-			return runSingleStoreDedup(ctx, root, storeScope, dedupConfig, dryRun, jsonOut)
+			return runSingleStoreDedup(ctx, root, storeScope, dedupConfig, llmClient, dryRun, jsonOut)
 		},
 	}
 
 	cmd.Flags().Bool("dry-run", false, "Show duplicates without merging")
-	cmd.Flags().Float64("threshold", 0.9, "Similarity threshold for duplicate detection (0.0-1.0)")
+	cmd.Flags().Float64("threshold", constants.DefaultAutoMergeThreshold, "Similarity threshold for duplicate detection (0.0-1.0)")
 	cmd.Flags().String("scope", "local", "Store scope: local, global, or both")
 
 	return cmd
 }
 
+// duplicatePair represents a pair of behaviors detected as duplicates.
+type duplicatePair struct {
+	BehaviorA  *models.Behavior
+	BehaviorB  *models.Behavior
+	Similarity float64
+}
+
 // runSingleStoreDedup runs deduplication on a single store.
-func runSingleStoreDedup(ctx context.Context, root string, scope store.StoreScope, cfg dedup.DeduplicatorConfig, dryRun, jsonOut bool) error {
+func runSingleStoreDedup(ctx context.Context, root string, scope store.StoreScope, cfg dedup.DeduplicatorConfig, llmClient llm.Client, dryRun, jsonOut bool) error {
 	// Open the appropriate store
 	var graphStore store.GraphStore
 	var err error
@@ -138,36 +148,8 @@ func runSingleStoreDedup(ctx context.Context, root string, scope store.StoreScop
 		return nil
 	}
 
-	// Find duplicates using pairwise comparison
-	type duplicatePair struct {
-		BehaviorA  *models.Behavior
-		BehaviorB  *models.Behavior
-		Similarity float64
-	}
-
-	// Create LLM client for similarity comparison
-	floopCfg, _ := config.Load()
-	llmClient := createLLMClient(floopCfg)
-
-	var duplicates []duplicatePair
-	deduplicator := &crossStoreHelper{
-		threshold: cfg.SimilarityThreshold,
-		llmClient: llmClient,
-		useLLM:    cfg.UseLLM && llmClient != nil,
-	}
-
-	for i := 0; i < len(behaviors); i++ {
-		for j := i + 1; j < len(behaviors); j++ {
-			similarity := deduplicator.computeSimilarity(&behaviors[i], &behaviors[j])
-			if similarity >= cfg.SimilarityThreshold {
-				duplicates = append(duplicates, duplicatePair{
-					BehaviorA:  &behaviors[i],
-					BehaviorB:  &behaviors[j],
-					Similarity: similarity,
-				})
-			}
-		}
-	}
+	// Find duplicate pairs
+	duplicates := findDuplicatePairs(behaviors, cfg, llmClient)
 
 	if len(duplicates) == 0 {
 		if jsonOut {
@@ -213,60 +195,7 @@ func runSingleStoreDedup(ctx context.Context, root string, scope store.StoreScop
 	}
 
 	// Perform merges
-	mergeCount := 0
-	merged := make(map[string]bool) // Track already-merged behavior IDs
-
-	for _, dup := range duplicates {
-		// Skip if either behavior has already been merged
-		if merged[dup.BehaviorA.ID] || merged[dup.BehaviorB.ID] {
-			continue
-		}
-
-		// Use the existing merge command logic (behavior A survives, B is merged into A)
-		// Create LLM client if configured
-		floopCfg, _ := config.Load()
-		llmClient := createLLMClient(floopCfg)
-		merger := dedup.NewBehaviorMerger(dedup.MergerConfig{
-			UseLLM:    llmClient != nil,
-			LLMClient: llmClient,
-		})
-		mergedBehavior, err := merger.Merge(ctx, []*models.Behavior{dup.BehaviorA, dup.BehaviorB})
-		if err != nil {
-			if !jsonOut {
-				fmt.Fprintf(os.Stderr, "Warning: failed to merge %s and %s: %v\n",
-					dup.BehaviorA.ID, dup.BehaviorB.ID, err)
-			}
-			continue
-		}
-
-		// Update behavior A with merged content
-		mergedNode := dedup.BehaviorToNode(mergedBehavior)
-		mergedNode.ID = dup.BehaviorA.ID // Keep original ID
-		if err := graphStore.UpdateNode(ctx, mergedNode); err != nil {
-			if !jsonOut {
-				fmt.Fprintf(os.Stderr, "Warning: failed to save merged behavior: %v\n", err)
-			}
-			continue
-		}
-
-		// Delete behavior B
-		if err := graphStore.DeleteNode(ctx, dup.BehaviorB.ID); err != nil {
-			if !jsonOut {
-				fmt.Fprintf(os.Stderr, "Warning: failed to delete merged behavior %s: %v\n",
-					dup.BehaviorB.ID, err)
-			}
-			// Continue anyway - merge was successful even if cleanup failed
-		}
-
-		// Mark B as merged
-		merged[dup.BehaviorB.ID] = true
-		mergeCount++
-
-		if !jsonOut {
-			fmt.Printf("Merged: %s <- %s (similarity: %.2f)\n",
-				mergedBehavior.Name, dup.BehaviorB.Name, dup.Similarity)
-		}
-	}
+	mergeCount := mergeDuplicatePairs(ctx, graphStore, duplicates, llmClient, jsonOut)
 
 	if err := graphStore.Sync(ctx); err != nil {
 		return fmt.Errorf("failed to sync changes: %w", err)
@@ -286,8 +215,81 @@ func runSingleStoreDedup(ctx context.Context, root string, scope store.StoreScop
 	return nil
 }
 
+// findDuplicatePairs performs pairwise similarity comparison across all behaviors,
+// returning pairs that exceed the configured similarity threshold.
+func findDuplicatePairs(behaviors []models.Behavior, cfg dedup.DeduplicatorConfig, llmClient llm.Client) []duplicatePair {
+	useLLM := cfg.UseLLM && llmClient != nil
+
+	var duplicates []duplicatePair
+	for i := 0; i < len(behaviors); i++ {
+		for j := i + 1; j < len(behaviors); j++ {
+			sim := computeBehaviorSimilarity(&behaviors[i], &behaviors[j], llmClient, useLLM)
+			if sim >= cfg.SimilarityThreshold {
+				duplicates = append(duplicates, duplicatePair{
+					BehaviorA:  &behaviors[i],
+					BehaviorB:  &behaviors[j],
+					Similarity: sim,
+				})
+			}
+		}
+	}
+	return duplicates
+}
+
+// mergeDuplicatePairs merges each duplicate pair, updating the store.
+// Returns the number of successful merges.
+func mergeDuplicatePairs(ctx context.Context, graphStore store.GraphStore, duplicates []duplicatePair, llmClient llm.Client, jsonOut bool) int {
+	mergeCount := 0
+	merged := make(map[string]bool)
+
+	merger := dedup.NewBehaviorMerger(dedup.MergerConfig{
+		UseLLM:    llmClient != nil,
+		LLMClient: llmClient,
+	})
+
+	for _, dup := range duplicates {
+		if merged[dup.BehaviorA.ID] || merged[dup.BehaviorB.ID] {
+			continue
+		}
+
+		mergedBehavior, err := merger.Merge(ctx, []*models.Behavior{dup.BehaviorA, dup.BehaviorB})
+		if err != nil {
+			if !jsonOut {
+				fmt.Fprintf(os.Stderr, "Warning: failed to merge %s and %s: %v\n",
+					dup.BehaviorA.ID, dup.BehaviorB.ID, err)
+			}
+			continue
+		}
+
+		mergedNode := models.BehaviorToNode(mergedBehavior)
+		mergedNode.ID = dup.BehaviorA.ID
+		if err := graphStore.UpdateNode(ctx, mergedNode); err != nil {
+			if !jsonOut {
+				fmt.Fprintf(os.Stderr, "Warning: failed to save merged behavior: %v\n", err)
+			}
+			continue
+		}
+
+		if err := graphStore.DeleteNode(ctx, dup.BehaviorB.ID); err != nil {
+			if !jsonOut {
+				fmt.Fprintf(os.Stderr, "Warning: failed to delete merged behavior %s: %v\n",
+					dup.BehaviorB.ID, err)
+			}
+		}
+
+		merged[dup.BehaviorB.ID] = true
+		mergeCount++
+
+		if !jsonOut {
+			fmt.Printf("Merged: %s <- %s (similarity: %.2f)\n",
+				mergedBehavior.Name, dup.BehaviorB.Name, dup.Similarity)
+		}
+	}
+	return mergeCount
+}
+
 // runCrossStoreDedup runs deduplication across local and global stores.
-func runCrossStoreDedup(ctx context.Context, root string, cfg dedup.DeduplicatorConfig, dryRun, jsonOut bool) error {
+func runCrossStoreDedup(ctx context.Context, root string, cfg dedup.DeduplicatorConfig, llmClient llm.Client, dryRun, jsonOut bool) error {
 	// Open local store
 	localStore, err := store.NewFileGraphStore(root)
 	if err != nil {
@@ -306,9 +308,7 @@ func runCrossStoreDedup(ctx context.Context, root string, cfg dedup.Deduplicator
 	}
 	defer globalStore.Close()
 
-	// Create merger with LLM client if configured
-	floopCfg, _ := config.Load()
-	llmClient := createLLMClient(floopCfg)
+	// Create merger with LLM client
 	merger := dedup.NewBehaviorMerger(dedup.MergerConfig{
 		UseLLM:    cfg.UseLLM && llmClient != nil,
 		LLMClient: llmClient,
@@ -385,126 +385,28 @@ func loadBehaviorsFromStore(ctx context.Context, graphStore store.GraphStore) ([
 
 	behaviors := make([]models.Behavior, 0, len(nodes))
 	for _, node := range nodes {
-		b := learning.NodeToBehavior(node)
+		b := models.NodeToBehavior(node)
 		behaviors = append(behaviors, b)
 	}
 
 	return behaviors, nil
 }
 
-// crossStoreHelper provides similarity computation for deduplication.
-type crossStoreHelper struct {
-	threshold float64
-	llmClient llm.Client
-	useLLM    bool
-}
-
-// computeSimilarity calculates similarity between two behaviors.
+// computeBehaviorSimilarity calculates similarity between two behaviors.
 // Uses LLM-based comparison if available, otherwise falls back to Jaccard.
-func (h *crossStoreHelper) computeSimilarity(a, b *models.Behavior) float64 {
-	// Try LLM-based comparison first
-	if h.useLLM && h.llmClient != nil && h.llmClient.Available() {
+func computeBehaviorSimilarity(a, b *models.Behavior, llmClient llm.Client, useLLM bool) float64 {
+	if useLLM && llmClient != nil && llmClient.Available() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		result, err := h.llmClient.CompareBehaviors(ctx, a, b)
+		result, err := llmClient.CompareBehaviors(ctx, a, b)
 		if err == nil && result != nil {
 			return result.SemanticSimilarity
 		}
 		// Fall through to Jaccard on error
 	}
 
-	// Fallback: weighted Jaccard similarity
-	score := 0.0
-
-	// Check 'when' overlap (40% weight)
-	whenOverlap := h.computeWhenOverlap(a.When, b.When)
-	score += whenOverlap * 0.4
-
-	// Check content similarity using Jaccard word overlap (60% weight)
-	contentSim := h.computeContentSimilarity(a.Content.Canonical, b.Content.Canonical)
-	score += contentSim * 0.6
-
-	return score
-}
-
-// computeWhenOverlap calculates overlap between two when predicates.
-func (h *crossStoreHelper) computeWhenOverlap(a, b map[string]interface{}) float64 {
-	if len(a) == 0 && len(b) == 0 {
-		return 1.0
-	}
-	if len(a) == 0 || len(b) == 0 {
-		return 0.0
-	}
-
-	matches := 0
-	total := len(a) + len(b)
-
-	for key, valueA := range a {
-		if valueB, exists := b[key]; exists {
-			if fmt.Sprintf("%v", valueA) == fmt.Sprintf("%v", valueB) {
-				matches += 2
-			}
-		}
-	}
-
-	if total == 0 {
-		return 0.0
-	}
-	return float64(matches) / float64(total)
-}
-
-// computeContentSimilarity calculates Jaccard similarity between two strings.
-func (h *crossStoreHelper) computeContentSimilarity(a, b string) float64 {
-	wordsA := tokenizeContent(a)
-	wordsB := tokenizeContent(b)
-
-	if len(wordsA) == 0 && len(wordsB) == 0 {
-		return 1.0
-	}
-	if len(wordsA) == 0 || len(wordsB) == 0 {
-		return 0.0
-	}
-
-	setA := make(map[string]bool)
-	for _, w := range wordsA {
-		setA[strings.ToLower(w)] = true
-	}
-
-	setB := make(map[string]bool)
-	for _, w := range wordsB {
-		setB[strings.ToLower(w)] = true
-	}
-
-	intersection := 0
-	for w := range setA {
-		if setB[w] {
-			intersection++
-		}
-	}
-
-	union := len(setA) + len(setB) - intersection
-	if union == 0 {
-		return 0.0
-	}
-
-	return float64(intersection) / float64(union)
-}
-
-// tokenizeContent splits a string into word tokens.
-func tokenizeContent(s string) []string {
-	words := make([]string, 0)
-	current := ""
-	for _, r := range s {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' {
-			current += string(r)
-		} else if current != "" {
-			words = append(words, current)
-			current = ""
-		}
-	}
-	if current != "" {
-		words = append(words, current)
-	}
-	return words
+	whenOverlap := similarity.ComputeWhenOverlap(a.When, b.When)
+	contentSim := similarity.ComputeContentSimilarity(a.Content.Canonical, b.Content.Canonical)
+	return similarity.WeightedScore(whenOverlap, contentSim)
 }

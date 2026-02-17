@@ -100,17 +100,14 @@ Example:
 			autoMerge, _ := cmd.Flags().GetBool("auto-merge")
 			var loopConfig *learning.LearningLoopConfig
 			if autoMerge {
+				cfg := learning.DefaultLearningLoopConfig()
+				cfg.AutoMerge = true
 				merger := dedup.NewBehaviorMerger(dedup.MergerConfig{})
-				dedupConfig := dedup.DeduplicatorConfig{
-					SimilarityThreshold: 0.9,
+				cfg.Deduplicator = dedup.NewStoreDeduplicator(graphStore, merger, dedup.DeduplicatorConfig{
+					SimilarityThreshold: constants.DefaultAutoMergeThreshold,
 					AutoMerge:           true,
-				}
-				loopConfig = &learning.LearningLoopConfig{
-					AutoAcceptThreshold: 0.8,
-					AutoMerge:           true,
-					AutoMergeThreshold:  0.9,
-					Deduplicator:        dedup.NewStoreDeduplicator(graphStore, merger, dedupConfig),
-				}
+				})
+				loopConfig = &cfg
 			}
 
 			// Apply --scope override if explicitly set
@@ -312,17 +309,14 @@ Example:
 			autoMerge, _ := cmd.Flags().GetBool("auto-merge")
 			var loopConfig *learning.LearningLoopConfig
 			if autoMerge {
+				cfg := learning.DefaultLearningLoopConfig()
+				cfg.AutoMerge = true
 				merger := dedup.NewBehaviorMerger(dedup.MergerConfig{})
-				dedupConfig := dedup.DeduplicatorConfig{
-					SimilarityThreshold: 0.9,
+				cfg.Deduplicator = dedup.NewStoreDeduplicator(graphStore, merger, dedup.DeduplicatorConfig{
+					SimilarityThreshold: constants.DefaultAutoMergeThreshold,
 					AutoMerge:           true,
-				}
-				loopConfig = &learning.LearningLoopConfig{
-					AutoAcceptThreshold: 0.8,
-					AutoMerge:           true,
-					AutoMergeThreshold:  0.9,
-					Deduplicator:        dedup.NewStoreDeduplicator(graphStore, merger, dedupConfig),
-				}
+				})
+				loopConfig = &cfg
 			}
 
 			// Apply --scope override if explicitly set

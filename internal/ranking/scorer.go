@@ -3,6 +3,7 @@ package ranking
 import (
 	"time"
 
+	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/models"
 )
 
@@ -148,7 +149,7 @@ func (s *RelevanceScorer) ScoreBatch(behaviors []models.Behavior, ctx *models.Co
 // contextScore calculates how specifically the behavior matches the context
 func (s *RelevanceScorer) contextScore(behavior *models.Behavior, ctx *models.ContextSnapshot) float64 {
 	if behavior.When == nil || len(behavior.When) == 0 {
-		return 0.5
+		return constants.NeutralScore
 	}
 
 	matches := 0
@@ -161,12 +162,12 @@ func (s *RelevanceScorer) contextScore(behavior *models.Behavior, ctx *models.Co
 	}
 
 	if total == 0 {
-		return 0.5
+		return constants.NeutralScore
 	}
 
-	specificityBonus := float64(total) * 0.1
-	if specificityBonus > 0.3 {
-		specificityBonus = 0.3
+	specificityBonus := float64(total) * constants.ContextSpecificityFactor
+	if specificityBonus > constants.MaxContextSpecificityBonus {
+		specificityBonus = constants.MaxContextSpecificityBonus
 	}
 
 	matchRatio := float64(matches) / float64(total)
@@ -209,13 +210,13 @@ func (s *RelevanceScorer) baseLevelScore(behavior *models.Behavior) float64 {
 		// New behavior with no activations — give a fair starting score.
 		// ACT-R would return near-zero for n=0, but new behaviors shouldn't
 		// be penalized before they've had a chance to be used.
-		return 0.5
+		return constants.NeutralScore
 	}
 
 	age := time.Since(behavior.Stats.CreatedAt)
 	if age <= 0 {
 		// CreatedAt is zero or in the future — fall back to neutral
-		return 0.5
+		return constants.NeutralScore
 	}
 
 	return BaseLevelScore(n, age, s.config.ACTR)
@@ -230,7 +231,7 @@ func (s *RelevanceScorer) feedbackScore(behavior *models.Behavior) float64 {
 	totalFeedback := stats.TimesFollowed + stats.TimesConfirmed + stats.TimesOverridden
 
 	if totalFeedback < s.config.FeedbackMinSample {
-		return 0.5
+		return constants.NeutralScore
 	}
 
 	positiveSignals := stats.TimesFollowed + stats.TimesConfirmed

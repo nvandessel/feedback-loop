@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/nvandessel/feedback-loop/internal/constants"
 )
 
 // setupTestSQLiteStore creates a new SQLite store in a temp directory for testing.
@@ -420,7 +422,7 @@ func TestValidateBehaviorGraph_IgnoresNonBehaviorKinds(t *testing.T) {
 
 	// Add a behavior with valid reference to forgotten-behavior
 	forgotten := createTestBehavior("forgotten-a", "Forgotten A")
-	forgotten.Kind = "forgotten-behavior"
+	forgotten.Kind = constants.BehaviorKindForgotten
 
 	active := createTestBehavior("behavior-a", "Behavior A")
 	active.Content["overrides"] = []string{"forgotten-a"}

@@ -155,7 +155,10 @@ func (s *SQLiteGraphStore) AddNode(ctx context.Context, node Node) (string, erro
 // isBehaviorKind returns true if the kind represents a behavior (active or curated).
 func isBehaviorKind(kind string) bool {
 	switch kind {
-	case "behavior", "forgotten-behavior", "deprecated-behavior", "merged-behavior":
+	case "behavior",
+		constants.BehaviorKindForgotten,
+		constants.BehaviorKindDeprecated,
+		constants.BehaviorKindMerged:
 		return true
 	default:
 		return false

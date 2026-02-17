@@ -36,3 +36,92 @@ const (
 	// ContentSimilarityWeight is the weight given to content similarity.
 	ContentSimilarityWeight = 0.6
 )
+
+// Activation tier thresholds determine which injection tier a behavior receives
+// based on its spreading activation level.
+const (
+	// FullTierActivationThreshold is the minimum activation for full content injection.
+	FullTierActivationThreshold = 0.7
+
+	// SummaryTierActivationThreshold is the minimum activation for summary injection.
+	// Behaviors below this threshold receive name-only injection.
+	SummaryTierActivationThreshold = 0.4
+)
+
+// Token cost estimates per injection tier, used for budget enforcement.
+const (
+	// FullTierTokenCost is the estimated token cost for full behavior injection.
+	FullTierTokenCost = 80
+
+	// SummaryTierTokenCost is the estimated token cost for summary injection.
+	SummaryTierTokenCost = 30
+
+	// NameOnlyTierTokenCost is the estimated token cost for name-only injection.
+	NameOnlyTierTokenCost = 10
+)
+
+// Deduplication thresholds control automatic merging of similar behaviors.
+const (
+	// DefaultAutoMergeThreshold is the similarity threshold for automatic dedup merging.
+	// Behavior pairs with similarity >= this value are considered duplicates.
+	DefaultAutoMergeThreshold = 0.9
+
+	// DefaultAutoAcceptThreshold is the minimum confidence for auto-accepting learned behaviors.
+	// Behaviors with confidence >= this value and no review flags are auto-accepted.
+	DefaultAutoAcceptThreshold = 0.8
+)
+
+// Spreading activation sigmoid parameters control the squashing function
+// that maps raw activation into a sharp [0, 1] range.
+const (
+	// SigmoidGain controls the steepness of the sigmoid curve.
+	SigmoidGain = 10.0
+
+	// SigmoidCenter is the inflection point of the sigmoid.
+	// Values below this are suppressed toward 0; values above are amplified toward 1.
+	SigmoidCenter = 0.3
+)
+
+// Backup rotation controls how many backup files are retained.
+const (
+	// MaxBackupRotation is the default maximum number of backup files to keep.
+	MaxBackupRotation = 10
+)
+
+// Scoring constants used in the relevance scorer.
+const (
+	// NeutralScore is the default score returned when insufficient data is available.
+	NeutralScore = 0.5
+
+	// MaxContextSpecificityBonus is the maximum bonus awarded for context specificity.
+	MaxContextSpecificityBonus = 0.3
+
+	// ContextSpecificityFactor is the per-condition bonus for context specificity.
+	ContextSpecificityFactor = 0.1
+)
+
+// Behavior status kind strings represent lifecycle states set by curation commands.
+// Defined as plain strings here (not models.BehaviorKind) to avoid import cycles
+// between the store and models packages.
+const (
+	BehaviorKindForgotten  = "forgotten-behavior"  // Marked as forgotten via floop forget
+	BehaviorKindDeprecated = "deprecated-behavior" // Marked as deprecated via floop deprecate
+	BehaviorKindMerged     = "merged-behavior"     // Result of merging duplicate behaviors
+)
+
+// Edge kind constants
+const (
+	// CoActivatedEdgeKind is the edge kind used for Hebbian co-activation edges.
+	// This is a system-created edge kind, not user-facing.
+	CoActivatedEdgeKind = "co-activated"
+)
+
+// ValidUserEdgeKinds defines the allowed edge kinds for user-facing commands.
+// System edge kinds like CoActivatedEdgeKind are not included.
+var ValidUserEdgeKinds = map[string]bool{
+	"requires":     true,
+	"overrides":    true,
+	"conflicts":    true,
+	"similar-to":   true,
+	"learned-from": true,
+}

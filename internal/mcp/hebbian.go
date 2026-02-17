@@ -7,12 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/spreading"
 	"github.com/nvandessel/feedback-loop/internal/store"
 )
-
-// coActivatedEdgeKind is the edge kind used for Hebbian co-activation edges.
-const coActivatedEdgeKind = "co-activated"
 
 // coActivationTracker tracks co-activation counts between behavior pairs.
 // It gates edge creation: a new co-activated edge is only created after
@@ -88,7 +86,7 @@ func (s *Server) applyHebbianUpdates(
 
 	for _, pair := range pairs {
 		// Check if edge already exists
-		edges, err := s.store.GetEdges(ctx, pair.BehaviorA, store.DirectionOutbound, coActivatedEdgeKind)
+		edges, err := s.store.GetEdges(ctx, pair.BehaviorA, store.DirectionOutbound, constants.CoActivatedEdgeKind)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "warning: hebbian: get edges for %s: %v\n", pair.BehaviorA, err)
 			continue
@@ -108,7 +106,7 @@ func (s *Server) applyHebbianUpdates(
 			weightUpdates = append(weightUpdates, store.EdgeWeightUpdate{
 				Source:    pair.BehaviorA,
 				Target:    pair.BehaviorB,
-				Kind:      coActivatedEdgeKind,
+				Kind:      constants.CoActivatedEdgeKind,
 				NewWeight: newWeight,
 			})
 		} else {
@@ -119,7 +117,7 @@ func (s *Server) applyHebbianUpdates(
 				err := s.store.AddEdge(ctx, store.Edge{
 					Source:    pair.BehaviorA,
 					Target:    pair.BehaviorB,
-					Kind:      coActivatedEdgeKind,
+					Kind:      constants.CoActivatedEdgeKind,
 					Weight:    initialWeight,
 					CreatedAt: time.Now(),
 				})
@@ -142,7 +140,7 @@ func (s *Server) applyHebbianUpdates(
 
 	// Prune edges whose weight has decayed below MinWeight
 	if pruner, ok := s.store.(edgePruner); ok {
-		if n, err := pruner.PruneWeakEdges(ctx, coActivatedEdgeKind, cfg.MinWeight); err != nil {
+		if n, err := pruner.PruneWeakEdges(ctx, constants.CoActivatedEdgeKind, cfg.MinWeight); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: hebbian: prune weak edges: %v\n", err)
 		} else if n > 0 {
 			fmt.Fprintf(os.Stderr, "floop: pruned %d weak co-activated edge(s)\n", n)
