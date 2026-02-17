@@ -77,7 +77,7 @@ Called by agents when they receive a correction. Records the correction, extract
 | `--right` | string | *(required)* | What should have been done |
 | `--file` | string | `""` | Current file path |
 | `--task` | string | `""` | Current task type |
-| `--scope` | string | `"local"` | Where to save: `local` (project), `global` (user), or `both` |
+| `--scope` | string | `""` | Override auto-classification: `local` (project) or `global` (user) |
 | `--auto-merge` | bool | `true` | Automatically merge similar behaviors (matches MCP behavior) |
 
 **Scope classification (MCP):** When invoked via the MCP server (`floop_learn` tool), the `--scope` flag is not used. Instead, behaviors are automatically classified based on their activation conditions: behaviors with `file_path` or `environment` in their When predicate go to local (`.floop/`), while all others go to global (`~/.floop/`). The response includes a `scope` field indicating where the behavior was stored.
@@ -112,7 +112,7 @@ Reads all corrections from `corrections.jsonl`, identifies those that have not b
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--dry-run` | bool | `false` | Show what would be processed without making changes |
-| `--scope` | string | `"local"` | Where to save behaviors: `local`, `global`, or `both` |
+| `--scope` | string | `""` | Override auto-classification: `local` or `global` |
 | `--auto-merge` | bool | `true` | Automatically merge similar behaviors (matches MCP behavior) |
 
 **Examples:**
@@ -613,7 +613,7 @@ floop config set <key> <value>
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `llm.provider` | string | LLM provider: `anthropic`, `openai`, `ollama`, `subagent`, `local`, or empty |
+| `llm.provider` | string | LLM provider: `anthropic`, `openai`, `ollama`, `subagent`, or empty |
 | `llm.enabled` | bool | Enable LLM features |
 | `llm.api_key` | string | API key for LLM provider |
 | `llm.base_url` | string | Custom base URL for LLM API |
@@ -703,7 +703,6 @@ Generates compressed summaries for behaviors to optimize token usage. Summaries 
 |------|------|---------|-------------|
 | `--all` | bool | `false` | Generate summaries for all behaviors |
 | `--missing` | bool | `false` | Only generate for behaviors without summaries |
-| `--scope` | string | `"local"` | Scope: `local`, `global`, or `both` |
 
 **Examples:**
 
@@ -831,7 +830,8 @@ Creates a semantic edge between two behaviors in the graph for spreading activat
 | `conflicts` | Source and target cannot both be active |
 | `similar-to` | Behaviors are related/similar |
 | `learned-from` | Source was derived from target |
-| `co-activated` | Behaviors frequently activate together (created by Hebbian learning) |
+
+> **Note:** `co-activated` edges are system-managed (created automatically by Hebbian learning) and cannot be created manually.
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
@@ -877,7 +877,7 @@ floop tags backfill [flags]
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--dry-run` | bool | `false` | Show what tags would be assigned without making changes |
-| `--scope` | string | `"local"` | Store scope: `local`, `global`, or `both` |
+| `--scope` | string | `"both"` | Store scope: `local`, `global`, or `both` |
 
 **Examples:**
 

@@ -46,6 +46,12 @@ Your AI tool can now invoke floop tools:
 - **floop_learn** - Capture corrections during development
 - **floop_feedback** - Signal whether a behavior was helpful or contradicted
 - **floop_list** - Browse all learned behaviors
+- **floop_deduplicate** - Find and merge duplicate behaviors
+- **floop_backup** - Export graph state to a backup file
+- **floop_restore** - Import graph state from a backup file
+- **floop_connect** - Create edges between behaviors
+- **floop_validate** - Check graph for consistency issues
+- **floop_graph** - Visualize the behavior graph
 
 ## Tool Reference
 
@@ -210,6 +216,7 @@ List all behaviors or corrections.
 
 **Parameters:**
 - `corrections` (boolean, optional): If true, list corrections instead of behaviors (default: false)
+- `tag` (string, optional): Filter behaviors by tag (exact match)
 
 **Example Request (list behaviors):**
 ```json
@@ -267,6 +274,159 @@ List all behaviors or corrections.
   "id": 4
 }
 ```
+
+### floop_deduplicate
+
+Find and merge duplicate behaviors in the store.
+
+**Parameters:**
+- `dry_run` (boolean, optional): If true, only report duplicates without merging (default: false)
+- `threshold` (number, optional): Similarity threshold for duplicate detection (0.0-1.0, default: 0.9)
+- `scope` (string, optional): Scope of deduplication: `local`, `global`, or `both` (default: `both`)
+
+**Example Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "floop_deduplicate",
+    "arguments": {
+      "dry_run": true,
+      "threshold": 0.85
+    }
+  },
+  "id": 6
+}
+```
+
+---
+
+### floop_backup
+
+Export full graph state (nodes + edges) to a backup file.
+
+**Parameters:**
+- `output_path` (string, optional): Output file path (default: `~/.floop/backups/floop-backup-TIMESTAMP.json`)
+
+**Example Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "floop_backup",
+    "arguments": {}
+  },
+  "id": 7
+}
+```
+
+---
+
+### floop_restore
+
+Import graph state from a backup file (merge or replace).
+
+**Parameters:**
+- `input_path` (string, required): Path to backup file to restore
+- `mode` (string, optional): Restore mode: `merge` (skip existing, default) or `replace` (clear first)
+
+**Example Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "floop_restore",
+    "arguments": {
+      "input_path": "~/.floop/backups/floop-backup-20260211-143005.json.gz",
+      "mode": "merge"
+    }
+  },
+  "id": 8
+}
+```
+
+---
+
+### floop_connect
+
+Create an edge between two behaviors for spreading activation.
+
+**Parameters:**
+- `source` (string, required): Source behavior ID
+- `target` (string, required): Target behavior ID
+- `kind` (string, required): Edge type: `requires`, `overrides`, `conflicts`, `similar-to`, `learned-from`
+- `weight` (number, optional): Edge weight (0.0-1.0, default: 0.8)
+- `bidirectional` (boolean, optional): Create edges in both directions (default: false)
+
+**Example Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "floop_connect",
+    "arguments": {
+      "source": "behavior-abc",
+      "target": "behavior-xyz",
+      "kind": "similar-to",
+      "weight": 0.9
+    }
+  },
+  "id": 9
+}
+```
+
+---
+
+### floop_validate
+
+Validate the behavior graph for consistency issues (dangling references, cycles, self-references).
+
+**Parameters:**
+
+No parameters required.
+
+**Example Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "floop_validate",
+    "arguments": {}
+  },
+  "id": 10
+}
+```
+
+---
+
+### floop_graph
+
+Render the behavior graph in DOT (Graphviz), JSON, or interactive HTML format for visualization.
+
+**Parameters:**
+- `format` (string, optional): Output format: `dot`, `json`, or `html` (default: `json`)
+
+**Example Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "floop_graph",
+    "arguments": {
+      "format": "json"
+    }
+  },
+  "id": 11
+}
+```
+
+---
 
 ## Configuration Examples
 
