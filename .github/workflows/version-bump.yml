@@ -108,6 +108,26 @@ jobs:
       - name: Fetch tags
         run: git fetch --force --tags
 
+      - name: Calculate changelog base tag
+        id: changelog
+        run: |
+          case "${{ inputs.bump }}" in
+            minor)
+              # Find last minor/major tag (patch == 0), excluding the current release
+              BASE_TAG=$(git tag -l "v*" --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.0$' | grep -v "${{ needs.bump.outputs.new_version }}" | head -n1)
+              ;;
+            major)
+              # Find last major tag (minor == 0, patch == 0), excluding the current release
+              BASE_TAG=$(git tag -l "v*" --sort=-v:refname | grep -E '^v[0-9]+\.0\.0$' | grep -v "${{ needs.bump.outputs.new_version }}" | head -n1)
+              ;;
+          esac
+          if [ -n "${BASE_TAG:-}" ]; then
+            echo "previous_tag=$BASE_TAG" >> "$GITHUB_OUTPUT"
+            echo "Changelog base: $BASE_TAG (override for ${{ inputs.bump }} release)"
+          else
+            echo "Changelog base: default (GoReleaser auto-detect)"
+          fi
+
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
@@ -121,6 +141,7 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_PREVIOUS_TAG: ${{ steps.changelog.outputs.previous_tag }}
 
       - name: Summary
         run: |

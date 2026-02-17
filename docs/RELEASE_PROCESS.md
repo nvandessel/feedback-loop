@@ -34,6 +34,8 @@ When you want to merge several PRs before cutting a release:
 
 ## Manual Release (Minor/Major)
 
+Release notes for minor and major releases automatically span back to the last tag of the same level — a minor release includes all commits since the previous `vX.Y.0`, and a major release since the previous `vX.0.0`. This means auto-patches between minor/major releases don't cause empty changelogs.
+
 ### 1. Prepare for Release
 
 Ensure the `main` branch is ready:
@@ -272,8 +274,9 @@ gh pr create --base main --title "fix: critical bug" --body "Emergency hotfix fo
 3. Create annotated tag
 4. Push tag
 5. Checkout the new tag
-6. Run GoReleaser with `release --clean`
-7. Publish GitHub release artifacts and notes
+6. Calculate changelog base tag (for minor/major, overrides GoReleaser's default)
+7. Run GoReleaser with `release --clean`
+8. Publish GitHub release artifacts and notes
 
 ### test-release.yml
 
