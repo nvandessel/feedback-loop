@@ -78,7 +78,7 @@ Releases are automated using GoReleaser and GitHub Actions. Only maintainers can
    ```
 3. Monitor the release workflow: `gh run watch`
 4. Verify the release on GitHub: `gh release view <version>`
-5. (Optional) Curate `CHANGELOG.md` after the release if you want a hand-maintained project changelog in-repo
+5. Confirm `CHANGELOG.md` was auto-updated by the workflow commit for that release
 
 **Version semantics:**
 - `patch` (0.0.X) — Bug fixes, minor improvements

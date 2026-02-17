@@ -55,7 +55,7 @@ Determine the appropriate version bump based on the changes:
 ### Notes on CHANGELOG.md
 
 GitHub release notes are generated automatically by GoReleaser from commit history.
-`CHANGELOG.md` is optional and can be curated separately if you want an in-repo narrative changelog.
+`CHANGELOG.md` is now also generated automatically during `version-bump.yml` and committed before tagging.
 
 ### 3. Trigger Version Bump
 
@@ -262,11 +262,13 @@ gh workflow run version-bump.yml -f bump=patch
 **Steps:**
 1. Checkout with full history
 2. Calculate next version from latest tag
-3. Create annotated tag
-4. Push tag
-5. Checkout the new tag
-6. Run GoReleaser with `release --clean`
-7. Publish GitHub release artifacts and notes
+3. Generate `CHANGELOG.md` entry from commits since previous tag
+4. Commit and push `CHANGELOG.md`
+5. Create annotated tag
+6. Push tag
+7. Checkout the new tag
+8. Run GoReleaser with `release --clean`
+9. Publish GitHub release artifacts and notes
 
 ### test-release.yml
 
@@ -276,9 +278,10 @@ gh workflow run version-bump.yml -f bump=patch
 
 **Steps:**
 1. Checkout code
-2. Run GoReleaser in snapshot mode
-3. Verify binaries work
-4. Check for expected builds
+2. Validate changelog generator script syntax
+3. Run GoReleaser in snapshot mode
+4. Verify binaries work
+5. Check for expected builds
 
 ## Configuration Files
 
