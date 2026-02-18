@@ -51,6 +51,7 @@ type FloopLearnInput struct {
 	Right     string `json:"right" jsonschema:"What should have been done instead,required"`
 	File      string `json:"file,omitempty" jsonschema:"Relevant file path for context"`
 	Task      string `json:"task,omitempty" jsonschema:"Current task type for context"`
+	Language  string `json:"language,omitempty" jsonschema:"Programming language (e.g. "go", "python"). Overrides file extension inference"`
 	AutoMerge bool   `json:"auto_merge,omitempty" jsonschema:"Enable automatic merging of duplicate behaviors (default: false)"`
 }
 

@@ -313,3 +313,45 @@ func TestContextBuilder_Build_EnvironmentAutoDetect(t *testing.T) {
 		t.Errorf("Environment = %q, want %q", ctx.Environment, "staging")
 	}
 }
+
+func TestContextBuilder_WithLanguage(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func(*ContextBuilder)
+		wantLang string
+	}{
+		{
+			name: "language without file",
+			setup: func(b *ContextBuilder) {
+				b.WithLanguage("python")
+			},
+			wantLang: "python",
+		},
+		{
+			name: "language with file overrides inferred",
+			setup: func(b *ContextBuilder) {
+				b.WithFile("main.go").WithLanguage("rust")
+			},
+			wantLang: "rust",
+		},
+		{
+			name: "file inferred when no explicit language",
+			setup: func(b *ContextBuilder) {
+				b.WithFile("main.go")
+			},
+			wantLang: "go",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder := NewContextBuilder()
+			tt.setup(builder)
+			ctx := builder.Build()
+
+			if ctx.FileLanguage != tt.wantLang {
+				t.Errorf("FileLanguage = %q, want %q", ctx.FileLanguage, tt.wantLang)
+			}
+		})
+	}
+}

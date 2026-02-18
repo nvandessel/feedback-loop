@@ -48,10 +48,11 @@ func TestE2E_FullPipeline(t *testing.T) {
 		}
 		behaviorA = outA.BehaviorID
 
-		// Behavior B: General (no file context)
+		// Behavior B: Also Go-specific (same scope as A for valid cross-references)
 		_, outB, err := server.handleFloopLearn(ctx, nil, FloopLearnInput{
 			Wrong: "Committed secrets to repository",
 			Right: "Use environment variables for secrets",
+			File:  "main.go",
 		})
 		if err != nil {
 			t.Fatalf("learn B failed: %v", err)

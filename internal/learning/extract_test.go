@@ -235,9 +235,18 @@ func TestBehaviorExtractor_InferWhen(t *testing.T) {
 				Environment:  "dev",
 			},
 			want: map[string]interface{}{
-				"language":    "python",
-				"task":        "refactor",
-				"environment": "dev",
+				"language": "python",
+				"task":     "refactor",
+			},
+		},
+		{
+			name: "environment is excluded",
+			context: models.ContextSnapshot{
+				FileLanguage: "go",
+				Environment:  "production",
+			},
+			want: map[string]interface{}{
+				"language": "go",
 			},
 		},
 		{
