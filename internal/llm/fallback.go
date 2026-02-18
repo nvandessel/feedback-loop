@@ -19,11 +19,13 @@ func NewFallbackClient() *FallbackClient {
 }
 
 // CompareBehaviors compares two behaviors using Jaccard similarity.
-// It uses 40% weight on when-condition overlap and 60% weight on content similarity.
+// It uses weighted scoring across when-condition overlap, content similarity,
+// and tag Jaccard similarity, with missing signals redistributed proportionally.
 func (c *FallbackClient) CompareBehaviors(ctx context.Context, a, b *models.Behavior) (*ComparisonResult, error) {
 	whenOverlap := similarity.ComputeWhenOverlap(a.When, b.When)
 	contentSim := similarity.ComputeContentSimilarity(a.Content.Canonical, b.Content.Canonical)
-	sim := similarity.WeightedScore(whenOverlap, contentSim)
+	tagSim := similarity.ComputeTagSimilarity(a.Content.Tags, b.Content.Tags)
+	sim := similarity.WeightedScoreWithTags(whenOverlap, contentSim, tagSim)
 
 	return &ComparisonResult{
 		SemanticSimilarity: sim,

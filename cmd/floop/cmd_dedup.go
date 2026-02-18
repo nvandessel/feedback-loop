@@ -408,5 +408,6 @@ func computeBehaviorSimilarity(a, b *models.Behavior, llmClient llm.Client, useL
 
 	whenOverlap := similarity.ComputeWhenOverlap(a.When, b.When)
 	contentSim := similarity.ComputeContentSimilarity(a.Content.Canonical, b.Content.Canonical)
-	return similarity.WeightedScore(whenOverlap, contentSim)
+	tagSim := similarity.ComputeTagSimilarity(a.Content.Tags, b.Content.Tags)
+	return similarity.WeightedScoreWithTags(whenOverlap, contentSim, tagSim)
 }

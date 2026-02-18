@@ -3,6 +3,7 @@ package learning
 import (
 	"context"
 
+	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/llm"
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/similarity"
@@ -118,7 +119,7 @@ func (p *graphPlacer) Place(ctx context.Context, behavior *models.Behavior) (*Pl
 		existing := &existingBehaviors[i]
 		similarity := p.computeSimilarity(ctx, behavior, existing)
 
-		if similarity > 0.5 {
+		if similarity > constants.SimilarToThreshold {
 			decision.SimilarBehaviors = append(decision.SimilarBehaviors, SimilarityMatch{
 				ID:    existing.ID,
 				Score: similarity,
@@ -132,12 +133,12 @@ func (p *graphPlacer) Place(ctx context.Context, behavior *models.Behavior) (*Pl
 	}
 
 	// Decide action based on similarity
-	if highestSimilarity > 0.9 && mostSimilar != nil {
+	if highestSimilarity > constants.SimilarToUpperBound && mostSimilar != nil {
 		// Very high similarity - suggest merge
 		decision.Action = "merge"
 		decision.TargetID = mostSimilar.ID
 		decision.Confidence = 0.5 // Lower confidence for merges (needs review)
-	} else if highestSimilarity > 0.7 && mostSimilar != nil {
+	} else if highestSimilarity > constants.SpecializeThreshold && mostSimilar != nil {
 		// High similarity but not duplicate - check if we should specialize
 		if p.isMoreSpecific(behavior.When, mostSimilar.When) {
 			decision.Action = "specialize"
@@ -216,20 +217,29 @@ func (p *graphPlacer) shouldUseLLM(ruleScore float64) bool {
 }
 
 // computeRuleBasedSimilarity calculates similarity using Jaccard word overlap.
-// Uses canonical content combined with when-condition overlap.
+// Uses canonical content combined with when-condition overlap and tag similarity.
+// Missing signals (empty when, no tags) get -1.0 sentinel so their weight
+// is redistributed to present signals.
 func (p *graphPlacer) computeRuleBasedSimilarity(a, b *models.Behavior) float64 {
 	whenOverlap := similarity.ComputeWhenOverlap(a.When, b.When)
 	contentSim := similarity.ComputeContentSimilarity(a.Content.Canonical, b.Content.Canonical)
-	return similarity.WeightedScore(whenOverlap, contentSim)
+	tagSim := similarity.ComputeTagSimilarity(a.Content.Tags, b.Content.Tags)
+	return similarity.WeightedScoreWithTags(whenOverlap, contentSim, tagSim)
 }
 
 // hasOverlappingConditions checks if a behavior's when conditions overlap with node content.
+// Returns true when either side has empty/missing when conditions (they could still
+// be similar via content or tags), or when any condition values match.
 func (p *graphPlacer) hasOverlappingConditions(when map[string]interface{}, content map[string]interface{}) bool {
 	existingWhen, ok := content["when"].(map[string]interface{})
 	if !ok {
-		// If the existing behavior has no when conditions, it applies everywhere
-		// so there is overlap with any new behavior
-		return len(when) == 0
+		// No when in content: always consider for comparison
+		return true
+	}
+
+	if len(when) == 0 || len(existingWhen) == 0 {
+		// Either side is unscoped: always consider for comparison
+		return true
 	}
 
 	// Check if any conditions match
@@ -270,7 +280,7 @@ func (p *graphPlacer) determineEdges(ctx context.Context, behavior *models.Behav
 
 		// Add similar-to edges for behaviors with moderate similarity
 		similarity := p.computeSimilarity(ctx, behavior, &e)
-		if similarity >= 0.5 && similarity < 0.9 {
+		if similarity >= constants.SimilarToThreshold && similarity < constants.SimilarToUpperBound {
 			edges = append(edges, ProposedEdge{
 				From: behavior.ID,
 				To:   e.ID,

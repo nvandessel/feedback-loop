@@ -288,10 +288,11 @@ func (d *StoreDeduplicator) computeSimilarity(a, b *models.Behavior) similarityR
 		}
 	}
 
-	// Fallback: weighted Jaccard similarity
+	// Fallback: weighted Jaccard similarity with tag enhancement
 	whenOverlap := similarity.ComputeWhenOverlap(a.When, b.When)
 	contentSim := similarity.ComputeContentSimilarity(a.Content.Canonical, b.Content.Canonical)
-	score := similarity.WeightedScore(whenOverlap, contentSim)
+	tagSim := similarity.ComputeTagSimilarity(a.Content.Tags, b.Content.Tags)
+	score := similarity.WeightedScoreWithTags(whenOverlap, contentSim, tagSim)
 
 	method := "jaccard"
 	isDup := score >= d.config.SimilarityThreshold

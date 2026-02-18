@@ -15,19 +15,19 @@ func TestComputeWhenOverlap(t *testing.T) {
 			name: "both empty",
 			a:    map[string]interface{}{},
 			b:    map[string]interface{}{},
-			want: 1.0,
+			want: -1.0,
 		},
 		{
 			name: "both nil",
 			a:    nil,
 			b:    nil,
-			want: 1.0,
+			want: -1.0,
 		},
 		{
 			name: "one empty",
 			a:    map[string]interface{}{"key": "value"},
 			b:    map[string]interface{}{},
-			want: 0.0,
+			want: -1.0,
 		},
 		{
 			name: "identical",
@@ -163,6 +163,96 @@ func TestWeightedScore(t *testing.T) {
 	}
 }
 
+func TestWeightedScoreWithTags(t *testing.T) {
+	tests := []struct {
+		name              string
+		whenOverlap       float64
+		contentSimilarity float64
+		tagSimilarity     float64
+		want              float64
+	}{
+		{
+			name:              "all signals present",
+			whenOverlap:       1.0,
+			contentSimilarity: 1.0,
+			tagSimilarity:     1.0,
+			want:              1.0,
+		},
+		{
+			name:              "all signals zero",
+			whenOverlap:       0.0,
+			contentSimilarity: 0.0,
+			tagSimilarity:     0.0,
+			want:              0.0,
+		},
+		{
+			name:              "tags missing sentinel falls back to old weights",
+			whenOverlap:       1.0,
+			contentSimilarity: 1.0,
+			tagSimilarity:     -1.0,
+			want:              1.0,
+		},
+		{
+			name:              "tags missing only content",
+			whenOverlap:       0.0,
+			contentSimilarity: 1.0,
+			tagSimilarity:     -1.0,
+			want:              0.6,
+		},
+		{
+			name:              "when missing sentinel redistributes",
+			whenOverlap:       -1.0,
+			contentSimilarity: 1.0,
+			tagSimilarity:     1.0,
+			want:              1.0,
+		},
+		{
+			name:              "when missing only content",
+			whenOverlap:       -1.0,
+			contentSimilarity: 1.0,
+			tagSimilarity:     0.0,
+			want:              0.75,
+		},
+		{
+			name:              "when+tags missing = content only",
+			whenOverlap:       -1.0,
+			contentSimilarity: 0.8,
+			tagSimilarity:     -1.0,
+			want:              0.8,
+		},
+		{
+			name:              "content missing",
+			whenOverlap:       1.0,
+			contentSimilarity: -1.0,
+			tagSimilarity:     1.0,
+			want:              1.0,
+		},
+		{
+			name:              "all signals missing returns zero",
+			whenOverlap:       -1.0,
+			contentSimilarity: -1.0,
+			tagSimilarity:     -1.0,
+			want:              0.0,
+		},
+		{
+			name:              "only tags present",
+			whenOverlap:       -1.0,
+			contentSimilarity: -1.0,
+			tagSimilarity:     0.5,
+			want:              0.5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := WeightedScoreWithTags(tt.whenOverlap, tt.contentSimilarity, tt.tagSimilarity)
+			if diff := got - tt.want; diff > 0.001 || diff < -0.001 {
+				t.Errorf("WeightedScoreWithTags() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTokenize(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -212,6 +302,79 @@ func TestTokenize(t *testing.T) {
 				if got[i] != tt.want[i] {
 					t.Errorf("Tokenize()[%d] = %v, want %v", i, got[i], tt.want[i])
 				}
+			}
+		})
+	}
+}
+
+func TestComputeTagSimilarity(t *testing.T) {
+	tests := []struct {
+		name string
+		a    []string
+		b    []string
+		want float64
+	}{
+		{
+			name: "both nil",
+			a:    nil,
+			b:    nil,
+			want: -1.0,
+		},
+		{
+			name: "both empty",
+			a:    []string{},
+			b:    []string{},
+			want: -1.0,
+		},
+		{
+			name: "a empty",
+			a:    []string{},
+			b:    []string{"go", "cli"},
+			want: -1.0,
+		},
+		{
+			name: "b empty",
+			a:    []string{"go", "cli"},
+			b:    []string{},
+			want: -1.0,
+		},
+		{
+			name: "a nil",
+			a:    nil,
+			b:    []string{"go", "cli"},
+			want: -1.0,
+		},
+		{
+			name: "b nil",
+			a:    []string{"go", "cli"},
+			b:    nil,
+			want: -1.0,
+		},
+		{
+			name: "identical tags",
+			a:    []string{"go", "cli"},
+			b:    []string{"go", "cli"},
+			want: 1.0,
+		},
+		{
+			name: "no overlap",
+			a:    []string{"go", "cli"},
+			b:    []string{"python", "web"},
+			want: 0.0,
+		},
+		{
+			name: "partial overlap",
+			a:    []string{"go", "cli", "testing"},
+			b:    []string{"go", "testing", "web"},
+			want: 0.5, // 2 common out of 4 unique
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ComputeTagSimilarity(tt.a, tt.b)
+			if got != tt.want {
+				t.Errorf("ComputeTagSimilarity() = %v, want %v", got, tt.want)
 			}
 		})
 	}

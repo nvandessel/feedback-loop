@@ -226,10 +226,11 @@ func (d *CrossStoreDeduplicator) computeSimilarity(a, b *models.Behavior) float6
 		// Fall through to Jaccard on error
 	}
 
-	// Fallback: weighted Jaccard similarity
+	// Fallback: weighted Jaccard similarity with tag enhancement
 	whenOverlap := similarity.ComputeWhenOverlap(a.When, b.When)
 	contentSim := similarity.ComputeContentSimilarity(a.Content.Canonical, b.Content.Canonical)
-	return similarity.WeightedScore(whenOverlap, contentSim)
+	tagSim := similarity.ComputeTagSimilarity(a.Content.Tags, b.Content.Tags)
+	return similarity.WeightedScoreWithTags(whenOverlap, contentSim, tagSim)
 }
 
 // updateEdges updates edges in both stores to point to the merged behavior.
