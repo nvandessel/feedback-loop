@@ -2,6 +2,7 @@
 //
 // One-time backfill script for graph connectivity fix.
 // - Strips "environment" from all behavior when-maps
+// - Backfills tags on tagless behaviors using dictionary extraction
 // - Clears all stale edges
 // - Re-derives edges using tag-enhanced WeightedScoreWithTags
 // - Validates and syncs to JSONL
@@ -18,6 +19,7 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/similarity"
 	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/feedback-loop/internal/tagging"
 )
 
 func main() {
@@ -98,7 +100,46 @@ func processStore(ctx context.Context, name, root string) error {
 	}
 	fmt.Printf("  Stripped 'environment' from %d behaviors\n", envStripped)
 
-	// Step 3: Clear all existing edges
+	// Step 3: Backfill tags on tagless behaviors
+	// Uses the same ExtractTags(canonical, dictionary) as the learn pipeline
+	dict := tagging.NewDictionary()
+	tagsBackfilled := 0
+	for _, node := range nodes {
+		contentMap, ok := node.Content["content"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// Skip behaviors that already have tags
+		if existingTags, ok := contentMap["tags"].([]interface{}); ok && len(existingTags) > 0 {
+			continue
+		}
+
+		canonical, _ := contentMap["canonical"].(string)
+		if canonical == "" {
+			continue
+		}
+
+		tags := tagging.ExtractTags(canonical, dict)
+		if len(tags) == 0 {
+			continue
+		}
+
+		// Convert []string to []interface{} for the content map
+		tagIfaces := make([]interface{}, len(tags))
+		for i, t := range tags {
+			tagIfaces[i] = t
+		}
+		contentMap["tags"] = tagIfaces
+		node.Content["content"] = contentMap
+		if err := s.UpdateNode(ctx, node); err != nil {
+			return fmt.Errorf("update node tags %s: %w", node.ID, err)
+		}
+		tagsBackfilled++
+	}
+	fmt.Printf("  Backfilled tags on %d behaviors\n", tagsBackfilled)
+
+	// Step 4: Clear all stale edges
 	edgesRemoved := 0
 	for _, node := range nodes {
 		edges, err := s.GetEdges(ctx, node.ID, store.DirectionBoth, "")
@@ -115,7 +156,7 @@ func processStore(ctx context.Context, name, root string) error {
 	}
 	fmt.Printf("  Removed %d edges\n", edgesRemoved)
 
-	// Step 4: Re-derive edges using new scoring
+	// Step 5: Re-derive edges using new scoring
 	// Reload nodes after updates
 	nodes, err = s.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
 	if err != nil {
@@ -192,7 +233,7 @@ func processStore(ctx context.Context, name, root string) error {
 	}
 	fmt.Printf("  Added %d edges (%d overrides, %d similar-to)\n", edgesAdded, overridesCount, similarToCount)
 
-	// Step 5: Validate
+	// Step 6: Validate
 	errors, err := s.ValidateBehaviorGraph(ctx)
 	if err != nil {
 		return fmt.Errorf("validate: %w", err)
@@ -206,7 +247,7 @@ func processStore(ctx context.Context, name, root string) error {
 		fmt.Printf("  Validation: 0 errors\n")
 	}
 
-	// Step 6: Sync to JSONL
+	// Step 7: Sync to JSONL
 	if err := s.Sync(ctx); err != nil {
 		return fmt.Errorf("sync: %w", err)
 	}
