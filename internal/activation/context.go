@@ -17,6 +17,7 @@ type ContextBuilder struct {
 	FilePath    string
 	Task        string
 	Environment string
+	Language    string
 	RepoRoot    string
 
 	// Additional custom values
@@ -48,6 +49,12 @@ func (b *ContextBuilder) WithEnvironment(env string) *ContextBuilder {
 	return b
 }
 
+// WithLanguage sets the programming language, overriding file extension inference
+func (b *ContextBuilder) WithLanguage(lang string) *ContextBuilder {
+	b.Language = lang
+	return b
+}
+
 // WithRepoRoot sets the repository root path
 func (b *ContextBuilder) WithRepoRoot(root string) *ContextBuilder {
 	b.RepoRoot = root
@@ -72,6 +79,11 @@ func (b *ContextBuilder) Build() models.ContextSnapshot {
 		ctx.FilePath = b.FilePath
 		ctx.FileLanguage = models.InferLanguage(b.FilePath)
 		ctx.FileExt = filepath.Ext(b.FilePath)
+	}
+
+	// Explicit language overrides file-inferred language
+	if b.Language != "" {
+		ctx.FileLanguage = b.Language
 	}
 
 	// Set task

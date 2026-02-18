@@ -538,7 +538,7 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 			auditScope = "local" // fallback if error before scope is determined
 		}
 		s.auditTool("floop_learn", start, retErr, sanitizeToolParams("floop_learn", map[string]interface{}{
-			"wrong": args.Wrong, "right": args.Right, "file": args.File, "task": args.Task, "auto_merge": args.AutoMerge,
+			"wrong": args.Wrong, "right": args.Right, "file": args.File, "task": args.Task, "language": args.Language, "auto_merge": args.AutoMerge,
 		}), auditScope)
 	}()
 
@@ -579,6 +579,10 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 
 	if args.Task != "" {
 		ctxBuilder.WithTask(args.Task)
+	}
+
+	if args.Language != "" {
+		ctxBuilder.WithLanguage(sanitize.SanitizeBehaviorContent(args.Language))
 	}
 
 	ctxBuilder.WithRepoRoot(s.root)

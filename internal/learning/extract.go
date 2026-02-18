@@ -128,11 +128,6 @@ func (e *behaviorExtractor) inferWhen(ctx models.ContextSnapshot) map[string]int
 		when["task"] = ctx.Task
 	}
 
-	// Include environment if present (for environment-specific behaviors)
-	if ctx.Environment != "" {
-		when["environment"] = ctx.Environment
-	}
-
 	return when
 }
 
