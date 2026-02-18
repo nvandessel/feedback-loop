@@ -7,6 +7,7 @@ import (
 
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/similarity"
+	"github.com/nvandessel/feedback-loop/internal/tagging"
 )
 
 // FallbackClient implements the Client interface using rule-based Jaccard
@@ -23,7 +24,11 @@ func NewFallbackClient() *FallbackClient {
 func (c *FallbackClient) CompareBehaviors(ctx context.Context, a, b *models.Behavior) (*ComparisonResult, error) {
 	whenOverlap := similarity.ComputeWhenOverlap(a.When, b.When)
 	contentSim := similarity.ComputeContentSimilarity(a.Content.Canonical, b.Content.Canonical)
-	sim := similarity.WeightedScore(whenOverlap, contentSim)
+	tagSim := -1.0
+	if len(a.Content.Tags) > 0 && len(b.Content.Tags) > 0 {
+		tagSim = tagging.JaccardSimilarity(a.Content.Tags, b.Content.Tags)
+	}
+	sim := similarity.WeightedScoreWithTags(whenOverlap, contentSim, tagSim)
 
 	return &ComparisonResult{
 		SemanticSimilarity: sim,

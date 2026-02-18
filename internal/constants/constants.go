@@ -37,6 +37,18 @@ const (
 	ContentSimilarityWeight = 0.6
 )
 
+// Tag similarity and graph placement constants
+const (
+	// TagSimilarityWeight is the weight for tag Jaccard similarity in scoring.
+	TagSimilarityWeight = 0.2
+
+	// SimilarToThreshold is the minimum score for creating similar-to edges.
+	SimilarToThreshold = 0.5
+
+	// SimilarToUpperBound is the upper bound; above this, behaviors are potential duplicates.
+	SimilarToUpperBound = 0.9
+)
+
 // Activation tier thresholds determine which injection tier a behavior receives
 // based on its spreading activation level.
 const (

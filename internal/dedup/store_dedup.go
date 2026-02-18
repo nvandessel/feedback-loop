@@ -14,6 +14,7 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/similarity"
 	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/feedback-loop/internal/tagging"
 )
 
 // scopedWriter is implemented by stores that support writing to a specific scope.
@@ -288,10 +289,14 @@ func (d *StoreDeduplicator) computeSimilarity(a, b *models.Behavior) similarityR
 		}
 	}
 
-	// Fallback: weighted Jaccard similarity
+	// Fallback: weighted Jaccard similarity with tag enhancement
 	whenOverlap := similarity.ComputeWhenOverlap(a.When, b.When)
 	contentSim := similarity.ComputeContentSimilarity(a.Content.Canonical, b.Content.Canonical)
-	score := similarity.WeightedScore(whenOverlap, contentSim)
+	tagSim := -1.0
+	if len(a.Content.Tags) > 0 && len(b.Content.Tags) > 0 {
+		tagSim = tagging.JaccardSimilarity(a.Content.Tags, b.Content.Tags)
+	}
+	score := similarity.WeightedScoreWithTags(whenOverlap, contentSim, tagSim)
 
 	method := "jaccard"
 	isDup := score >= d.config.SimilarityThreshold

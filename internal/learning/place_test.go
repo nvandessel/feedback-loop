@@ -216,6 +216,53 @@ func TestGraphPlacer_Place_NoOverlapDifferentLanguage(t *testing.T) {
 	}
 }
 
+func TestGraphPlacer_Place_EmptyWhenBehaviorsCompared(t *testing.T) {
+	s := store.NewInMemoryGraphStore()
+	placer := NewGraphPlacer(s)
+	ctx := context.Background()
+
+	// Add an existing behavior with empty when
+	existingNode := store.Node{
+		ID:   "existing-empty-when",
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"kind": "directive",
+			"name": "always-write-tests",
+			"content": map[string]interface{}{
+				"canonical": "Always write tests for new code",
+			},
+		},
+		Metadata: map[string]interface{}{
+			"confidence": 0.8,
+		},
+	}
+	if _, err := s.AddNode(ctx, existingNode); err != nil {
+		t.Fatalf("AddNode() error = %v", err)
+	}
+
+	// New behavior also has empty when and same content
+	newBehavior := &models.Behavior{
+		ID:   "new-empty-when",
+		Name: "always-write-tests-new",
+		Kind: models.BehaviorKindDirective,
+		When: map[string]interface{}{},
+		Content: models.BehaviorContent{
+			Canonical: "Always write tests for new code",
+		},
+	}
+
+	decision, err := placer.Place(ctx, newBehavior)
+	if err != nil {
+		t.Fatalf("Place() error = %v", err)
+	}
+
+	// Both behaviors have empty when and identical content, so they should
+	// be found as similar (the bug was that empty-when behaviors were isolated)
+	if len(decision.SimilarBehaviors) == 0 {
+		t.Error("Place() SimilarBehaviors should not be empty for empty-when behaviors with same content")
+	}
+}
+
 func TestGraphPlacer_computeSimilarity(t *testing.T) {
 	s := store.NewInMemoryGraphStore()
 	gp := NewGraphPlacer(s).(*graphPlacer)
@@ -456,7 +503,7 @@ func TestGraphPlacer_hasOverlappingConditions(t *testing.T) {
 			content: map[string]interface{}{
 				"name": "test",
 			},
-			want: false,
+			want: true,
 		},
 		{
 			name: "both empty when",
@@ -464,7 +511,7 @@ func TestGraphPlacer_hasOverlappingConditions(t *testing.T) {
 			content: map[string]interface{}{
 				"when": map[string]interface{}{},
 			},
-			want: false,
+			want: true,
 		},
 		{
 			name: "partial overlap",

@@ -7,14 +7,11 @@ import (
 )
 
 // ComputeWhenOverlap calculates overlap between two when predicates.
-// Returns 1.0 when both maps are empty, 0.0 when one is empty.
+// Returns -1.0 sentinel when either/both maps are empty/nil (missing signal).
 // For non-empty maps, computes a Dice-like coefficient based on matching keys and values.
 func ComputeWhenOverlap(a, b map[string]interface{}) float64 {
-	if len(a) == 0 && len(b) == 0 {
-		return 1.0 // Both empty = perfect overlap
-	}
 	if len(a) == 0 || len(b) == 0 {
-		return 0.0 // One empty = no overlap
+		return -1.0 // Sentinel: missing signal, redistribute weight
 	}
 
 	matches := 0
@@ -69,8 +66,43 @@ func ComputeContentSimilarity(a, b string) float64 {
 	return float64(intersection) / float64(union)
 }
 
+// WeightedScoreWithTags computes a weighted similarity score from when-overlap,
+// content similarity, and tag similarity. Signals with value < 0 (sentinel)
+// are treated as missing, and their weight is redistributed proportionally
+// to the remaining signals.
+func WeightedScoreWithTags(whenOverlap, contentSimilarity, tagSimilarity float64) float64 {
+	type signal struct {
+		value  float64
+		weight float64
+	}
+	signals := []signal{
+		{whenOverlap, constants.WhenOverlapWeight},
+		{contentSimilarity, constants.ContentSimilarityWeight},
+		{tagSimilarity, constants.TagSimilarityWeight},
+	}
+
+	var totalWeight float64
+	for _, s := range signals {
+		if s.value >= 0 {
+			totalWeight += s.weight
+		}
+	}
+	if totalWeight == 0 {
+		return 0.0
+	}
+
+	var score float64
+	for _, s := range signals {
+		if s.value >= 0 {
+			score += s.value * (s.weight / totalWeight)
+		}
+	}
+	return score
+}
+
 // WeightedScore computes a weighted similarity score from when-overlap and content
 // similarity using the standard weights (0.4 for when, 0.6 for content).
+// Tags are treated as missing (-1.0 sentinel) and weight is redistributed.
 func WeightedScore(whenOverlap, contentSimilarity float64) float64 {
-	return whenOverlap*constants.WhenOverlapWeight + contentSimilarity*constants.ContentSimilarityWeight
+	return WeightedScoreWithTags(whenOverlap, contentSimilarity, -1.0)
 }
