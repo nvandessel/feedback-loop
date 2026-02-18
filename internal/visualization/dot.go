@@ -198,28 +198,24 @@ func RenderEnrichedJSON(ctx context.Context, gs store.GraphStore, enrichment *En
 			confidence = meta
 		}
 
-		// Extract canonical content for detail panel
+		// Extract canonical content and tags from the nested content map
 		canonical := ""
+		var tags []interface{}
 		if content, ok := node.Content["content"].(map[string]interface{}); ok {
 			if c, ok := content["canonical"].(string); ok {
 				canonical = c
 			}
-		}
-
-		scope := "local"
-		if s, ok := node.Metadata["scope"].(string); ok {
-			scope = s
-		}
-
-		// Extract tags (default to empty array)
-		var tags []interface{}
-		if content, ok := node.Content["content"].(map[string]interface{}); ok {
 			if t, ok := content["tags"].([]interface{}); ok {
 				tags = t
 			}
 		}
 		if tags == nil {
 			tags = []interface{}{}
+		}
+
+		scope := "local"
+		if s, ok := node.Metadata["scope"].(string); ok {
+			scope = s
 		}
 
 		// Extract stats from metadata

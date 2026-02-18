@@ -680,9 +680,9 @@
     var deg = degree[node.id] || 0;
     html += section('Connections', deg);
 
-    // Usage stats
+    // Usage stats (only show if any counter is non-zero)
     var stats = node.stats;
-    if (stats) {
+    if (stats && ((stats.times_activated || 0) + (stats.times_confirmed || 0) + (stats.times_overridden || 0) + (stats.times_followed || 0) > 0)) {
       html += '<div class="dp-section"><div class="dp-label">Usage Stats</div><div class="dp-stats-grid">';
       html += statItem(stats.times_activated || 0, 'Activated');
       html += statItem(stats.times_confirmed || 0, 'Confirmed');

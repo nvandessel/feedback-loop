@@ -592,7 +592,7 @@ func addBehaviorFull(t *testing.T, gs store.GraphStore, id, name, kind string, c
 
 	metadata := map[string]interface{}{
 		"confidence": confidence,
-		"priority":   opts.priority,
+		"priority":   float64(opts.priority),
 		"scope":      "local",
 	}
 	if opts.stats != nil {
@@ -762,6 +762,65 @@ func TestRenderEnrichedJSON_EmptyTagsDefaultsToEmptyArray(t *testing.T) {
 	}
 	if len(tags) != 0 {
 		t.Errorf("expected empty tags array, got %d items", len(tags))
+	}
+}
+
+func TestRenderEnrichedJSON_IncludesPriority(t *testing.T) {
+	gs := setupTestStore(t)
+	ctx := context.Background()
+
+	addBehaviorFull(t, gs, "b1", "priority-behavior", "constraint", 0.9, struct {
+		tags     []string
+		stats    map[string]interface{}
+		when     map[string]interface{}
+		priority int
+	}{
+		priority: 3,
+	})
+
+	result, err := RenderEnrichedJSON(ctx, gs, nil)
+	if err != nil {
+		t.Fatalf("RenderEnrichedJSON: %v", err)
+	}
+
+	nodes := result["nodes"].([]map[string]interface{})
+	if len(nodes) != 1 {
+		t.Fatalf("expected 1 node, got %d", len(nodes))
+	}
+
+	// Priority > 0 should be included
+	pri, ok := nodes[0]["priority"]
+	if !ok {
+		t.Fatal("expected priority field on node with priority=3")
+	}
+	switch v := pri.(type) {
+	case int:
+		if v != 3 {
+			t.Errorf("priority = %d, want 3", v)
+		}
+	case float64:
+		if v != 3 {
+			t.Errorf("priority = %v, want 3", v)
+		}
+	default:
+		t.Fatalf("priority unexpected type %T", pri)
+	}
+}
+
+func TestRenderEnrichedJSON_ZeroPriorityOmitted(t *testing.T) {
+	gs := setupTestStore(t)
+	ctx := context.Background()
+
+	addBehavior(t, gs, "b1", "no-priority", "directive", 0.8)
+
+	result, err := RenderEnrichedJSON(ctx, gs, nil)
+	if err != nil {
+		t.Fatalf("RenderEnrichedJSON: %v", err)
+	}
+
+	nodes := result["nodes"].([]map[string]interface{})
+	if _, exists := nodes[0]["priority"]; exists {
+		t.Error("expected priority to be omitted when value is 0")
 	}
 }
 
