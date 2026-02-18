@@ -307,6 +307,79 @@ func TestTokenize(t *testing.T) {
 	}
 }
 
+func TestComputeTagSimilarity(t *testing.T) {
+	tests := []struct {
+		name string
+		a    []string
+		b    []string
+		want float64
+	}{
+		{
+			name: "both nil",
+			a:    nil,
+			b:    nil,
+			want: -1.0,
+		},
+		{
+			name: "both empty",
+			a:    []string{},
+			b:    []string{},
+			want: -1.0,
+		},
+		{
+			name: "a empty",
+			a:    []string{},
+			b:    []string{"go", "cli"},
+			want: -1.0,
+		},
+		{
+			name: "b empty",
+			a:    []string{"go", "cli"},
+			b:    []string{},
+			want: -1.0,
+		},
+		{
+			name: "a nil",
+			a:    nil,
+			b:    []string{"go", "cli"},
+			want: -1.0,
+		},
+		{
+			name: "b nil",
+			a:    []string{"go", "cli"},
+			b:    nil,
+			want: -1.0,
+		},
+		{
+			name: "identical tags",
+			a:    []string{"go", "cli"},
+			b:    []string{"go", "cli"},
+			want: 1.0,
+		},
+		{
+			name: "no overlap",
+			a:    []string{"go", "cli"},
+			b:    []string{"python", "web"},
+			want: 0.0,
+		},
+		{
+			name: "partial overlap",
+			a:    []string{"go", "cli", "testing"},
+			b:    []string{"go", "testing", "web"},
+			want: 0.5, // 2 common out of 4 unique
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ComputeTagSimilarity(tt.a, tt.b)
+			if got != tt.want {
+				t.Errorf("ComputeTagSimilarity() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestValuesEqual(t *testing.T) {
 	tests := []struct {
 		name string

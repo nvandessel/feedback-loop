@@ -8,7 +8,6 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/similarity"
 	"github.com/nvandessel/feedback-loop/internal/store"
-	"github.com/nvandessel/feedback-loop/internal/tagging"
 )
 
 // GraphPlacerConfig configures optional LLM-based similarity for GraphPlacer.
@@ -224,10 +223,7 @@ func (p *graphPlacer) shouldUseLLM(ruleScore float64) bool {
 func (p *graphPlacer) computeRuleBasedSimilarity(a, b *models.Behavior) float64 {
 	whenOverlap := similarity.ComputeWhenOverlap(a.When, b.When)
 	contentSim := similarity.ComputeContentSimilarity(a.Content.Canonical, b.Content.Canonical)
-	tagSim := -1.0
-	if len(a.Content.Tags) > 0 && len(b.Content.Tags) > 0 {
-		tagSim = tagging.JaccardSimilarity(a.Content.Tags, b.Content.Tags)
-	}
+	tagSim := similarity.ComputeTagSimilarity(a.Content.Tags, b.Content.Tags)
 	return similarity.WeightedScoreWithTags(whenOverlap, contentSim, tagSim)
 }
 

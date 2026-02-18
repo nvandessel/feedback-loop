@@ -10,7 +10,6 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/similarity"
 	"github.com/nvandessel/feedback-loop/internal/store"
-	"github.com/nvandessel/feedback-loop/internal/tagging"
 )
 
 // DeduplicationResult represents the outcome of deduplicating a single behavior
@@ -230,10 +229,7 @@ func (d *CrossStoreDeduplicator) computeSimilarity(a, b *models.Behavior) float6
 	// Fallback: weighted Jaccard similarity with tag enhancement
 	whenOverlap := similarity.ComputeWhenOverlap(a.When, b.When)
 	contentSim := similarity.ComputeContentSimilarity(a.Content.Canonical, b.Content.Canonical)
-	tagSim := -1.0
-	if len(a.Content.Tags) > 0 && len(b.Content.Tags) > 0 {
-		tagSim = tagging.JaccardSimilarity(a.Content.Tags, b.Content.Tags)
-	}
+	tagSim := similarity.ComputeTagSimilarity(a.Content.Tags, b.Content.Tags)
 	return similarity.WeightedScoreWithTags(whenOverlap, contentSim, tagSim)
 }
 

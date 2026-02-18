@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/nvandessel/feedback-loop/internal/constants"
+	"github.com/nvandessel/feedback-loop/internal/tagging"
 )
 
 // ComputeWhenOverlap calculates overlap between two when predicates.
@@ -26,6 +27,17 @@ func ComputeWhenOverlap(a, b map[string]interface{}) float64 {
 	}
 
 	return float64(matches) / float64(total)
+}
+
+// ComputeTagSimilarity computes tag Jaccard similarity with a -1.0 sentinel
+// for missing signals. Returns -1.0 when either slice is empty or nil,
+// indicating that the tag signal is absent and its weight should be
+// redistributed to other signals by WeightedScoreWithTags.
+func ComputeTagSimilarity(a, b []string) float64 {
+	if len(a) == 0 || len(b) == 0 {
+		return -1.0
+	}
+	return tagging.JaccardSimilarity(a, b)
 }
 
 // ComputeContentSimilarity calculates Jaccard similarity between two strings.
