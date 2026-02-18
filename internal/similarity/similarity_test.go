@@ -227,6 +227,20 @@ func TestWeightedScoreWithTags(t *testing.T) {
 			tagSimilarity:     1.0,
 			want:              1.0,
 		},
+		{
+			name:              "all signals missing returns zero",
+			whenOverlap:       -1.0,
+			contentSimilarity: -1.0,
+			tagSimilarity:     -1.0,
+			want:              0.0,
+		},
+		{
+			name:              "only tags present",
+			whenOverlap:       -1.0,
+			contentSimilarity: -1.0,
+			tagSimilarity:     0.5,
+			want:              0.5,
+		},
 	}
 
 	for _, tt := range tests {

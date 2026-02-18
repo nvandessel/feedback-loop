@@ -37,7 +37,9 @@ const (
 	ContentSimilarityWeight = 0.6
 )
 
-// Tag similarity and graph placement constants
+// Tag similarity and graph placement constants.
+// Weights are proportional, not required to sum to 1.0 — WeightedScoreWithTags
+// normalizes by dividing each by the total of present signals.
 const (
 	// TagSimilarityWeight is the weight for tag Jaccard similarity in scoring.
 	TagSimilarityWeight = 0.2

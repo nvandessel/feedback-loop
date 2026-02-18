@@ -14,6 +14,7 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/llm"
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/similarity"
+	"github.com/nvandessel/feedback-loop/internal/tagging"
 	"github.com/nvandessel/feedback-loop/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -408,5 +409,9 @@ func computeBehaviorSimilarity(a, b *models.Behavior, llmClient llm.Client, useL
 
 	whenOverlap := similarity.ComputeWhenOverlap(a.When, b.When)
 	contentSim := similarity.ComputeContentSimilarity(a.Content.Canonical, b.Content.Canonical)
-	return similarity.WeightedScore(whenOverlap, contentSim)
+	tagSim := -1.0
+	if len(a.Content.Tags) > 0 && len(b.Content.Tags) > 0 {
+		tagSim = tagging.JaccardSimilarity(a.Content.Tags, b.Content.Tags)
+	}
+	return similarity.WeightedScoreWithTags(whenOverlap, contentSim, tagSim)
 }
