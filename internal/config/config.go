@@ -368,7 +368,7 @@ func applyEnvOverrides(config *FloopConfig) {
 	}
 	if v := os.Getenv("FLOOP_LOCAL_GPU_LAYERS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
-			config.LLM.LocalGPULayers = int32(min(n, math.MaxInt32))
+			config.LLM.LocalGPULayers = int32(min(max(n, 0), math.MaxInt32))
 		}
 	}
 	if v := os.Getenv("FLOOP_LOCAL_CONTEXT_SIZE"); v != "" {

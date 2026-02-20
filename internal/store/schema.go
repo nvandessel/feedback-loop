@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS behaviors (
     scope TEXT DEFAULT 'local',
     metadata_extra TEXT,  -- JSON for arbitrary metadata (forget_reason, deprecation_reason, etc.)
 
-    -- Embeddings (V4)
+    -- Embeddings (V6)
     embedding BLOB,           -- binary-encoded []float32 vector (little-endian)
     embedding_model TEXT,     -- model that produced the embedding
 
