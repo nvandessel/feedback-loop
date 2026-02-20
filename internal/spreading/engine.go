@@ -22,11 +22,11 @@ type Config struct {
 	// MaxSteps is the number of propagation iterations (T). Default: 3.
 	MaxSteps int
 
-	// DecayFactor is the energy retention per hop (delta). Default: 0.5.
+	// DecayFactor is the energy retention per hop (delta). Default: 0.7.
 	// Higher values allow activation to spread further.
 	DecayFactor float64
 
-	// SpreadFactor is the energy transmission efficiency (S). Default: 0.8.
+	// SpreadFactor is the energy transmission efficiency (S). Default: 0.85.
 	// Fraction of a node's activation that flows through each edge.
 	SpreadFactor float64
 
@@ -55,8 +55,8 @@ func DefaultConfig() Config {
 	inh := DefaultInhibitionConfig()
 	return Config{
 		MaxSteps:          3,
-		DecayFactor:       0.5,
-		SpreadFactor:      0.8,
+		DecayFactor:       0.7,
+		SpreadFactor:      0.85,
 		MinActivation:     0.01,
 		TemporalDecayRate: ranking.DefaultDecayRate,
 		Inhibition:        &inh,

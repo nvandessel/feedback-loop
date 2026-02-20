@@ -273,8 +273,8 @@ func TestDefaultHebbianConfig(t *testing.T) {
 	if cfg.MaxWeight != 0.95 {
 		t.Errorf("MaxWeight = %f, want 0.95", cfg.MaxWeight)
 	}
-	if cfg.ActivationThreshold != 0.3 {
-		t.Errorf("ActivationThreshold = %f, want 0.3", cfg.ActivationThreshold)
+	if cfg.ActivationThreshold != 0.15 {
+		t.Errorf("ActivationThreshold = %f, want 0.15", cfg.ActivationThreshold)
 	}
 	if cfg.CreationGate != 3 {
 		t.Errorf("CreationGate = %d, want 3", cfg.CreationGate)
