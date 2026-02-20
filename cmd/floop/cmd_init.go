@@ -108,7 +108,14 @@ Examples:
 			if doEmbeddings {
 				embResult, err := setupEmbeddings(jsonOut)
 				if err != nil {
-					if !jsonOut {
+					if embeddingsFlag {
+						// Explicitly requested via --embeddings; fail the command
+						return fmt.Errorf("embedding setup failed: %w", err)
+					}
+					// Interactive mode — warn but continue
+					if jsonOut {
+						result["embeddings_error"] = err.Error()
+					} else {
 						fmt.Fprintf(os.Stderr, "warning: embedding setup failed: %v\n", err)
 						fmt.Println("You can retry later with: floop init --embeddings")
 					}

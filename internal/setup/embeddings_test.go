@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -137,20 +138,7 @@ func TestDefaultEmbeddingModelURL(t *testing.T) {
 	if url == "" {
 		t.Error("expected non-empty URL")
 	}
-	if !contains(url, "nomic-embed-text") {
+	if !strings.Contains(url, "nomic-embed-text") {
 		t.Errorf("expected URL to contain nomic-embed-text, got %q", url)
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsImpl(s, substr))
-}
-
-func containsImpl(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
