@@ -70,7 +70,7 @@ const (
 
 	// SummaryTierActivationThreshold is the minimum activation for summary injection.
 	// Behaviors below this threshold receive name-only injection.
-	SummaryTierActivationThreshold = 0.4
+	SummaryTierActivationThreshold = 0.3
 )
 
 // Token cost estimates per injection tier, used for budget enforcement.

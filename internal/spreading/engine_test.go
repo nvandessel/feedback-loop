@@ -574,11 +574,11 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.MaxSteps != 3 {
 		t.Errorf("expected MaxSteps=3, got %d", cfg.MaxSteps)
 	}
-	if cfg.DecayFactor != 0.5 {
-		t.Errorf("expected DecayFactor=0.5, got %f", cfg.DecayFactor)
+	if cfg.DecayFactor != 0.7 {
+		t.Errorf("expected DecayFactor=0.7, got %f", cfg.DecayFactor)
 	}
-	if cfg.SpreadFactor != 0.8 {
-		t.Errorf("expected SpreadFactor=0.8, got %f", cfg.SpreadFactor)
+	if cfg.SpreadFactor != 0.85 {
+		t.Errorf("expected SpreadFactor=0.85, got %f", cfg.SpreadFactor)
 	}
 	if cfg.MinActivation != 0.01 {
 		t.Errorf("expected MinActivation=0.01, got %f", cfg.MinActivation)
@@ -597,6 +597,45 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	if !cfg.Inhibition.Enabled {
 		t.Error("expected Inhibition.Enabled=true")
+	}
+}
+
+func TestDefaultConfig_HebbianViability(t *testing.T) {
+	// Regression test: with DefaultConfig, 1-hop neighbors of a seed with
+	// realistic fan-out (3) must produce activation above the Hebbian
+	// co-activation threshold. If this test fails, Hebbian learning is dead
+	// in production — no edges will ever form from usage patterns.
+	s := store.NewInMemoryGraphStore()
+	now := time.Now()
+
+	addNode(t, s, "Seed")
+	addNode(t, s, "A")
+	addNode(t, s, "B")
+	addNode(t, s, "C")
+
+	addEdge(t, s, "Seed", "A", "requires", 1.0, timePtr(now))
+	addEdge(t, s, "Seed", "B", "requires", 1.0, timePtr(now))
+	addEdge(t, s, "Seed", "C", "requires", 1.0, timePtr(now))
+
+	eng := NewEngine(s, DefaultConfig())
+	seeds := []Seed{{BehaviorID: "Seed", Activation: 1.0, Source: "test"}}
+
+	results, err := eng.Activate(context.Background(), seeds)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	hebbianThreshold := DefaultHebbianConfig().ActivationThreshold
+	for _, id := range []string{"A", "B", "C"} {
+		r := findResult(results, id)
+		if r == nil {
+			t.Errorf("expected %s in results", id)
+			continue
+		}
+		if r.Activation < hebbianThreshold {
+			t.Errorf("%s activation %f is below Hebbian threshold %f — Hebbian learning is dead for fan-out=3",
+				id, r.Activation, hebbianThreshold)
+		}
 	}
 }
 

@@ -20,7 +20,7 @@ type HebbianConfig struct {
 	MaxWeight float64
 
 	// ActivationThreshold is the minimum activation for a behavior to be
-	// included in co-activation pairs. Default: 0.3 (sigmoid inflection).
+	// included in co-activation pairs. Default: 0.15.
 	ActivationThreshold float64
 
 	// CreationGate is the number of co-occurrences required within
@@ -37,7 +37,7 @@ func DefaultHebbianConfig() HebbianConfig {
 		LearningRate:        0.05,
 		MinWeight:           0.01,
 		MaxWeight:           0.95,
-		ActivationThreshold: 0.3,
+		ActivationThreshold: 0.15,
 		CreationGate:        3,
 		CreationWindow:      7 * 24 * time.Hour,
 	}
