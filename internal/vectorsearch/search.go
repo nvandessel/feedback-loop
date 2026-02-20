@@ -39,4 +39,3 @@ func BruteForceSearch(queryVec []float32, candidates []store.BehaviorEmbedding, 
 
 	return results[:topK]
 }
-

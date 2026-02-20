@@ -177,13 +177,6 @@ func TestEmbedder_EmbedQuery(t *testing.T) {
 	})
 }
 
-// nodeGetter is the interface that BackfillMissing needs from the store.
-// Defined here to match the production interface in embedder.go.
-type testNodeGetter interface {
-	store.EmbeddingStore
-	GetNode(ctx context.Context, id string) (*store.Node, error)
-}
-
 func TestEmbedder_BackfillMissing(t *testing.T) {
 	t.Run("embeds behaviors without embeddings", func(t *testing.T) {
 		var embedded []string
@@ -279,10 +272,10 @@ func TestEmbedder_BackfillMissing(t *testing.T) {
 
 func TestExtractCanonical(t *testing.T) {
 	tests := []struct {
-		name    string
-		node    store.Node
-		want    string
-		wantOK  bool
+		name   string
+		node   store.Node
+		want   string
+		wantOK bool
 	}{
 		{
 			name: "has canonical string",
