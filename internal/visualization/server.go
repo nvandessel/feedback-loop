@@ -59,7 +59,10 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	s.mu.Lock()
 	s.listener = ln
 	s.addr = ln.Addr().String()
-	s.httpServer = &http.Server{Handler: mux}
+	s.httpServer = &http.Server{
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 	s.mu.Unlock()
 
 	// Pre-render the index page now that we know the address.
@@ -78,7 +81,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		s.httpServer.Shutdown(shutdownCtx)
+		_ = s.httpServer.Shutdown(shutdownCtx)
 	}()
 
 	err = s.httpServer.Serve(ln)
