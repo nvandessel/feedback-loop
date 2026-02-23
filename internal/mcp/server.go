@@ -70,6 +70,9 @@ type Server struct {
 	embedder  *vectorsearch.Embedder
 	llmClient llm.Client // held for cleanup (Close)
 
+	// Version info (from ldflags)
+	floopVersion string
+
 	// Shutdown coordination
 	done      chan struct{} // closed on shutdown
 	closeOnce sync.Once
@@ -119,6 +122,7 @@ func NewServer(cfg *Config) (*Server, error) {
 		server:               mcpServer,
 		store:                graphStore,
 		root:                 cfg.Root,
+		floopVersion:         cfg.Version,
 		floopConfig:          floopCfg,
 		session:              session.NewState(session.DefaultConfig()),
 		auditLogger:          NewAuditLogger(cfg.Root, homeDir),
