@@ -907,6 +907,214 @@ floop tags backfill --json
 
 ---
 
+## Skill Packs
+
+Commands for creating, installing, and managing portable skill packs.
+
+### pack
+
+Parent command for skill pack operations.
+
+```
+floop pack <subcommand> [flags]
+```
+
+Skill packs are portable behavior collections (`.fpack` files) that can be shared, installed, and updated. Packs use the V2 backup format with pack metadata in the header.
+
+**Subcommands:**
+
+| Subcommand | Description |
+|------------|-------------|
+| `create` | Create a pack from current behaviors |
+| `install` | Install a pack from a `.fpack` file |
+| `list` | List installed packs |
+| `info` | Show details of an installed pack |
+| `update` | Update a pack from a newer `.fpack` file |
+| `remove` | Remove an installed pack |
+
+---
+
+#### pack create
+
+Create a skill pack from current behaviors.
+
+```
+floop pack create <output-path> [flags]
+```
+
+Exports filtered behaviors and their connecting edges into a portable `.fpack` file. Only edges where both endpoints pass the filter are included.
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--id` | string | *(required)* | Pack ID in `namespace/name` format |
+| `--version` | string | *(required)* | Pack version |
+| `--description` | string | `""` | Pack description |
+| `--author` | string | `""` | Pack author |
+| `--tags` | string | `""` | Comma-separated pack tags |
+| `--source` | string | `""` | Pack source URL |
+| `--filter-tags` | string | `""` | Only include behaviors with these tags (comma-separated) |
+| `--filter-scope` | string | `""` | Only include behaviors from this scope (`global`/`local`) |
+| `--filter-kinds` | string | `""` | Only include behaviors of these kinds (comma-separated) |
+
+**Examples:**
+
+```bash
+# Create a pack with all behaviors
+floop pack create my-pack.fpack --id my-org/my-pack --version 1.0.0
+
+# Filter by tags
+floop pack create go-pack.fpack --id my-org/go-pack --version 1.0.0 --filter-tags go,testing
+
+# Filter by scope
+floop pack create global.fpack --id my-org/global --version 1.0.0 --filter-scope global
+
+# With full metadata
+floop pack create my-pack.fpack --id my-org/my-pack --version 1.0.0 \
+  --description "Best practices for Go development" \
+  --author "My Org" --tags go,best-practices \
+  --source https://github.com/my-org/packs
+
+# JSON output
+floop pack create my-pack.fpack --id my-org/my-pack --version 1.0.0 --json
+```
+
+**See also:** [pack install](#pack-install), [pack list](#pack-list)
+
+---
+
+#### pack install
+
+Install a skill pack from a `.fpack` file.
+
+```
+floop pack install <file-path>
+```
+
+Installs behaviors from a pack file into the store. Follows the seeder pattern: forgotten behaviors are not re-added, existing behaviors are version-gated for updates, and provenance is stamped on each installed behavior.
+
+No command-specific flags.
+
+**Examples:**
+
+```bash
+# Install a local pack file
+floop pack install my-pack.fpack
+
+# Install from packs directory
+floop pack install ~/.floop/packs/go-best-practices.fpack
+
+# JSON output
+floop pack install my-pack.fpack --json
+```
+
+**See also:** [pack create](#pack-create), [pack update](#pack-update), [pack remove](#pack-remove)
+
+---
+
+#### pack list
+
+List installed skill packs.
+
+```
+floop pack list
+```
+
+Shows all currently installed skill packs from config, including version, behavior count, edge count, and install date.
+
+No command-specific flags.
+
+**Examples:**
+
+```bash
+# List installed packs
+floop pack list
+
+# JSON output
+floop pack list --json
+```
+
+**See also:** [pack info](#pack-info), [pack install](#pack-install)
+
+---
+
+#### pack info
+
+Show details of an installed skill pack.
+
+```
+floop pack info <pack-id>
+```
+
+Displays pack details from config and lists all behaviors from that pack currently in the store.
+
+No command-specific flags.
+
+**Examples:**
+
+```bash
+# Show pack info
+floop pack info my-org/my-pack
+
+# JSON output
+floop pack info my-org/my-pack --json
+```
+
+**See also:** [pack list](#pack-list)
+
+---
+
+#### pack update
+
+Update an installed pack from a newer `.fpack` file.
+
+```
+floop pack update <file-path>
+```
+
+Reinstalls a pack with a newer version. Equivalent to running `pack install` with a newer pack file. Existing behaviors are version-gated for updates, and forgotten behaviors are respected.
+
+No command-specific flags.
+
+**Examples:**
+
+```bash
+# Update from a newer pack file
+floop pack update my-pack-v2.fpack
+
+# JSON output
+floop pack update my-pack-v2.fpack --json
+```
+
+**See also:** [pack install](#pack-install)
+
+---
+
+#### pack remove
+
+Remove an installed skill pack.
+
+```
+floop pack remove <pack-id>
+```
+
+Marks all behaviors from the pack as forgotten and removes the pack from the installed packs list in config.
+
+No command-specific flags.
+
+**Examples:**
+
+```bash
+# Remove a pack
+floop pack remove my-org/my-pack
+
+# JSON output
+floop pack remove my-org/my-pack --json
+```
+
+**See also:** [pack install](#pack-install), [pack list](#pack-list)
+
+---
+
 ## Backup
 
 Commands for backing up and restoring the behavior graph.
@@ -1203,6 +1411,7 @@ Starts an MCP server that exposes floop functionality over stdio using JSON-RPC 
 | `floop_validate` | Validate behavior graph for consistency issues |
 | `floop_feedback` | Provide session feedback on a behavior (confirmed/overridden) |
 | `floop_graph` | Render graph in DOT, JSON, or interactive HTML format |
+| `floop_pack_install` | Install a skill pack from a `.fpack` file |
 
 **Resources:**
 
@@ -1317,6 +1526,7 @@ floop help completion bash
 | [list](#list) | Query | List behaviors or corrections |
 | [merge](#merge) | Curation | Merge two behaviors into one |
 | [mcp-server](#mcp-server) | Server | Run floop as an MCP server |
+| [pack](#pack) | Skill Packs | Manage skill packs (create, install, list, info, update, remove) |
 | [prompt](#prompt) | Query | Generate prompt section from active behaviors |
 | [reprocess](#reprocess) | Core | Reprocess orphaned corrections into behaviors |
 | [restore](#restore) | Curation | Restore a deprecated or forgotten behavior |
