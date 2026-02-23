@@ -1459,6 +1459,12 @@ func (s *SQLiteGraphStore) StoreEmbedding(ctx context.Context, behaviorID string
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	return s.storeEmbeddingUnlocked(ctx, behaviorID, embedding, modelName)
+}
+
+// storeEmbeddingUnlocked stores an embedding without acquiring the mutex.
+// Caller must ensure exclusive access (e.g., during import or while holding the lock).
+func (s *SQLiteGraphStore) storeEmbeddingUnlocked(ctx context.Context, behaviorID string, embedding []float32, modelName string) error {
 	blob := encodeEmbedding(embedding)
 	result, err := s.db.ExecContext(ctx,
 		`UPDATE behaviors SET embedding = ?, embedding_model = ? WHERE id = ?`,
