@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -1047,6 +1048,7 @@ func (s *SQLiteGraphStore) incrementalExportNodes(ctx context.Context, dirtyOps 
 			return fmt.Errorf("failed to get updated node %s: %w", id, err)
 		}
 		if node != nil {
+			s.enrichNodeWithEmbedding(ctx, node)
 			existingNodes[node.ID] = *node
 		}
 	}
@@ -1114,6 +1116,29 @@ func (s *SQLiteGraphStore) readNodesFromJSONL() ([]Node, error) {
 	return nodes, nil
 }
 
+// enrichNodeWithEmbedding queries the database for embedding data for the given
+// node and attaches it as base64-encoded metadata. This ensures embeddings survive
+// cross-machine migration via JSONL without recomputation.
+// Caller must hold at least a read lock.
+func (s *SQLiteGraphStore) enrichNodeWithEmbedding(ctx context.Context, node *Node) {
+	var embBlob []byte
+	var embModel sql.NullString
+	err := s.db.QueryRowContext(ctx,
+		`SELECT embedding, embedding_model FROM behaviors WHERE id = ? AND embedding IS NOT NULL`,
+		node.ID).Scan(&embBlob, &embModel)
+	if err != nil || len(embBlob) == 0 {
+		return
+	}
+
+	if node.Metadata == nil {
+		node.Metadata = make(map[string]interface{})
+	}
+	node.Metadata["embedding"] = base64.StdEncoding.EncodeToString(embBlob)
+	if embModel.Valid {
+		node.Metadata["embedding_model"] = embModel.String
+	}
+}
+
 // exportNodesToJSONL exports all behaviors to the nodes.jsonl file.
 func (s *SQLiteGraphStore) exportNodesToJSONL(ctx context.Context) error {
 	// Get all behavior IDs first (close rows before nested queries)
@@ -1141,6 +1166,7 @@ func (s *SQLiteGraphStore) exportNodesToJSONL(ctx context.Context) error {
 			return fmt.Errorf("failed to get node %s: %w", id, err)
 		}
 		if node != nil {
+			s.enrichNodeWithEmbedding(ctx, node)
 			nodes = append(nodes, *node)
 		}
 	}
@@ -1438,6 +1464,12 @@ func (s *SQLiteGraphStore) StoreEmbedding(ctx context.Context, behaviorID string
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	return s.storeEmbeddingUnlocked(ctx, behaviorID, embedding, modelName)
+}
+
+// storeEmbeddingUnlocked stores an embedding without acquiring the mutex.
+// Caller must ensure exclusive access (e.g., during import or while holding the lock).
+func (s *SQLiteGraphStore) storeEmbeddingUnlocked(ctx context.Context, behaviorID string, embedding []float32, modelName string) error {
 	blob := encodeEmbedding(embedding)
 	result, err := s.db.ExecContext(ctx,
 		`UPDATE behaviors SET embedding = ?, embedding_model = ? WHERE id = ?`,
