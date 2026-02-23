@@ -443,6 +443,40 @@ func applyEnvOverrides(config *FloopConfig) {
 	}
 }
 
+// Save writes the config to the default config file with atomic write.
+func (c *FloopConfig) Save() error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("getting home directory: %w", err)
+	}
+	configPath := filepath.Join(homeDir, ".floop", "config.yaml")
+	return c.SaveTo(configPath)
+}
+
+// SaveTo writes the config to a specific path with atomic write (tmp + rename).
+func (c *FloopConfig) SaveTo(path string) error {
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("marshaling config: %w", err)
+	}
+
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("creating config directory: %w", err)
+	}
+
+	// Atomic write: write to temp file, then rename
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
+		return fmt.Errorf("writing temp config: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath) // cleanup on failure
+		return fmt.Errorf("renaming config: %w", err)
+	}
+	return nil
+}
+
 // expandEnvVars expands ${VAR} patterns in a string with environment variable values.
 func expandEnvVars(s string) string {
 	if !strings.Contains(s, "${") {

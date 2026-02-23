@@ -228,3 +228,20 @@ type FloopFeedbackOutput struct {
 	Signal     string `json:"signal" jsonschema:"Feedback signal that was recorded"`
 	Message    string `json:"message" jsonschema:"Human-readable result message"`
 }
+
+// FloopPackInstallInput defines the input for floop_pack_install tool.
+type FloopPackInstallInput struct {
+	FilePath string `json:"file_path" jsonschema:"Path to .fpack file to install,required"`
+}
+
+// FloopPackInstallOutput defines the output for floop_pack_install tool.
+type FloopPackInstallOutput struct {
+	PackID       string   `json:"pack_id" jsonschema:"Installed pack ID"`
+	Version      string   `json:"version" jsonschema:"Installed pack version"`
+	Added        []string `json:"added" jsonschema:"IDs of newly added behaviors"`
+	Updated      []string `json:"updated" jsonschema:"IDs of upgraded behaviors"`
+	Skipped      []string `json:"skipped" jsonschema:"IDs of skipped behaviors"`
+	EdgesAdded   int      `json:"edges_added" jsonschema:"Number of edges added"`
+	EdgesSkipped int      `json:"edges_skipped" jsonschema:"Number of edges skipped"`
+	Message      string   `json:"message" jsonschema:"Human-readable result message"`
+}

@@ -18,6 +18,7 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/dedup"
 	"github.com/nvandessel/feedback-loop/internal/learning"
 	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/feedback-loop/internal/pack"
 	"github.com/nvandessel/feedback-loop/internal/pathutil"
 
 	"github.com/nvandessel/feedback-loop/internal/ratelimit"
@@ -90,6 +91,12 @@ func (s *Server) registerTools() error {
 		Name:        "floop_feedback",
 		Description: "Provide explicit feedback on a behavior: confirmed (helpful) or overridden (contradicted)",
 	}, s.handleFloopFeedback)
+
+	// Register floop_pack_install tool
+	sdk.AddTool(s.server, &sdk.Tool{
+		Name:        "floop_pack_install",
+		Description: "Install a skill pack from a .fpack file",
+	}, s.handleFloopPackInstall)
 
 	return nil
 }
@@ -1534,5 +1541,59 @@ func (s *Server) handleFloopFeedback(ctx context.Context, req *sdk.CallToolReque
 		BehaviorID: args.BehaviorID,
 		Signal:     args.Signal,
 		Message:    message,
+	}, nil
+}
+
+// handleFloopPackInstall implements the floop_pack_install tool.
+func (s *Server) handleFloopPackInstall(ctx context.Context, req *sdk.CallToolRequest, args FloopPackInstallInput) (_ *sdk.CallToolResult, _ FloopPackInstallOutput, retErr error) {
+	start := time.Now()
+	defer func() {
+		s.auditTool("floop_pack_install", start, retErr, sanitizeToolParams("floop_pack_install", map[string]interface{}{
+			"file_path": args.FilePath,
+		}), "local")
+	}()
+
+	if err := ratelimit.CheckLimit(s.toolLimiters, "floop_pack_install"); err != nil {
+		return nil, FloopPackInstallOutput{}, err
+	}
+
+	if args.FilePath == "" {
+		return nil, FloopPackInstallOutput{}, fmt.Errorf("file_path is required")
+	}
+
+	// Validate path: restrict to ~/.floop/packs/ only
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, FloopPackInstallOutput{}, fmt.Errorf("getting home directory: %w", err)
+	}
+	packsDir := filepath.Join(homeDir, ".floop", "packs")
+	if err := pathutil.ValidatePath(args.FilePath, []string{packsDir}); err != nil {
+		return nil, FloopPackInstallOutput{}, fmt.Errorf("pack install path rejected (must be under ~/.floop/packs/): %w", err)
+	}
+
+	cfg := s.floopConfig
+	if cfg == nil {
+		return nil, FloopPackInstallOutput{}, fmt.Errorf("config not available")
+	}
+
+	result, err := pack.Install(ctx, s.store, args.FilePath, cfg, pack.InstallOptions{})
+	if err != nil {
+		return nil, FloopPackInstallOutput{}, fmt.Errorf("pack install failed: %w", err)
+	}
+
+	// Save config with updated pack list
+	if saveErr := cfg.Save(); saveErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to save config: %v\n", saveErr)
+	}
+
+	return nil, FloopPackInstallOutput{
+		PackID:       result.PackID,
+		Version:      result.Version,
+		Added:        result.Added,
+		Updated:      result.Updated,
+		Skipped:      result.Skipped,
+		EdgesAdded:   result.EdgesAdded,
+		EdgesSkipped: result.EdgesSkipped,
+		Message:      fmt.Sprintf("Installed %s v%s: %d added, %d updated, %d skipped", result.PackID, result.Version, len(result.Added), len(result.Updated), len(result.Skipped)),
 	}, nil
 }
