@@ -66,13 +66,13 @@ func TestHandleFloopActive_Empty(t *testing.T) {
 		t.Error("Expected nil result (SDK auto-populates)")
 	}
 
-	// Auto-seeded behaviors (2) are always present
-	if output.Count != 2 {
-		t.Errorf("Count = %d, want 2 (seed behaviors)", output.Count)
+	// Auto-seeded behaviors (9) are always present
+	if output.Count != 9 {
+		t.Errorf("Count = %d, want 9 (seed behaviors)", output.Count)
 	}
 
-	if len(output.Active) != 2 {
-		t.Errorf("len(Active) = %d, want 2 (seed behaviors)", len(output.Active))
+	if len(output.Active) != 9 {
+		t.Errorf("len(Active) = %d, want 9 (seed behaviors)", len(output.Active))
 	}
 
 	// Verify context is populated
@@ -520,13 +520,13 @@ func TestHandleFloopActive_NoEdgesBackwardCompat(t *testing.T) {
 		t.Fatalf("handleFloopActive failed: %v", err)
 	}
 
-	// Should find the direct match plus 2 seed behaviors (no when = always active)
-	if output.Count != 3 {
-		t.Errorf("Count = %d, want 3 (1 user + 2 seeds)", output.Count)
+	// Should find the direct match plus 9 seed behaviors (no when = always active)
+	if output.Count != 10 {
+		t.Errorf("Count = %d, want 10 (1 user + 9 seeds)", output.Count)
 	}
 
-	if len(output.Active) != 3 {
-		t.Fatalf("len(Active) = %d, want 3", len(output.Active))
+	if len(output.Active) != 10 {
+		t.Fatalf("len(Active) = %d, want 10", len(output.Active))
 	}
 
 	// Verify the user behavior is present
@@ -853,7 +853,7 @@ func TestBehaviorContentToMap_IncludesTags(t *testing.T) {
 
 func TestHandleFloopActive_TokenStats(t *testing.T) {
 	// Token counts use raw canonical bytes/4 (no tiering in MCP tool output).
-	// 2 seed behaviors are auto-injected (94 tokens total from their canonical content).
+	// 9 seed behaviors are auto-injected (467 tokens total from their canonical content).
 	tests := []struct {
 		name              string
 		behaviors         []store.Node
@@ -862,12 +862,12 @@ func TestHandleFloopActive_TokenStats(t *testing.T) {
 		wantBehaviorCount int
 	}{
 		{
-			// 2 seed behaviors are auto-injected (94 tokens total)
+			// 9 seed behaviors are auto-injected (467 tokens total)
 			name:              "empty store has zero token stats",
 			behaviors:         nil,
-			wantTokens:        94,
+			wantTokens:        467,
 			wantBudget:        2000,
-			wantBehaviorCount: 2,
+			wantBehaviorCount: 9,
 		},
 		{
 			name: "single behavior with known canonical content",
@@ -889,9 +889,9 @@ func TestHandleFloopActive_TokenStats(t *testing.T) {
 					},
 				},
 			},
-			wantTokens:        94 + 4, // seeds + user behavior
+			wantTokens:        467 + 4, // seeds + user behavior
 			wantBudget:        2000,
-			wantBehaviorCount: 2 + 1,
+			wantBehaviorCount: 9 + 1,
 		},
 		{
 			name: "multiple behaviors sum tokens",
@@ -929,9 +929,9 @@ func TestHandleFloopActive_TokenStats(t *testing.T) {
 					},
 				},
 			},
-			wantTokens:        94 + 7, // seeds + 4 + 3
+			wantTokens:        467 + 7, // seeds + 4 + 3
 			wantBudget:        2000,
-			wantBehaviorCount: 2 + 2,
+			wantBehaviorCount: 9 + 2,
 		},
 	}
 
