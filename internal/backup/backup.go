@@ -78,18 +78,29 @@ func collectGraph(ctx context.Context, graphStore store.GraphStore) (*BackupForm
 	return bf, nil
 }
 
+// BackupOptions controls backup behavior.
+type BackupOptions struct {
+	Compress     bool              // write V2 gzip (true) or V1 plain JSON (false)
+	FloopVersion string            // floop binary version from ldflags
+	AllowedDirs  []string          // nil = skip path validation
+	Metadata     map[string]string // additional metadata for the backup header
+}
+
 // Backup exports all nodes and edges from the store to a V2 compressed backup file.
 // If allowedDirs is non-empty, the outputPath is validated against them.
 // Pass nil to skip validation (for internal/default paths only).
 func Backup(ctx context.Context, graphStore store.GraphStore, outputPath string, allowedDirs ...string) (*BackupFormat, error) {
-	return BackupWithOptions(ctx, graphStore, outputPath, true, allowedDirs...)
+	return BackupWithOptions(ctx, graphStore, outputPath, BackupOptions{
+		Compress:    true,
+		AllowedDirs: allowedDirs,
+	})
 }
 
-// BackupWithOptions exports all nodes and edges with explicit compression control.
-// When compress is true, writes V2 format (gzip + SHA-256). When false, writes V1 (plain JSON).
-func BackupWithOptions(ctx context.Context, graphStore store.GraphStore, outputPath string, compress bool, allowedDirs ...string) (*BackupFormat, error) {
-	if len(allowedDirs) > 0 {
-		if err := pathutil.ValidatePath(outputPath, allowedDirs); err != nil {
+// BackupWithOptions exports all nodes and edges with explicit options.
+// When opts.Compress is true, writes V2 format (gzip + SHA-256). When false, writes V1 (plain JSON).
+func BackupWithOptions(ctx context.Context, graphStore store.GraphStore, outputPath string, opts BackupOptions) (*BackupFormat, error) {
+	if len(opts.AllowedDirs) > 0 {
+		if err := pathutil.ValidatePath(outputPath, opts.AllowedDirs); err != nil {
 			return nil, fmt.Errorf("backup path rejected: %w", err)
 		}
 	}
@@ -99,8 +110,12 @@ func BackupWithOptions(ctx context.Context, graphStore store.GraphStore, outputP
 		return nil, err
 	}
 
-	if compress {
-		if err := WriteV2(outputPath, bf); err != nil {
+	if opts.Compress {
+		writeOpts := &WriteOptions{
+			FloopVersion: opts.FloopVersion,
+			Metadata:     opts.Metadata,
+		}
+		if err := WriteV2(outputPath, bf, writeOpts); err != nil {
 			return nil, fmt.Errorf("failed to write V2 backup: %w", err)
 		}
 	} else {
@@ -157,6 +172,11 @@ type RestoreResult struct {
 // Automatically detects V1 and V2 format.
 // If allowedDirs is non-empty, the inputPath is validated against them.
 // Pass nil to skip validation (for internal/default paths only).
+//
+// Schema version checks (V2 only):
+//   - SchemaVersion > store.SchemaVersion: returns error (backup too new)
+//   - SchemaVersion < store.SchemaVersion: prints warning to stderr
+//   - SchemaVersion == 0: silent (old format, no schema version)
 func Restore(ctx context.Context, graphStore store.GraphStore, inputPath string, mode RestoreMode, allowedDirs ...string) (*RestoreResult, error) {
 	if len(allowedDirs) > 0 {
 		if err := pathutil.ValidatePath(inputPath, allowedDirs); err != nil {
@@ -169,7 +189,44 @@ func Restore(ctx context.Context, graphStore store.GraphStore, inputPath string,
 		return nil, err
 	}
 
+	// Schema version validation for V2 backups
+	if err := checkSchemaVersion(inputPath); err != nil {
+		return nil, err
+	}
+
 	return restoreFromBackup(ctx, graphStore, backup, mode)
+}
+
+// checkSchemaVersion reads the V2 header and validates schema version compatibility.
+// Returns an error if the backup's schema version is newer than the current store schema.
+// Prints a warning to stderr if the backup's schema version is older.
+// Returns nil silently for V1 backups or V2 backups with schema_version=0.
+func checkSchemaVersion(inputPath string) error {
+	version, err := DetectFormat(inputPath)
+	if err != nil || version != FormatV2 {
+		return nil // V1 or detection failure — skip check
+	}
+
+	header, err := ReadV2Header(inputPath)
+	if err != nil {
+		return nil // header read failure — skip check, ReadV2 will catch real errors
+	}
+
+	if header.SchemaVersion == 0 {
+		return nil // old format without schema version — silent
+	}
+
+	if header.SchemaVersion > store.SchemaVersion {
+		return fmt.Errorf("backup schema version %d is newer than current schema version %d; upgrade floop before restoring",
+			header.SchemaVersion, store.SchemaVersion)
+	}
+
+	if header.SchemaVersion < store.SchemaVersion {
+		fmt.Fprintf(os.Stderr, "warning: backup schema version %d is older than current schema version %d; data will be migrated on restore\n",
+			header.SchemaVersion, store.SchemaVersion)
+	}
+
+	return nil
 }
 
 // readBackupAuto detects the format and reads the backup file.
