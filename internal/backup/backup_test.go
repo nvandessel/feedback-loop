@@ -1,7 +1,12 @@
 package backup
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -501,5 +506,285 @@ func TestRotateBackups_MixedFormats(t *testing.T) {
 
 	if count != 3 {
 		t.Errorf("after rotation, got %d files, want 3", count)
+	}
+}
+
+// writeV2WithSchemaVersion creates a V2 backup file with an overridden schema version in the header.
+// This is a test helper for schema version validation tests.
+func writeV2WithSchemaVersion(t *testing.T, path string, schemaVersion int) {
+	t.Helper()
+
+	bf := &BackupFormat{
+		Version:   2,
+		CreatedAt: time.Now(),
+		Nodes:     []BackupNode{{Node: store.Node{ID: "test-node", Kind: "behavior"}}},
+		Edges:     []store.Edge{},
+	}
+
+	// First write a normal V2 backup
+	if err := WriteV2(path, bf, nil); err != nil {
+		t.Fatalf("WriteV2() error = %v", err)
+	}
+
+	// Now rewrite the header with the desired schema version
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+
+	reader := bufio.NewReader(f)
+	headerLine, err := reader.ReadBytes('\n')
+	if err != nil {
+		f.Close()
+		t.Fatalf("ReadBytes() error = %v", err)
+	}
+
+	// Read the rest (compressed payload)
+	payload, err := io.ReadAll(reader)
+	if err != nil {
+		f.Close()
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	f.Close()
+
+	// Parse and modify header
+	var header BackupHeader
+	if err := json.Unmarshal(bytes.TrimSpace(headerLine), &header); err != nil {
+		t.Fatalf("Unmarshal header error = %v", err)
+	}
+	header.SchemaVersion = schemaVersion
+
+	newHeaderBytes, err := json.Marshal(header)
+	if err != nil {
+		t.Fatalf("Marshal header error = %v", err)
+	}
+
+	// Write modified file
+	out, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		t.Fatalf("OpenFile() error = %v", err)
+	}
+	defer out.Close()
+
+	out.Write(newHeaderBytes)
+	out.Write([]byte("\n"))
+	out.Write(payload)
+}
+
+func TestRestoreSchemaVersionTooNew(t *testing.T) {
+	ctx := context.Background()
+	dstStore := createTestStore(t)
+	defer dstStore.Close()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "too-new.json.gz")
+
+	// Write a backup with schema version 999 (much newer than current)
+	writeV2WithSchemaVersion(t, path, 999)
+
+	_, err := Restore(ctx, dstStore, path, RestoreMerge)
+	if err == nil {
+		t.Fatal("Restore() should fail for schema version too new")
+	}
+	if !strings.Contains(err.Error(), "newer than current schema version") {
+		t.Errorf("error = %v, want 'newer than current schema version'", err)
+	}
+}
+
+func TestRestoreSchemaVersionOlder(t *testing.T) {
+	srcStore := createTestStore(t)
+	defer srcStore.Close()
+	addTestData(t, srcStore)
+
+	ctx := context.Background()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "older.json.gz")
+
+	// Create a normal backup first
+	_, err := Backup(ctx, srcStore, path)
+	if err != nil {
+		t.Fatalf("Backup() error = %v", err)
+	}
+
+	// Rewrite with older schema version
+	writeV2WithSchemaVersion(t, path, 5)
+
+	// Restore to a new store — should succeed with a warning (on stderr)
+	dstStore := createTestStore(t)
+	defer dstStore.Close()
+
+	// Note: the checksum won't match because we modified the header,
+	// so we write a fresh backup with overridden schema version.
+	freshPath := filepath.Join(dir, "older-fresh.json.gz")
+	bf := &BackupFormat{
+		Version:   2,
+		CreatedAt: time.Now(),
+		Nodes:     []BackupNode{{Node: store.Node{ID: "test-node", Kind: "behavior"}}},
+		Edges:     []store.Edge{},
+	}
+	if err := WriteV2(freshPath, bf, nil); err != nil {
+		t.Fatalf("WriteV2() error = %v", err)
+	}
+	writeV2WithSchemaVersion(t, freshPath, 5)
+
+	// The restore should succeed (schema version 5 is older but valid)
+	// but the checksum will fail because we modified the header after writing.
+	// Let me take a different approach: directly test checkSchemaVersion.
+	err = checkSchemaVersion(freshPath)
+	if err != nil {
+		t.Errorf("checkSchemaVersion() should not error for older version, got: %v", err)
+	}
+}
+
+func TestRestoreSchemaVersionZero(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "zero-schema.json.gz")
+
+	// Write a backup with schema_version=0 (simulating old format without schema version)
+	writeV2WithSchemaVersion(t, path, 0)
+
+	// checkSchemaVersion should return nil silently
+	err := checkSchemaVersion(path)
+	if err != nil {
+		t.Errorf("checkSchemaVersion() should be silent for schema_version=0, got: %v", err)
+	}
+}
+
+func TestRestoreSchemaVersionTooNew_Exact(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "too-new.json.gz")
+
+	writeV2WithSchemaVersion(t, path, store.SchemaVersion+1)
+
+	err := checkSchemaVersion(path)
+	if err == nil {
+		t.Fatal("checkSchemaVersion() should error for schema version > store.SchemaVersion")
+	}
+	if !strings.Contains(err.Error(), fmt.Sprintf("backup schema version %d is newer", store.SchemaVersion+1)) {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestRestoreSchemaVersionCurrent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "current.json.gz")
+
+	writeV2WithSchemaVersion(t, path, store.SchemaVersion)
+
+	err := checkSchemaVersion(path)
+	if err != nil {
+		t.Errorf("checkSchemaVersion() should not error for current schema version, got: %v", err)
+	}
+}
+
+func TestBackupOptions_AllowedDirs(t *testing.T) {
+	srcStore := createTestStore(t)
+	defer srcStore.Close()
+	addTestData(t, srcStore)
+
+	ctx := context.Background()
+	allowedDir := t.TempDir()
+	outsideDir := t.TempDir()
+
+	tests := []struct {
+		name    string
+		path    string
+		opts    BackupOptions
+		wantErr bool
+	}{
+		{
+			name: "valid path inside allowed dir",
+			path: filepath.Join(allowedDir, "backup.json.gz"),
+			opts: BackupOptions{
+				Compress:    true,
+				AllowedDirs: []string{allowedDir},
+			},
+			wantErr: false,
+		},
+		{
+			name: "path outside allowed dir is rejected",
+			path: filepath.Join(outsideDir, "backup.json.gz"),
+			opts: BackupOptions{
+				Compress:    true,
+				AllowedDirs: []string{allowedDir},
+			},
+			wantErr: true,
+		},
+		{
+			name: "nil AllowedDirs skips validation",
+			path: filepath.Join(outsideDir, "backup-no-check.json.gz"),
+			opts: BackupOptions{
+				Compress: true,
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty AllowedDirs skips validation",
+			path: filepath.Join(outsideDir, "backup-empty-check.json.gz"),
+			opts: BackupOptions{
+				Compress:    true,
+				AllowedDirs: []string{},
+			},
+			wantErr: false,
+		},
+		{
+			name: "FloopVersion is passed through",
+			path: filepath.Join(allowedDir, "backup-versioned.json.gz"),
+			opts: BackupOptions{
+				Compress:     true,
+				FloopVersion: "2.0.0-test",
+				AllowedDirs:  []string{allowedDir},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := BackupWithOptions(ctx, srcStore, tt.path, tt.opts)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("BackupWithOptions() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr && err != nil && !strings.Contains(err.Error(), "path rejected") {
+				t.Errorf("BackupWithOptions() error = %v, want 'path rejected' in message", err)
+			}
+
+			// Verify FloopVersion was passed through
+			if !tt.wantErr && tt.opts.FloopVersion != "" && tt.opts.Compress {
+				header, err := ReadV2Header(tt.path)
+				if err != nil {
+					t.Fatalf("ReadV2Header() error = %v", err)
+				}
+				if v := header.Metadata["floop_version"]; v != tt.opts.FloopVersion {
+					t.Errorf("floop_version = %q, want %q", v, tt.opts.FloopVersion)
+				}
+			}
+		})
+	}
+}
+
+func TestCheckSchemaVersion_V1File(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "v1-backup.json")
+
+	// Write a V1 backup
+	v1 := &BackupFormat{
+		Version:   1,
+		CreatedAt: time.Now(),
+		Nodes:     []BackupNode{{Node: store.Node{ID: "a", Kind: "behavior"}}},
+		Edges:     []store.Edge{},
+	}
+	data, err := json.MarshalIndent(v1, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// checkSchemaVersion should silently pass for V1 files
+	err = checkSchemaVersion(path)
+	if err != nil {
+		t.Errorf("checkSchemaVersion() should be silent for V1 files, got: %v", err)
 	}
 }

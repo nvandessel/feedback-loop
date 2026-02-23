@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -223,5 +224,124 @@ func TestReadV2Header(t *testing.T) {
 	}
 	if header.Checksum == "" {
 		t.Error("Checksum is empty")
+	}
+}
+
+func TestWriteV2_MetadataPopulated(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "metadata-test.json.gz")
+
+	bf := &BackupFormat{
+		Version:   2,
+		CreatedAt: time.Now(),
+		Nodes:     []BackupNode{{Node: store.Node{ID: "a", Kind: "behavior"}}},
+		Edges:     []store.Edge{},
+	}
+
+	opts := &WriteOptions{
+		FloopVersion: "1.2.3",
+		Metadata: map[string]string{
+			"custom_key": "custom_value",
+		},
+	}
+
+	if err := WriteV2(path, bf, opts); err != nil {
+		t.Fatalf("WriteV2() error = %v", err)
+	}
+
+	header, err := ReadV2Header(path)
+	if err != nil {
+		t.Fatalf("ReadV2Header() error = %v", err)
+	}
+
+	// Verify auto-populated metadata
+	if header.Metadata == nil {
+		t.Fatal("Metadata is nil")
+	}
+
+	if v := header.Metadata["floop_version"]; v != "1.2.3" {
+		t.Errorf("floop_version = %q, want %q", v, "1.2.3")
+	}
+
+	if v := header.Metadata["hostname"]; v == "" {
+		t.Error("hostname is empty")
+	}
+
+	expectedPlatform := runtime.GOOS + "/" + runtime.GOARCH
+	if v := header.Metadata["platform"]; v != expectedPlatform {
+		t.Errorf("platform = %q, want %q", v, expectedPlatform)
+	}
+
+	if v := header.Metadata["schema"]; v == "" {
+		t.Error("schema is empty")
+	}
+
+	// Verify user-supplied metadata is merged
+	if v := header.Metadata["custom_key"]; v != "custom_value" {
+		t.Errorf("custom_key = %q, want %q", v, "custom_value")
+	}
+}
+
+func TestWriteV2_MetadataPopulated_NilOpts(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "nil-opts-test.json.gz")
+
+	bf := &BackupFormat{
+		Version:   2,
+		CreatedAt: time.Now(),
+		Nodes:     []BackupNode{{Node: store.Node{ID: "a", Kind: "behavior"}}},
+		Edges:     []store.Edge{},
+	}
+
+	if err := WriteV2(path, bf, nil); err != nil {
+		t.Fatalf("WriteV2() error = %v", err)
+	}
+
+	header, err := ReadV2Header(path)
+	if err != nil {
+		t.Fatalf("ReadV2Header() error = %v", err)
+	}
+
+	// Even with nil opts, auto-populated metadata should be present
+	if header.Metadata == nil {
+		t.Fatal("Metadata is nil with nil opts")
+	}
+
+	if v := header.Metadata["platform"]; v == "" {
+		t.Error("platform should be populated even with nil opts")
+	}
+
+	if v := header.Metadata["schema"]; v == "" {
+		t.Error("schema should be populated even with nil opts")
+	}
+
+	// floop_version should NOT be present without opts
+	if v, ok := header.Metadata["floop_version"]; ok {
+		t.Errorf("floop_version should not be present with nil opts, got %q", v)
+	}
+}
+
+func TestWriteV2_SchemaVersionSet(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "schema-version-test.json.gz")
+
+	bf := &BackupFormat{
+		Version:   2,
+		CreatedAt: time.Now(),
+		Nodes:     []BackupNode{{Node: store.Node{ID: "a", Kind: "behavior"}}},
+		Edges:     []store.Edge{},
+	}
+
+	if err := WriteV2(path, bf, nil); err != nil {
+		t.Fatalf("WriteV2() error = %v", err)
+	}
+
+	header, err := ReadV2Header(path)
+	if err != nil {
+		t.Fatalf("ReadV2Header() error = %v", err)
+	}
+
+	if header.SchemaVersion != store.SchemaVersion {
+		t.Errorf("SchemaVersion = %d, want %d", header.SchemaVersion, store.SchemaVersion)
 	}
 }
