@@ -103,6 +103,7 @@ context-aware behavior activation for consistent agent operation.`,
 		newDeduplicateCmd(),
 		newValidateCmd(),
 		newConfigCmd(),
+		newPackCmd(),
 		// Token optimization commands
 		newSummarizeCmd(),
 		newStatsCmd(),
