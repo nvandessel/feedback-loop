@@ -450,7 +450,7 @@ func TestRestore_V1BackwardCompat(t *testing.T) {
 
 	// Create a V1 backup explicitly
 	v1Path := filepath.Join(dir, "v1-backup.json")
-	_, err := BackupWithOptions(ctx, srcStore, v1Path, false)
+	_, err := BackupWithOptions(ctx, srcStore, v1Path, BackupOptions{Compress: false})
 	if err != nil {
 		t.Fatalf("BackupWithOptions(compress=false) error = %v", err)
 	}

@@ -1090,7 +1090,10 @@ func (s *Server) handleFloopBackup(ctx context.Context, req *sdk.CallToolRequest
 		}
 	}
 
-	result, err := backup.Backup(ctx, s.store, outputPath)
+	result, err := backup.BackupWithOptions(ctx, s.store, outputPath, backup.BackupOptions{
+		Compress:     true,
+		FloopVersion: s.floopVersion,
+	})
 	if err != nil {
 		return nil, FloopBackupOutput{}, fmt.Errorf("backup failed: %w", err)
 	}
@@ -1107,14 +1110,26 @@ func (s *Server) handleFloopBackup(ctx context.Context, req *sdk.CallToolRequest
 		sizeBytes = info.Size()
 	}
 
+	// Read header metadata for output
+	var schemaVersion int
+	var metadata map[string]string
+	if result.Version == backup.FormatV2 {
+		if header, err := backup.ReadV2Header(outputPath); err == nil {
+			schemaVersion = header.SchemaVersion
+			metadata = header.Metadata
+		}
+	}
+
 	return nil, FloopBackupOutput{
-		Path:       outputPath,
-		NodeCount:  len(result.Nodes),
-		EdgeCount:  len(result.Edges),
-		Version:    result.Version,
-		Compressed: result.Version == backup.FormatV2,
-		SizeBytes:  sizeBytes,
-		Message:    fmt.Sprintf("Backup created: %d nodes, %d edges → %s", len(result.Nodes), len(result.Edges), outputPath),
+		Path:          outputPath,
+		NodeCount:     len(result.Nodes),
+		EdgeCount:     len(result.Edges),
+		Version:       result.Version,
+		SchemaVersion: schemaVersion,
+		Compressed:    result.Version == backup.FormatV2,
+		SizeBytes:     sizeBytes,
+		Metadata:      metadata,
+		Message:       fmt.Sprintf("Backup created: %d nodes, %d edges → %s", len(result.Nodes), len(result.Edges), outputPath),
 	}, nil
 }
 

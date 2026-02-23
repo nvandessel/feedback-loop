@@ -49,7 +49,7 @@ func TestDetectFormat_V2(t *testing.T) {
 		Edges:     []store.Edge{},
 	}
 	path := filepath.Join(dir, "v2-backup.json.gz")
-	if err := WriteV2(path, bf); err != nil {
+	if err := WriteV2(path, bf, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -79,7 +79,7 @@ func TestWriteV2_ReadV2_RoundTrip(t *testing.T) {
 		},
 	}
 
-	if err := WriteV2(path, original); err != nil {
+	if err := WriteV2(path, original, nil); err != nil {
 		t.Fatalf("WriteV2() error = %v", err)
 	}
 
@@ -121,7 +121,7 @@ func TestReadV2_CorruptedChecksum(t *testing.T) {
 		Nodes:     []BackupNode{{Node: store.Node{ID: "a", Kind: "behavior"}}},
 		Edges:     []store.Edge{},
 	}
-	if err := WriteV2(path, bf); err != nil {
+	if err := WriteV2(path, bf, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -149,7 +149,7 @@ func TestVerifyChecksum_Valid(t *testing.T) {
 		Nodes:     []BackupNode{{Node: store.Node{ID: "a", Kind: "behavior"}}},
 		Edges:     []store.Edge{},
 	}
-	if err := WriteV2(path, bf); err != nil {
+	if err := WriteV2(path, bf, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -168,7 +168,7 @@ func TestVerifyChecksum_Tampered(t *testing.T) {
 		Nodes:     []BackupNode{{Node: store.Node{ID: "a", Kind: "behavior"}}},
 		Edges:     []store.Edge{},
 	}
-	if err := WriteV2(path, bf); err != nil {
+	if err := WriteV2(path, bf, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -200,7 +200,7 @@ func TestReadV2Header(t *testing.T) {
 			{Source: "a", Target: "b", Kind: "requires"},
 		},
 	}
-	if err := WriteV2(path, bf); err != nil {
+	if err := WriteV2(path, bf, nil); err != nil {
 		t.Fatal(err)
 	}
 
