@@ -34,8 +34,8 @@ type PackManifest struct {
 
 // Metadata key constants for stamping into BackupHeader.Metadata when writing pack files.
 const (
-	MetaKeyType       = "type"         // value: "skill-pack"
-	MetaKeyPackID     = "pack_id"      // value: "namespace/name"
+	MetaKeyType       = "type"    // value: "skill-pack"
+	MetaKeyPackID     = "pack_id" // value: "namespace/name"
 	MetaKeyPackVer    = "pack_version"
 	MetaKeyPackAuthor = "pack_author"
 	MetaKeyPackDesc   = "pack_description"

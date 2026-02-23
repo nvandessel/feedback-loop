@@ -75,4 +75,3 @@ func (s *Seeder) SeedGlobalStore(ctx context.Context) (*SeedResult, error) {
 
 	return result, nil
 }
-
