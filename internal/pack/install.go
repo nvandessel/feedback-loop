@@ -3,6 +3,7 @@ package pack
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/nvandessel/feedback-loop/internal/config"
@@ -12,7 +13,7 @@ import (
 
 // InstallOptions configures pack installation.
 type InstallOptions struct {
-	DeriveEdges bool // placeholder for wave 4
+	DeriveEdges bool // Automatically derive edges between pack behaviors and existing behaviors
 }
 
 // InstallResult reports what was installed.
@@ -24,6 +25,7 @@ type InstallResult struct {
 	Skipped      []string // IDs of skipped (up-to-date or forgotten)
 	EdgesAdded   int
 	EdgesSkipped int
+	DerivedEdges int // Edges automatically derived between new and existing behaviors
 }
 
 // Install loads a pack file and installs its behaviors into the store.
@@ -94,6 +96,17 @@ func Install(ctx context.Context, s store.GraphStore, filePath string, cfg *conf
 	// 4. Sync store
 	if err := s.Sync(ctx); err != nil {
 		return nil, fmt.Errorf("syncing after install: %w", err)
+	}
+
+	// 4b. Derive edges between new/updated pack behaviors and existing behaviors
+	if opts.DeriveEdges && (len(result.Added) > 0 || len(result.Updated) > 0) {
+		newIDs := append(result.Added, result.Updated...)
+		intResult, intErr := IntegratePackBehaviors(ctx, s, newIDs)
+		if intErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: edge derivation failed: %v\n", intErr)
+		} else {
+			result.DerivedEdges = intResult.EdgesCreated
+		}
 	}
 
 	// 5. Record in config
