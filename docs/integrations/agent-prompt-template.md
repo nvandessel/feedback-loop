@@ -37,6 +37,7 @@ When the user corrects you, immediately call `floop_learn` with:
 - `wrong`: what you did that was incorrect
 - `right`: what the correct approach is
 - `file`: the relevant file path (if applicable)
+- `language`: programming language override (if file path isn't provided or doesn't reflect the actual language)
 - `task`: the current task type (if applicable)
 
 Capture corrections immediately — this is expected behavior and does not
@@ -95,7 +96,10 @@ Or switch to an MCP-capable tool for bidirectional support.
 ```bash
 #!/bin/bash
 # Regenerate floop behaviors before each session
-floop prompt > .cursorrules-floop
+# WARNING: This overwrites .cursorrules entirely.
+# If you maintain other rules, concatenate instead:
+#   cat .cursorrules-base <(floop prompt) > .cursorrules
+floop prompt > .cursorrules
 ```
 
 > Ensure `floop init` has been run first, or `floop prompt` will output an
