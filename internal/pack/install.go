@@ -100,7 +100,9 @@ func Install(ctx context.Context, s store.GraphStore, filePath string, cfg *conf
 
 	// 4b. Derive edges between new/updated pack behaviors and existing behaviors
 	if opts.DeriveEdges && (len(result.Added) > 0 || len(result.Updated) > 0) {
-		newIDs := append(result.Added, result.Updated...)
+		newIDs := make([]string, 0, len(result.Added)+len(result.Updated))
+		newIDs = append(newIDs, result.Added...)
+		newIDs = append(newIDs, result.Updated...)
 		intResult, intErr := IntegratePackBehaviors(ctx, s, newIDs)
 		if intErr != nil {
 			fmt.Fprintf(os.Stderr, "warning: edge derivation failed: %v\n", intErr)
@@ -148,7 +150,7 @@ func recordInstall(cfg *config.FloopConfig, manifest *PackManifest, result *Inst
 		ID:            string(manifest.ID),
 		Version:       manifest.Version,
 		InstalledAt:   time.Now(),
-		BehaviorCount: len(result.Added) + len(result.Updated),
+		BehaviorCount: len(result.Added) + len(result.Updated) + len(result.Skipped),
 		EdgeCount:     result.EdgesAdded,
 	})
 

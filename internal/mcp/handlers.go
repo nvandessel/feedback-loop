@@ -1576,7 +1576,9 @@ func (s *Server) handleFloopPackInstall(ctx context.Context, req *sdk.CallToolRe
 		return nil, FloopPackInstallOutput{}, fmt.Errorf("config not available")
 	}
 
-	result, err := pack.Install(ctx, s.store, args.FilePath, cfg, pack.InstallOptions{})
+	result, err := pack.Install(ctx, s.store, args.FilePath, cfg, pack.InstallOptions{
+		DeriveEdges: true, // Always derive edges for MCP callers (agent workflows)
+	})
 	if err != nil {
 		return nil, FloopPackInstallOutput{}, fmt.Errorf("pack install failed: %w", err)
 	}

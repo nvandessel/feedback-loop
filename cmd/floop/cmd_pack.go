@@ -151,6 +151,7 @@ Examples:
 			filePath := args[0]
 			root, _ := cmd.Flags().GetString("root")
 			jsonOut, _ := cmd.Flags().GetBool("json")
+			deriveEdges, _ := cmd.Flags().GetBool("derive-edges")
 
 			cfg, err := config.Load()
 			if err != nil {
@@ -164,7 +165,9 @@ Examples:
 			}
 			defer graphStore.Close()
 
-			result, err := pack.Install(ctx, graphStore, filePath, cfg, pack.InstallOptions{})
+			result, err := pack.Install(ctx, graphStore, filePath, cfg, pack.InstallOptions{
+				DeriveEdges: deriveEdges,
+			})
 			if err != nil {
 				return fmt.Errorf("pack install failed: %w", err)
 			}
@@ -183,6 +186,7 @@ Examples:
 					"skipped":       result.Skipped,
 					"edges_added":   result.EdgesAdded,
 					"edges_skipped": result.EdgesSkipped,
+					"derived_edges": result.DerivedEdges,
 					"message":       fmt.Sprintf("Installed %s v%s: %d added, %d updated, %d skipped", result.PackID, result.Version, len(result.Added), len(result.Updated), len(result.Skipped)),
 				})
 			}
@@ -192,9 +196,14 @@ Examples:
 			fmt.Printf("  Updated: %d behaviors\n", len(result.Updated))
 			fmt.Printf("  Skipped: %d behaviors\n", len(result.Skipped))
 			fmt.Printf("  Edges: %d added, %d skipped\n", result.EdgesAdded, result.EdgesSkipped)
+			if result.DerivedEdges > 0 {
+				fmt.Printf("  Derived edges: %d\n", result.DerivedEdges)
+			}
 			return nil
 		},
 	}
+
+	cmd.Flags().Bool("derive-edges", false, "Automatically derive edges between pack behaviors and existing behaviors")
 
 	return cmd
 }
@@ -342,6 +351,7 @@ Examples:
 			filePath := args[0]
 			root, _ := cmd.Flags().GetString("root")
 			jsonOut, _ := cmd.Flags().GetBool("json")
+			deriveEdges, _ := cmd.Flags().GetBool("derive-edges")
 
 			cfg, err := config.Load()
 			if err != nil {
@@ -355,7 +365,9 @@ Examples:
 			}
 			defer graphStore.Close()
 
-			result, err := pack.Install(ctx, graphStore, filePath, cfg, pack.InstallOptions{})
+			result, err := pack.Install(ctx, graphStore, filePath, cfg, pack.InstallOptions{
+				DeriveEdges: deriveEdges,
+			})
 			if err != nil {
 				return fmt.Errorf("pack update failed: %w", err)
 			}
@@ -373,6 +385,7 @@ Examples:
 					"skipped":       result.Skipped,
 					"edges_added":   result.EdgesAdded,
 					"edges_skipped": result.EdgesSkipped,
+					"derived_edges": result.DerivedEdges,
 					"message":       fmt.Sprintf("Updated %s to v%s: %d added, %d updated, %d skipped", result.PackID, result.Version, len(result.Added), len(result.Updated), len(result.Skipped)),
 				})
 			}
@@ -382,9 +395,14 @@ Examples:
 			fmt.Printf("  Updated: %d behaviors\n", len(result.Updated))
 			fmt.Printf("  Skipped: %d behaviors\n", len(result.Skipped))
 			fmt.Printf("  Edges: %d added, %d skipped\n", result.EdgesAdded, result.EdgesSkipped)
+			if result.DerivedEdges > 0 {
+				fmt.Printf("  Derived edges: %d\n", result.DerivedEdges)
+			}
 			return nil
 		},
 	}
+
+	cmd.Flags().Bool("derive-edges", false, "Automatically derive edges between pack behaviors and existing behaviors")
 
 	return cmd
 }
@@ -428,10 +446,9 @@ Examples:
 
 			if jsonOut {
 				return json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
-					"pack_id":            result.PackID,
-					"behaviors_removed":  result.BehaviorsRemoved,
-					"behaviors_notfound": result.BehaviorsNotFound,
-					"message":            fmt.Sprintf("Removed %s: %d behaviors marked as forgotten", result.PackID, result.BehaviorsRemoved),
+					"pack_id":           result.PackID,
+					"behaviors_removed": result.BehaviorsRemoved,
+					"message":           fmt.Sprintf("Removed %s: %d behaviors marked as forgotten", result.PackID, result.BehaviorsRemoved),
 				})
 			}
 

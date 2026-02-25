@@ -26,12 +26,13 @@ Examples:
 			version, err := backup.DetectFormat(filePath)
 			if err != nil {
 				if jsonOut {
-					return json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+					json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 						"file":    filePath,
 						"valid":   false,
 						"error":   err.Error(),
 						"message": fmt.Sprintf("Failed to detect format: %v", err),
 					})
+					return fmt.Errorf("failed to detect format: %w", err)
 				}
 				return fmt.Errorf("failed to detect format: %w", err)
 			}
@@ -61,7 +62,7 @@ Examples:
 			err = backup.VerifyChecksum(filePath)
 			if err != nil {
 				if jsonOut {
-					return json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+					json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 						"file":           filePath,
 						"version":        2,
 						"schema_version": schemaVersion,
@@ -69,6 +70,7 @@ Examples:
 						"error":          err.Error(),
 						"message":        "Checksum verification FAILED",
 					})
+					return fmt.Errorf("checksum verification failed")
 				}
 				fmt.Printf("FAILED: %v\n", err)
 				fmt.Printf("  File: %s\n", filePath)

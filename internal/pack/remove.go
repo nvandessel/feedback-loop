@@ -11,13 +11,16 @@ import (
 
 // RemoveResult reports what was removed.
 type RemoveResult struct {
-	PackID            string
-	BehaviorsRemoved  int
-	BehaviorsNotFound int
+	PackID           string
+	BehaviorsRemoved int
 }
 
 // Remove marks pack behaviors as forgotten and removes the pack from config.
 func Remove(ctx context.Context, s store.GraphStore, packID string, cfg *config.FloopConfig) (*RemoveResult, error) {
+	if err := ValidatePackID(packID); err != nil {
+		return nil, fmt.Errorf("invalid pack ID: %w", err)
+	}
+
 	result := &RemoveResult{
 		PackID: packID,
 	}

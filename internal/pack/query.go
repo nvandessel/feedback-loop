@@ -19,6 +19,10 @@ func ListInstalled(cfg *config.FloopConfig) []config.InstalledPack {
 
 // FindByPack returns all behaviors from a specific pack in the store.
 func FindByPack(ctx context.Context, s store.GraphStore, packID string) ([]store.Node, error) {
+	if err := ValidatePackID(packID); err != nil {
+		return nil, fmt.Errorf("invalid pack ID: %w", err)
+	}
+
 	nodes, err := s.QueryNodes(ctx, map[string]interface{}{})
 	if err != nil {
 		return nil, fmt.Errorf("querying nodes: %w", err)
