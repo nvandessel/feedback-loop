@@ -84,9 +84,11 @@ func Install(ctx context.Context, s store.GraphStore, filePath string, cfg *conf
 		result.Updated = append(result.Updated, node.ID)
 	}
 
-	// 3. Install edges (skip duplicates)
+	// 3. Install edges
 	for _, edge := range data.Edges {
 		if err := s.AddEdge(ctx, edge); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to add edge %s -> %s (%s): %v\n",
+				edge.Source, edge.Target, edge.Kind, err)
 			result.EdgesSkipped++
 			continue
 		}

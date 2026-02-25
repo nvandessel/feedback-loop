@@ -37,6 +37,11 @@ func WritePackFile(path string, data *backup.BackupFormat, manifest PackManifest
 		opts.Metadata[MetaKeyPackDesc] = manifest.Description
 	}
 	if len(manifest.Tags) > 0 {
+		for _, tag := range manifest.Tags {
+			if strings.Contains(tag, ",") {
+				return fmt.Errorf("tag %q contains comma; commas are reserved as tag separators", tag)
+			}
+		}
 		opts.Metadata[MetaKeyPackTags] = strings.Join(manifest.Tags, ",")
 	}
 	if manifest.Source != "" {
@@ -47,10 +52,11 @@ func WritePackFile(path string, data *backup.BackupFormat, manifest PackManifest
 }
 
 // ReadPackFile reads a pack file and extracts the manifest from the header.
+// Uses a single file open to avoid TOCTOU races between header and data reads.
 func ReadPackFile(path string) (*backup.BackupFormat, *PackManifest, error) {
-	header, err := backup.ReadV2Header(path)
+	data, header, err := backup.ReadV2WithHeader(path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("reading pack header: %w", err)
+		return nil, nil, fmt.Errorf("reading pack file: %w", err)
 	}
 
 	if header.Metadata[MetaKeyType] != PackFileType {
@@ -58,12 +64,6 @@ func ReadPackFile(path string) (*backup.BackupFormat, *PackManifest, error) {
 	}
 
 	manifest := headerToManifest(header)
-
-	data, err := backup.ReadV2(path)
-	if err != nil {
-		return nil, nil, fmt.Errorf("reading pack data: %w", err)
-	}
-
 	return data, manifest, nil
 }
 

@@ -244,6 +244,68 @@ func ReadV2(path string) (*BackupFormat, error) {
 	return &backup, nil
 }
 
+// ReadV2WithHeader reads a V2 backup file and returns both the data and header in a
+// single file open, avoiding the TOCTOU race of separate ReadV2Header + ReadV2 calls.
+func ReadV2WithHeader(path string) (*BackupFormat, *BackupHeader, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("opening file: %w", err)
+	}
+	defer f.Close()
+
+	// Read header line
+	reader := bufio.NewReader(f)
+	headerLine, err := reader.ReadBytes('\n')
+	if err != nil {
+		return nil, nil, fmt.Errorf("reading header line: %w", err)
+	}
+
+	var header BackupHeader
+	if err := json.Unmarshal(bytes.TrimSpace(headerLine), &header); err != nil {
+		return nil, nil, fmt.Errorf("parsing header: %w", err)
+	}
+
+	if header.Version != FormatV2 {
+		return nil, nil, fmt.Errorf("expected V2 format, got version %d", header.Version)
+	}
+
+	// Read the rest (compressed payload)
+	compressedData, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, nil, fmt.Errorf("reading compressed payload: %w", err)
+	}
+
+	// Verify checksum
+	hash := sha256.Sum256(compressedData)
+	actualChecksum := "sha256:" + hex.EncodeToString(hash[:])
+	if actualChecksum != header.Checksum {
+		return nil, nil, fmt.Errorf("checksum mismatch: expected %s, got %s", header.Checksum, actualChecksum)
+	}
+
+	// Decompress
+	gzr, err := gzip.NewReader(bytes.NewReader(compressedData))
+	if err != nil {
+		return nil, nil, fmt.Errorf("creating gzip reader: %w", err)
+	}
+	defer gzr.Close()
+
+	limitedReader := io.LimitReader(gzr, MaxDecompressedSize+1)
+	decompressed, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return nil, nil, fmt.Errorf("decompressing payload: %w", err)
+	}
+	if int64(len(decompressed)) > MaxDecompressedSize {
+		return nil, nil, fmt.Errorf("decompressed payload exceeds maximum size of %d bytes", MaxDecompressedSize)
+	}
+
+	var backup BackupFormat
+	if err := json.Unmarshal(decompressed, &backup); err != nil {
+		return nil, nil, fmt.Errorf("parsing backup data: %w", err)
+	}
+
+	return &backup, &header, nil
+}
+
 // ReadV2Header reads only the header line from a V2 backup file without decompressing.
 func ReadV2Header(path string) (*BackupHeader, error) {
 	f, err := os.Open(path)

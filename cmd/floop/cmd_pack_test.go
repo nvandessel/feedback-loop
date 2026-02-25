@@ -64,6 +64,10 @@ func TestNewPackInstallCmd_Args(t *testing.T) {
 	if cmd.Use != "install <file-path>" {
 		t.Errorf("Use = %q, want %q", cmd.Use, "install <file-path>")
 	}
+
+	if f := cmd.Flags().Lookup("derive-edges"); f == nil {
+		t.Error("missing --derive-edges flag")
+	}
 }
 
 func TestNewPackListCmd(t *testing.T) {
@@ -87,6 +91,10 @@ func TestNewPackUpdateCmd_Args(t *testing.T) {
 
 	if cmd.Use != "update <file-path>" {
 		t.Errorf("Use = %q, want %q", cmd.Use, "update <file-path>")
+	}
+
+	if f := cmd.Flags().Lookup("derive-edges"); f == nil {
+		t.Error("missing --derive-edges flag")
 	}
 }
 

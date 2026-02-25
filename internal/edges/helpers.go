@@ -12,9 +12,9 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/store"
 )
 
-// LoadBehaviorsFromStore loads all non-forgotten behaviors from a graph store.
-// It queries for nodes with kind "behavior" and converts them to the models
-// representation. Extracted from cmd/floop/cmd_dedup.go:loadBehaviorsFromStore.
+// LoadBehaviorsFromStore loads all active behaviors (kind == "behavior") from a
+// graph store, excluding forgotten, deprecated, and merged behaviors.
+// Extracted from cmd/floop/cmd_dedup.go:loadBehaviorsFromStore.
 func LoadBehaviorsFromStore(ctx context.Context, graphStore store.GraphStore) ([]models.Behavior, error) {
 	nodes, err := graphStore.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
 	if err != nil {

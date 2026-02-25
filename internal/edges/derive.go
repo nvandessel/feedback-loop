@@ -80,25 +80,9 @@ func DeriveEdgesForStore(ctx context.Context, graphStore store.GraphStore, scope
 		result.ClearedEdges = ClearDerivedEdges(ctx, graphStore, behaviors)
 	}
 
-	// Build existing edge set for dedup.
-	// For bidirectional edge kinds (similar-to), register both directions
-	// so the check works regardless of behavior iteration order.
-	existingEdges := make(map[string]bool)
-	for _, b := range behaviors {
-		edges, err := graphStore.GetEdges(ctx, b.ID, store.DirectionOutbound, "")
-		if err != nil {
-			continue
-		}
-		for _, e := range edges {
-			key := e.Source + ":" + e.Target + ":" + e.Kind
-			existingEdges[key] = true
-			if e.Kind == "similar-to" {
-				reverseKey := e.Target + ":" + e.Source + ":" + e.Kind
-				existingEdges[reverseKey] = true
-			}
-		}
-		result.ExistingEdges += len(edges)
-	}
+	// Build existing edge set for dedup
+	existingEdges, existingCount := buildExistingEdgeSet(ctx, graphStore, behaviors)
+	result.ExistingEdges = existingCount
 
 	// All-pairs comparison
 	now := time.Now()
@@ -107,7 +91,6 @@ func DeriveEdgesForStore(ctx context.Context, graphStore store.GraphStore, scope
 			a := &behaviors[i]
 			b := &behaviors[j]
 
-			// Compute similarity (no LLM)
 			score := ComputeBehaviorSimilarity(a, b, nil, false, nil)
 
 			// Record in histogram (10 buckets: [0.0,0.1), [0.1,0.2), ..., [0.9,1.0])
@@ -117,44 +100,9 @@ func DeriveEdgesForStore(ctx context.Context, graphStore store.GraphStore, scope
 			}
 			result.Histogram[bucket]++
 
-			// Check for overrides edges (specificity)
-			if similarity.IsMoreSpecific(a.When, b.When) {
-				pe := ProposedEdge{Source: a.ID, Target: b.ID, Kind: "overrides", Weight: 1.0, Score: score}
-				key := a.ID + ":" + b.ID + ":overrides"
-				if existingEdges[key] {
-					result.SkippedExisting++
-				} else {
-					result.ProposedEdges = append(result.ProposedEdges, pe)
-					existingEdges[key] = true
-				}
-			}
-			if similarity.IsMoreSpecific(b.When, a.When) {
-				pe := ProposedEdge{Source: b.ID, Target: a.ID, Kind: "overrides", Weight: 1.0, Score: score}
-				key := b.ID + ":" + a.ID + ":overrides"
-				if existingEdges[key] {
-					result.SkippedExisting++
-				} else {
-					result.ProposedEdges = append(result.ProposedEdges, pe)
-					existingEdges[key] = true
-				}
-			}
-
-			// Check for similar-to edges:
-			// 1. Score-based: similarity in [0.5, 0.9)
-			// 2. Tag-based: behaviors sharing >= 2 tags are conceptually related
-			//    and need edges for spreading activation (git -> branch, worktree, etc.)
-			similarToKey := a.ID + ":" + b.ID + ":similar-to"
-			shouldConnect := (score >= constants.SimilarToThreshold && score < constants.SimilarToUpperBound) ||
-				similarity.CountSharedTags(a.Content.Tags, b.Content.Tags) >= MinSharedTagsForEdge
-			if shouldConnect {
-				pe := ProposedEdge{Source: a.ID, Target: b.ID, Kind: "similar-to", Weight: 0.8, Score: score}
-				if existingEdges[similarToKey] {
-					result.SkippedExisting++
-				} else {
-					result.ProposedEdges = append(result.ProposedEdges, pe)
-					existingEdges[similarToKey] = true
-				}
-			}
+			proposed, skipped := proposeEdgesForPair(a, b, score, existingEdges)
+			result.ProposedEdges = append(result.ProposedEdges, proposed...)
+			result.SkippedExisting += skipped
 		}
 	}
 
@@ -211,20 +159,7 @@ func DeriveEdgesForSubset(ctx context.Context, graphStore store.GraphStore, newI
 	}
 
 	// Build existing edge set
-	existingEdges := make(map[string]bool)
-	for _, b := range allBehaviors {
-		edges, err := graphStore.GetEdges(ctx, b.ID, store.DirectionOutbound, "")
-		if err != nil {
-			continue
-		}
-		for _, e := range edges {
-			key := e.Source + ":" + e.Target + ":" + e.Kind
-			existingEdges[key] = true
-			if e.Kind == "similar-to" {
-				existingEdges[e.Target+":"+e.Source+":similar-to"] = true
-			}
-		}
-	}
+	existingEdges, _ := buildExistingEdgeSet(ctx, graphStore, allBehaviors)
 
 	// Pairwise comparison -- only pairs where at least one is new
 	var proposed []ProposedEdge
@@ -243,37 +178,9 @@ func DeriveEdgesForSubset(ctx context.Context, graphStore store.GraphStore, newI
 
 			score := ComputeBehaviorSimilarity(a, b, nil, false, nil)
 
-			// Similar-to edges
-			if (score >= constants.SimilarToThreshold && score < constants.SimilarToUpperBound) ||
-				similarity.CountSharedTags(a.Content.Tags, b.Content.Tags) >= MinSharedTagsForEdge {
-				key := a.ID + ":" + b.ID + ":similar-to"
-				if !existingEdges[key] {
-					proposed = append(proposed, ProposedEdge{Source: a.ID, Target: b.ID, Kind: "similar-to", Weight: 0.8, Score: score})
-					existingEdges[key] = true
-				} else {
-					skipped++
-				}
-			}
-
-			// Overrides edges
-			if similarity.IsMoreSpecific(a.When, b.When) {
-				key := a.ID + ":" + b.ID + ":overrides"
-				if !existingEdges[key] {
-					proposed = append(proposed, ProposedEdge{Source: a.ID, Target: b.ID, Kind: "overrides", Weight: 1.0, Score: score})
-					existingEdges[key] = true
-				} else {
-					skipped++
-				}
-			}
-			if similarity.IsMoreSpecific(b.When, a.When) {
-				key := b.ID + ":" + a.ID + ":overrides"
-				if !existingEdges[key] {
-					proposed = append(proposed, ProposedEdge{Source: b.ID, Target: a.ID, Kind: "overrides", Weight: 1.0, Score: score})
-					existingEdges[key] = true
-				} else {
-					skipped++
-				}
-			}
+			pairProposed, pairSkipped := proposeEdgesForPair(a, b, score, existingEdges)
+			proposed = append(proposed, pairProposed...)
+			skipped += pairSkipped
 		}
 	}
 
@@ -306,6 +213,74 @@ func DeriveEdgesForSubset(ctx context.Context, graphStore store.GraphStore, newI
 		EdgesSkipped:   skipped,
 		ProposedEdges:  proposed,
 	}, nil
+}
+
+// buildExistingEdgeSet scans all outbound edges for the given behaviors and returns
+// a set of "source:target:kind" keys. For bidirectional edge kinds (similar-to),
+// the reverse direction is also registered so lookups work regardless of iteration order.
+func buildExistingEdgeSet(ctx context.Context, graphStore store.GraphStore, behaviors []models.Behavior) (map[string]bool, int) {
+	existingEdges := make(map[string]bool)
+	totalEdges := 0
+	for _, b := range behaviors {
+		edges, err := graphStore.GetEdges(ctx, b.ID, store.DirectionOutbound, "")
+		if err != nil {
+			continue
+		}
+		for _, e := range edges {
+			key := e.Source + ":" + e.Target + ":" + e.Kind
+			existingEdges[key] = true
+			if e.Kind == "similar-to" {
+				existingEdges[e.Target+":"+e.Source+":similar-to"] = true
+			}
+		}
+		totalEdges += len(edges)
+	}
+	return existingEdges, totalEdges
+}
+
+// proposeEdgesForPair evaluates a single behavior pair and returns any proposed edges.
+// It checks for similar-to edges (score-based and tag-based) and overrides edges
+// (specificity-based). Returns proposed edges and the number of skipped duplicates.
+func proposeEdgesForPair(a, b *models.Behavior, score float64, existingEdges map[string]bool) ([]ProposedEdge, int) {
+	var proposed []ProposedEdge
+	skipped := 0
+
+	// Similar-to edges:
+	// 1. Score-based: similarity in [0.5, 0.9)
+	// 2. Tag-based: behaviors sharing >= 2 tags are conceptually related
+	shouldConnect := (score >= constants.SimilarToThreshold && score < constants.SimilarToUpperBound) ||
+		similarity.CountSharedTags(a.Content.Tags, b.Content.Tags) >= MinSharedTagsForEdge
+	if shouldConnect {
+		key := a.ID + ":" + b.ID + ":similar-to"
+		if existingEdges[key] {
+			skipped++
+		} else {
+			proposed = append(proposed, ProposedEdge{Source: a.ID, Target: b.ID, Kind: "similar-to", Weight: 0.8, Score: score})
+			existingEdges[key] = true
+		}
+	}
+
+	// Overrides edges (specificity)
+	if similarity.IsMoreSpecific(a.When, b.When) {
+		key := a.ID + ":" + b.ID + ":overrides"
+		if existingEdges[key] {
+			skipped++
+		} else {
+			proposed = append(proposed, ProposedEdge{Source: a.ID, Target: b.ID, Kind: "overrides", Weight: 1.0, Score: score})
+			existingEdges[key] = true
+		}
+	}
+	if similarity.IsMoreSpecific(b.When, a.When) {
+		key := b.ID + ":" + a.ID + ":overrides"
+		if existingEdges[key] {
+			skipped++
+		} else {
+			proposed = append(proposed, ProposedEdge{Source: b.ID, Target: a.ID, Kind: "overrides", Weight: 1.0, Score: score})
+			existingEdges[key] = true
+		}
+	}
+
+	return proposed, skipped
 }
 
 // ClearDerivedEdges removes all similar-to and overrides outbound edges for behaviors.
