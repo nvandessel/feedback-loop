@@ -31,6 +31,9 @@ type Correction struct {
 	// Who made the correction
 	Corrector string `json:"corrector" yaml:"corrector"`
 
+	// Extra tags provided by the user (merged with inferred tags during extraction)
+	ExtraTags []string `json:"extra_tags,omitempty" yaml:"extra_tags,omitempty"`
+
 	// Processing state
 	Processed   bool       `json:"processed" yaml:"processed"`
 	ProcessedAt *time.Time `json:"processed_at,omitempty" yaml:"processed_at,omitempty"`

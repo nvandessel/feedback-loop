@@ -219,7 +219,7 @@ func (e *behaviorExtractor) buildContent(correction models.Correction) models.Be
 
 	content := models.BehaviorContent{
 		Canonical:  sanitizedCorrected,
-		Tags:       tagging.ExtractTags(sanitizedCorrected, e.tagDict),
+		Tags:       tagging.MergeTags(tagging.ExtractTags(sanitizedCorrected, e.tagDict), correction.ExtraTags, e.tagDict),
 		Structured: make(map[string]interface{}),
 	}
 

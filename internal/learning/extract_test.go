@@ -675,6 +675,71 @@ func TestBehaviorExtractor_BuildContent_Tags(t *testing.T) {
 	}
 }
 
+func TestBehaviorExtractor_BuildContent_ExtraTags(t *testing.T) {
+	extractor := NewBehaviorExtractor().(*behaviorExtractor)
+
+	tests := []struct {
+		name       string
+		correction models.Correction
+		wantTags   []string
+	}{
+		{
+			name: "extra tags merged with inferred tags",
+			correction: models.Correction{
+				CorrectedAction: "Always use git -C for worktree operations",
+				ExtraTags:       []string{"frond", "workflow"},
+			},
+			wantTags: []string{"frond", "git", "workflow", "worktree"},
+		},
+		{
+			name: "extra tags only when no dictionary matches",
+			correction: models.Correction{
+				CorrectedAction: "be more careful next time",
+				ExtraTags:       []string{"frond", "onboarding"},
+			},
+			wantTags: []string{"frond", "onboarding"},
+		},
+		{
+			name: "overlapping extra and inferred tags deduplicated",
+			correction: models.Correction{
+				CorrectedAction: "Always use git -C for worktree operations",
+				ExtraTags:       []string{"git", "frond"},
+			},
+			wantTags: []string{"frond", "git", "worktree"},
+		},
+		{
+			name: "dictionary synonym in extra tags normalized",
+			correction: models.Correction{
+				CorrectedAction: "Follow TDD when writing Go tests",
+				ExtraTags:       []string{"golang"},
+			},
+			// "golang" normalized to "go" via dictionary, deduped with inferred "go"
+			wantTags: []string{"go", "tdd", "testing"},
+		},
+		{
+			name: "nil extra tags unchanged from inference",
+			correction: models.Correction{
+				CorrectedAction: "Always use git -C for worktree operations",
+			},
+			wantTags: []string{"git", "worktree"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			content := extractor.buildContent(tt.correction)
+			if len(content.Tags) != len(tt.wantTags) {
+				t.Fatalf("Tags = %v, want %v", content.Tags, tt.wantTags)
+			}
+			for i, tag := range content.Tags {
+				if tag != tt.wantTags[i] {
+					t.Errorf("Tags[%d] = %q, want %q", i, tag, tt.wantTags[i])
+				}
+			}
+		})
+	}
+}
+
 func TestBehaviorExtractor_Extract_Provenance(t *testing.T) {
 	extractor := NewBehaviorExtractor()
 
