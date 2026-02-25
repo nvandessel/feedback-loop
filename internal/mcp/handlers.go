@@ -1596,6 +1596,7 @@ func (s *Server) handleFloopPackInstall(ctx context.Context, req *sdk.CallToolRe
 		Skipped:      result.Skipped,
 		EdgesAdded:   result.EdgesAdded,
 		EdgesSkipped: result.EdgesSkipped,
+		DerivedEdges: result.DerivedEdges,
 		Message:      fmt.Sprintf("Installed %s v%s: %d added, %d updated, %d skipped", result.PackID, result.Version, len(result.Added), len(result.Updated), len(result.Skipped)),
 	}, nil
 }

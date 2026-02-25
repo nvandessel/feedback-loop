@@ -278,6 +278,8 @@ func DeriveEdgesForSubset(ctx context.Context, graphStore store.GraphStore, newI
 	}
 
 	// Create edges
+	// Note: unlike DeriveEdgesForStore, we intentionally skip PageRank recomputation here.
+	// PageRank is always computed on-demand (not persisted), so callers recompute as needed.
 	created := 0
 	for _, pe := range proposed {
 		edge := store.Edge{Source: pe.Source, Target: pe.Target, Kind: pe.Kind, Weight: pe.Weight, CreatedAt: now}

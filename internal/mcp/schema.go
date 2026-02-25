@@ -243,5 +243,6 @@ type FloopPackInstallOutput struct {
 	Skipped      []string `json:"skipped" jsonschema:"IDs of skipped behaviors"`
 	EdgesAdded   int      `json:"edges_added" jsonschema:"Number of edges added"`
 	EdgesSkipped int      `json:"edges_skipped" jsonschema:"Number of edges skipped"`
+	DerivedEdges int      `json:"derived_edges" jsonschema:"Number of edges automatically derived between pack and existing behaviors"`
 	Message      string   `json:"message" jsonschema:"Human-readable result message"`
 }
