@@ -87,6 +87,9 @@ Called by agents when they receive a correction. Records the correction, extract
 | `--task` | string | `""` | Current task type |
 | `--scope` | string | `""` | Override auto-classification: `local` (project) or `global` (user) |
 | `--auto-merge` | bool | `true` | Automatically merge similar behaviors (matches MCP behavior) |
+| `--tags` | string slice | `nil` | Additional tags to apply, merged with inferred tags (max 5) |
+
+**Tags:** Behaviors are automatically tagged via dictionary-based extraction (e.g., a correction mentioning "git" and "worktree" gets those tags). The `--tags` flag adds user-provided tags on top of inferred tags. Tags are normalized (lowercased, deduplicated), and dictionary synonyms are resolved (e.g., `--tags golang` becomes `go`). User-provided tags always survive the 8-tag cap; inferred tags fill remaining slots.
 
 **Scope classification (MCP):** When invoked via the MCP server (`floop_learn` tool), the `--scope` flag is not used. Instead, behaviors are automatically classified based on their activation conditions: behaviors with `file_path` or `environment` in their When predicate go to local (`.floop/`), while all others go to global (`~/.floop/`). The response includes a `scope` field indicating where the behavior was stored.
 
@@ -99,11 +102,14 @@ floop learn --wrong "used os.path" --right "use pathlib.Path instead"
 # With file context, saved globally
 floop learn --wrong "used print" --right "use logging module" --file main.py --scope global
 
+# With explicit tags for pack filtering
+floop learn --wrong "used pip install" --right "use uv for Python packages" --tags frond,workflow
+
 # Machine-readable output
 floop learn --wrong "hardcoded config" --right "use environment variables" --json
 ```
 
-**See also:** [detect-correction](#detect-correction), [reprocess](#reprocess), [list](#list)
+**See also:** [detect-correction](#detect-correction), [reprocess](#reprocess), [list](#list), [tags](#tags)
 
 ---
 
@@ -874,6 +880,8 @@ Manage behavior tags.
 floop tags <subcommand> [flags]
 ```
 
+Tags are assigned automatically during `floop learn` via dictionary-based extraction. You can also provide explicit tags at learn-time with `--tags` (see [learn](#learn)). The `tags backfill` subcommand retroactively assigns tags to older behaviors that were learned before tagging existed.
+
 #### tags backfill
 
 Extract and assign semantic tags to existing behaviors using dictionary-based extraction.
@@ -903,7 +911,7 @@ floop tags backfill --scope both
 floop tags backfill --json
 ```
 
-**See also:** [list](#list) (`--tag` flag), [deduplicate](#deduplicate)
+**See also:** [learn](#learn) (`--tags` flag), [list](#list) (`--tag` flag), [deduplicate](#deduplicate)
 
 ---
 

@@ -9,6 +9,9 @@ You have persistent memory via floop. Your learned behaviors are auto-injected a
 **When corrected, IMMEDIATELY capture it:**
 ```
 mcp__floop__floop_learn(wrong="what you did", right="what to do instead")
+
+# With explicit tags (optional, for pack filtering):
+mcp__floop__floop_learn(wrong="what you did", right="what to do instead", tags=["topic", "category"])
 ```
 
 Do NOT wait for permission. Capture learnings proactively. The hooks will also auto-detect corrections, but explicit capture is more reliable.

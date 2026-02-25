@@ -125,6 +125,7 @@ Capture a correction and extract a reusable behavior.
 - `file` (string, optional): Relevant file path for context
 - `task` (string, optional): Current task type for context
 - `auto_merge` (boolean, optional): Enable automatic merging of duplicate behaviors (default: false)
+- `tags` (string array, optional): Additional tags to apply to the behavior, merged with inferred tags (max 5). Tags are normalized (lowercased, deduplicated) and dictionary synonyms are resolved (e.g., `"golang"` becomes `"go"`). Useful for skill packs that need deterministic tag-based filtering.
 
 **Example Request:**
 ```json
@@ -136,7 +137,8 @@ Capture a correction and extract a reusable behavior.
     "arguments": {
       "wrong": "Used fmt.Println for error logging",
       "right": "Use fmt.Fprintln(os.Stderr, err) for error output",
-      "file": "cmd/floop/main.go"
+      "file": "cmd/floop/main.go",
+      "tags": ["error-handling", "logging"]
     }
   },
   "id": 2
