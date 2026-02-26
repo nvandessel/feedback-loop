@@ -47,12 +47,13 @@ type BehaviorSummary struct {
 
 // FloopLearnInput defines the input for floop_learn tool.
 type FloopLearnInput struct {
-	Wrong     string `json:"wrong" jsonschema:"What the agent did that needs correction,required"`
-	Right     string `json:"right" jsonschema:"What should have been done instead,required"`
-	File      string `json:"file,omitempty" jsonschema:"Relevant file path for context"`
-	Task      string `json:"task,omitempty" jsonschema:"Current task type for context"`
-	Language  string `json:"language,omitempty" jsonschema:"Programming language (e.g. 'go', 'python'). Overrides file extension inference"`
-	AutoMerge bool   `json:"auto_merge,omitempty" jsonschema:"Enable automatic merging of duplicate behaviors (default: false)"`
+	Wrong     string   `json:"wrong" jsonschema:"What the agent did that needs correction,required"`
+	Right     string   `json:"right" jsonschema:"What should have been done instead,required"`
+	File      string   `json:"file,omitempty" jsonschema:"Relevant file path for context"`
+	Task      string   `json:"task,omitempty" jsonschema:"Current task type for context"`
+	Language  string   `json:"language,omitempty" jsonschema:"Programming language (e.g. 'go', 'python'). Overrides file extension inference"`
+	AutoMerge bool     `json:"auto_merge,omitempty" jsonschema:"Enable automatic merging of duplicate behaviors (default: false)"`
+	Tags      []string `json:"tags,omitempty" jsonschema:"Additional tags to apply to the behavior, merged with inferred tags (max 5)"`
 }
 
 // FloopLearnOutput defines the output for floop_learn tool.

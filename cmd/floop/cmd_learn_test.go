@@ -194,6 +194,135 @@ func TestLearnCmdSanitizesInputs(t *testing.T) {
 	}
 }
 
+func TestLearnCmdTagsFlag(t *testing.T) {
+	t.Run("tags flag accepted and stored in correction", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		isolateHome(t, tmpDir)
+
+		// Initialize .floop directory
+		rootCmd := newTestRootCmd()
+		rootCmd.AddCommand(newInitCmd())
+		rootCmd.SetArgs([]string{"init", "--root", tmpDir})
+		rootCmd.SetOut(&bytes.Buffer{})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("init failed: %v", err)
+		}
+
+		// Run learn with --tags
+		rootCmd2 := newTestRootCmd()
+		rootCmd2.AddCommand(newLearnCmd())
+		rootCmd2.SetArgs([]string{
+			"learn",
+			"--wrong", "used pip install",
+			"--right", "use uv for python packages",
+			"--tags", "frond,workflow",
+			"--root", tmpDir,
+			"--json",
+		})
+		var outBuf bytes.Buffer
+		rootCmd2.SetOut(&outBuf)
+
+		if err := rootCmd2.Execute(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Read the correction and verify extra_tags
+		correctionsPath := filepath.Join(tmpDir, ".floop", "corrections.jsonl")
+		data, err := os.ReadFile(correctionsPath)
+		if err != nil {
+			t.Fatalf("failed to read corrections: %v", err)
+		}
+
+		var correction models.Correction
+		if err := json.Unmarshal(data, &correction); err != nil {
+			t.Fatalf("failed to parse correction: %v", err)
+		}
+
+		if len(correction.ExtraTags) != 2 {
+			t.Fatalf("ExtraTags = %v, want [frond workflow]", correction.ExtraTags)
+		}
+		if correction.ExtraTags[0] != "frond" || correction.ExtraTags[1] != "workflow" {
+			t.Errorf("ExtraTags = %v, want [frond workflow]", correction.ExtraTags)
+		}
+	})
+
+	t.Run("too many tags returns error", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		isolateHome(t, tmpDir)
+
+		rootCmd := newTestRootCmd()
+		rootCmd.AddCommand(newInitCmd())
+		rootCmd.SetArgs([]string{"init", "--root", tmpDir})
+		rootCmd.SetOut(&bytes.Buffer{})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("init failed: %v", err)
+		}
+
+		rootCmd2 := newTestRootCmd()
+		rootCmd2.AddCommand(newLearnCmd())
+		rootCmd2.SetArgs([]string{
+			"learn",
+			"--wrong", "bad",
+			"--right", "good",
+			"--tags", "a,b,c,d,e,f",
+			"--root", tmpDir,
+		})
+		rootCmd2.SetOut(&bytes.Buffer{})
+
+		err := rootCmd2.Execute()
+		if err == nil {
+			t.Fatal("expected error for too many tags")
+		}
+		if !strings.Contains(err.Error(), "at most") {
+			t.Errorf("error = %q, want it to mention 'at most'", err.Error())
+		}
+	})
+
+	t.Run("no tags flag leaves behavior unchanged", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		isolateHome(t, tmpDir)
+
+		rootCmd := newTestRootCmd()
+		rootCmd.AddCommand(newInitCmd())
+		rootCmd.SetArgs([]string{"init", "--root", tmpDir})
+		rootCmd.SetOut(&bytes.Buffer{})
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("init failed: %v", err)
+		}
+
+		rootCmd2 := newTestRootCmd()
+		rootCmd2.AddCommand(newLearnCmd())
+		rootCmd2.SetArgs([]string{
+			"learn",
+			"--wrong", "used pip",
+			"--right", "use uv instead",
+			"--root", tmpDir,
+			"--json",
+		})
+		var outBuf bytes.Buffer
+		rootCmd2.SetOut(&outBuf)
+
+		if err := rootCmd2.Execute(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		correctionsPath := filepath.Join(tmpDir, ".floop", "corrections.jsonl")
+		data, err := os.ReadFile(correctionsPath)
+		if err != nil {
+			t.Fatalf("failed to read corrections: %v", err)
+		}
+
+		var correction models.Correction
+		if err := json.Unmarshal(data, &correction); err != nil {
+			t.Fatalf("failed to parse correction: %v", err)
+		}
+
+		if len(correction.ExtraTags) != 0 {
+			t.Errorf("ExtraTags = %v, want empty", correction.ExtraTags)
+		}
+	})
+}
+
 func TestReprocessCmdSanitizesCorrections(t *testing.T) {
 	tests := []struct {
 		name          string

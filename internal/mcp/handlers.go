@@ -24,6 +24,7 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/sanitize"
 	"github.com/nvandessel/feedback-loop/internal/spreading"
 	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/feedback-loop/internal/tagging"
 	"github.com/nvandessel/feedback-loop/internal/tiering"
 	"github.com/nvandessel/feedback-loop/internal/visualization"
 )
@@ -551,7 +552,7 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 			auditScope = "local" // fallback if error before scope is determined
 		}
 		s.auditTool("floop_learn", start, retErr, sanitizeToolParams("floop_learn", map[string]interface{}{
-			"wrong": args.Wrong, "right": args.Right, "file": args.File, "task": args.Task, "language": args.Language, "auto_merge": args.AutoMerge,
+			"wrong": args.Wrong, "right": args.Right, "file": args.File, "task": args.Task, "language": args.Language, "auto_merge": args.AutoMerge, "tags": args.Tags,
 		}), auditScope)
 	}()
 
@@ -603,6 +604,13 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 
 	// Create correction with nanosecond-precision ID for uniqueness
 	now := time.Now()
+
+	// Silently truncate extra tags to MaxExtraTags
+	extraTags := args.Tags
+	if len(extraTags) > tagging.MaxExtraTags {
+		extraTags = extraTags[:tagging.MaxExtraTags]
+	}
+
 	correction := models.Correction{
 		ID:              fmt.Sprintf("c-%d", now.UnixNano()),
 		Timestamp:       now,
@@ -610,6 +618,7 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 		AgentAction:     args.Wrong,
 		CorrectedAction: args.Right,
 		Corrector:       "mcp-client",
+		ExtraTags:       extraTags,
 		Processed:       false,
 	}
 

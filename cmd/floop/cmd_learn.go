@@ -14,6 +14,7 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/sanitize"
 	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/feedback-loop/internal/tagging"
 	"github.com/spf13/cobra"
 )
 
@@ -61,6 +62,12 @@ Example:
 				return fmt.Errorf("--right is empty after sanitization: input contained only unsafe content")
 			}
 
+			// Read and validate tags
+			tags, _ := cmd.Flags().GetStringSlice("tags")
+			if len(tags) > tagging.MaxExtraTags {
+				return fmt.Errorf("--tags accepts at most %d tags, got %d", tagging.MaxExtraTags, len(tags))
+			}
+
 			// Build context snapshot
 			now := time.Now()
 			ctxSnapshot := models.ContextSnapshot{
@@ -80,6 +87,7 @@ Example:
 				Context:         ctxSnapshot,
 				AgentAction:     wrong,
 				CorrectedAction: right,
+				ExtraTags:       tags,
 				Processed:       false,
 			}
 
@@ -195,6 +203,7 @@ Example:
 	cmd.Flags().String("task", "", "Current task type")
 	cmd.Flags().String("scope", "", "Override auto-classification: local (project) or global (user)")
 	cmd.Flags().Bool("auto-merge", true, "Automatically merge similar behaviors (matches MCP behavior)")
+	cmd.Flags().StringSlice("tags", nil, "Additional tags to apply, merged with inferred tags (max 5)")
 	cmd.MarkFlagRequired("wrong")
 	cmd.MarkFlagRequired("right")
 

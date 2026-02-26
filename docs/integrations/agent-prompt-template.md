@@ -39,6 +39,7 @@ When the user corrects you, immediately call `floop_learn` with:
 - `file`: the relevant file path (if applicable)
 - `language`: programming language override (if file path isn't provided or doesn't reflect the actual language)
 - `task`: the current task type (if applicable)
+- `tags`: additional categorization tags (optional, max 5 — e.g. `["error-handling", "logging"]`). Use when building skill packs or when the correction belongs to a specific topic.
 
 Capture corrections immediately — this is expected behavior and does not
 require user confirmation. Duplicate behaviors are automatically merged.

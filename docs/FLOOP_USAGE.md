@@ -60,6 +60,9 @@ The MCP server also exposes resources that clients can subscribe to:
 # When corrected, agent calls:
 floop_learn(wrong="Used print for debugging", right="Use structured logging")
 
+# With explicit tags for reliable filtering (e.g., for skill packs):
+floop_learn(wrong="used pip", right="use uv instead", tags=["frond", "workflow"])
+
 # Agent can check what's active for a specific file:
 floop_active(file="internal/store/file.go", task="development")
 ```
@@ -90,6 +93,12 @@ floop learn \
   --right "Support both global and local scopes" \
   --file "internal/store/file.go" \
   --task "architecture"
+
+# With explicit tags (merged with auto-inferred tags)
+floop learn \
+  --wrong "used pip install" \
+  --right "use uv for Python packages" \
+  --tags frond,workflow
 
 # With auto-merge to consolidate similar behaviors
 floop learn --wrong "..." --right "..." --auto-merge
