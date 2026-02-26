@@ -41,6 +41,11 @@ func NewSQLiteGraphStore(projectRoot string) (*SQLiteGraphStore, error) {
 		return nil, fmt.Errorf("failed to create .floop directory: %w", err)
 	}
 
+	// Ensure .gitignore exists to prevent committing DB files
+	if err := EnsureGitignore(floopDir); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+	}
+
 	dbPath := filepath.Join(floopDir, "floop.db")
 	nodesFile := filepath.Join(floopDir, "nodes.jsonl")
 	edgesFile := filepath.Join(floopDir, "edges.jsonl")

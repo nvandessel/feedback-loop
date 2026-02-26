@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,6 +33,56 @@ func TestNewSQLiteGraphStore(t *testing.T) {
 	dbPath := filepath.Join(floopDir, "floop.db")
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		t.Error("floop.db was not created")
+	}
+}
+
+func TestNewSQLiteGraphStore_CreatesGitignore(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	store, err := NewSQLiteGraphStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewSQLiteGraphStore() error = %v", err)
+	}
+	defer store.Close()
+
+	gitignorePath := filepath.Join(tmpDir, ".floop", ".gitignore")
+	data, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		t.Fatalf(".gitignore was not created: %v", err)
+	}
+
+	content := string(data)
+	for _, entry := range []string{"floop.db\n", "floop.db-shm\n", "floop.db-wal\n", "audit.jsonl\n"} {
+		if !strings.Contains(content, entry) {
+			t.Errorf(".gitignore missing entry %q", strings.TrimSpace(entry))
+		}
+	}
+}
+
+func TestNewSQLiteGraphStore_PreservesExistingGitignore(t *testing.T) {
+	tmpDir := t.TempDir()
+	floopDir := filepath.Join(tmpDir, ".floop")
+	if err := os.MkdirAll(floopDir, 0700); err != nil {
+		t.Fatalf("failed to create .floop dir: %v", err)
+	}
+
+	custom := "# custom gitignore\n*.log\n"
+	if err := os.WriteFile(filepath.Join(floopDir, ".gitignore"), []byte(custom), 0600); err != nil {
+		t.Fatalf("failed to write custom .gitignore: %v", err)
+	}
+
+	store, err := NewSQLiteGraphStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewSQLiteGraphStore() error = %v", err)
+	}
+	defer store.Close()
+
+	data, err := os.ReadFile(filepath.Join(floopDir, ".gitignore"))
+	if err != nil {
+		t.Fatalf("failed to read .gitignore: %v", err)
+	}
+	if string(data) != custom {
+		t.Errorf("existing .gitignore was overwritten: got %q, want %q", string(data), custom)
 	}
 }
 
