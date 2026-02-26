@@ -10,8 +10,9 @@ import (
 
 func newVersionCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "version",
-		Short: "Print version information",
+		Use:    "version",
+		Short:  "Print version information",
+		Hidden: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			jsonOut, _ := cmd.Flags().GetBool("json")
 			if jsonOut {

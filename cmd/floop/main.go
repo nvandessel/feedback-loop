@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	"github.com/nvandessel/feedback-loop/internal/config"
 	"github.com/nvandessel/feedback-loop/internal/llm"
@@ -67,15 +68,56 @@ var (
 	date    = "unknown"
 )
 
+// resolveVersion populates version, commit, and date from Go module build info
+// when ldflags have not been set. This enables proper version reporting for
+// binaries installed via "go install".
+func resolveVersion() {
+	if version != "dev" {
+		return
+	}
+
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return
+	}
+
+	if info.Main.Version != "" && info.Main.Version != "(devel)" {
+		version = info.Main.Version
+	}
+
+	for _, setting := range info.Settings {
+		switch setting.Key {
+		case "vcs.revision":
+			if len(setting.Value) >= 7 {
+				commit = setting.Value[:7]
+			} else if setting.Value != "" {
+				commit = setting.Value
+			}
+		case "vcs.time":
+			date = setting.Value
+		}
+	}
+}
+
+// versionString formats version information for display.
+func versionString() string {
+	return fmt.Sprintf("%s (commit: %s, built: %s)", version, commit, date)
+}
+
 func main() {
+	resolveVersion()
+
 	rootCmd := &cobra.Command{
-		Use:   "floop",
-		Short: "Feedback loop - behavior learning for AI agents",
+		Use:     "floop",
+		Short:   "Feedback loop - behavior learning for AI agents",
+		Version: versionString(),
 		Long: `floop manages learned behaviors and conventions for AI coding agents.
 
 It captures corrections, extracts reusable behaviors, and provides
 context-aware behavior activation for consistent agent operation.`,
 	}
+
+	rootCmd.SetVersionTemplate("floop version {{.Version}}\n")
 
 	// Global flags
 	rootCmd.PersistentFlags().Bool("json", false, "Output as JSON (for agent consumption)")
