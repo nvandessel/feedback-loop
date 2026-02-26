@@ -388,7 +388,11 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 		pairs := spreading.ExtractCoActivationPairs(spreadResults, seedIDSet, s.hebbianConfig)
 		if len(pairs) > 0 {
 			s.runBackground("hebbian-update", func() {
-				s.applyHebbianUpdates(context.Background(), pairs, s.hebbianConfig)
+				if s.applyHebbianUpdates(context.Background(), pairs, s.hebbianConfig) {
+					if err := s.store.Sync(context.Background()); err != nil {
+						fmt.Fprintf(os.Stderr, "warning: hebbian: sync after edge update: %v\n", err)
+					}
+				}
 				s.debouncedRefreshPageRank()
 			})
 		}
