@@ -202,14 +202,9 @@ func Restore(ctx context.Context, graphStore store.GraphStore, inputPath string,
 // Prints a warning to stderr if the backup's schema version is older.
 // Returns nil silently for V1 backups or V2 backups with schema_version=0.
 func checkSchemaVersion(inputPath string) error {
-	version, err := DetectFormat(inputPath)
-	if err != nil || version != FormatV2 {
-		return nil // V1 or detection failure — skip check
-	}
-
 	header, err := ReadV2Header(inputPath)
 	if err != nil {
-		return nil // header read failure — skip check, ReadV2 will catch real errors
+		return nil // V1, unreadable, or non-V2 — skip check
 	}
 
 	if header.SchemaVersion == 0 {
