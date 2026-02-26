@@ -69,6 +69,104 @@ func TestNewVersionCmd(t *testing.T) {
 	if cmd.Use != "version" {
 		t.Errorf("Use = %q, want %q", cmd.Use, "version")
 	}
+	if !cmd.Hidden {
+		t.Error("version subcommand should be hidden (use --version flag instead)")
+	}
+}
+
+func TestResolveVersion(t *testing.T) {
+	origVersion := version
+	origCommit := commit
+	origDate := date
+	t.Cleanup(func() {
+		version = origVersion
+		commit = origCommit
+		date = origDate
+	})
+
+	// When ldflags are set, resolveVersion should not override
+	version = "v1.2.3"
+	commit = "abc1234"
+	date = "2026-01-01T00:00:00Z"
+	resolveVersion()
+	if version != "v1.2.3" {
+		t.Errorf("resolveVersion() should not override ldflags; version = %q", version)
+	}
+	if commit != "abc1234" {
+		t.Errorf("resolveVersion() should not override ldflags; commit = %q", commit)
+	}
+	if date != "2026-01-01T00:00:00Z" {
+		t.Errorf("resolveVersion() should not override ldflags; date = %q", date)
+	}
+
+	// When version is "dev", resolveVersion should attempt to read build info
+	// without panicking (in test context, build info may not have VCS data)
+	version = "dev"
+	commit = "none"
+	date = "unknown"
+	resolveVersion()
+	// Function should not panic — that's the main assertion here
+}
+
+func TestVersionString(t *testing.T) {
+	origVersion := version
+	origCommit := commit
+	origDate := date
+	t.Cleanup(func() {
+		version = origVersion
+		commit = origCommit
+		date = origDate
+	})
+
+	version = "v0.5.7"
+	commit = "abc1234"
+	date = "2026-02-26T12:00:00Z"
+
+	want := "v0.5.7 (commit: abc1234, built: 2026-02-26T12:00:00Z)"
+	got := versionString()
+	if got != want {
+		t.Errorf("versionString() = %q, want %q", got, want)
+	}
+}
+
+func TestVersionFlag(t *testing.T) {
+	origVersion := version
+	origCommit := commit
+	origDate := date
+	t.Cleanup(func() {
+		version = origVersion
+		commit = origCommit
+		date = origDate
+	})
+
+	version = "v1.0.0"
+	commit = "abc1234"
+	date = "2026-01-01T00:00:00Z"
+
+	rootCmd := &cobra.Command{
+		Use:     "floop",
+		Version: versionString(),
+	}
+	rootCmd.SetVersionTemplate("floop version {{.Version}}\n")
+
+	var buf bytes.Buffer
+	rootCmd.SetOut(&buf)
+	rootCmd.SetArgs([]string{"--version"})
+
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("--version failed: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "v1.0.0") {
+		t.Errorf("--version output missing version: %s", output)
+	}
+	if !strings.Contains(output, "abc1234") {
+		t.Errorf("--version output missing commit: %s", output)
+	}
+	if !strings.Contains(output, "floop version") {
+		t.Errorf("--version output missing prefix: %s", output)
+	}
 }
 
 func TestNewInitCmd(t *testing.T) {

@@ -14,6 +14,7 @@ These flags are available on every command.
 |------|------|---------|-------------|
 | `--json` | bool | `false` | Output as JSON (for agent consumption) |
 | `--root` | string | `.` | Project root directory |
+| `--version`, `-v` | bool | `false` | Print version information and exit |
 
 ---
 
@@ -140,25 +141,24 @@ floop reprocess --scope global
 
 ---
 
-### version
+### --version
 
 Print version information.
 
 ```
-floop version
+floop --version
+floop -v
 ```
-
-No command-specific flags.
 
 **Examples:**
 
 ```bash
-floop version
-# floop version 0.2.0-dev
-
-floop version --json
-# {"version":"0.2.0-dev"}
+floop --version
+# floop version v0.5.7 (commit: abc1234, built: 2026-02-10T15:30:00Z)
 ```
+
+> **Note:** `floop version` is still accepted for backward compatibility.
+> For JSON version output, use: `floop version --json`
 
 ---
 
@@ -1291,7 +1291,7 @@ floop help learn
 floop help completion bash
 ```
 
-**See also:** [version](#version)
+**See also:** [--version](#--version)
 
 ---
 
@@ -1327,5 +1327,5 @@ floop help completion bash
 | [tags](#tags) | Graph | Manage behavior tags |
 | [upgrade](#upgrade) | Core | Upgrade hook configuration to native Go subcommands |
 | [validate](#validate) | Management | Validate the behavior graph for consistency issues |
-| [version](#version) | Core | Print version information |
+| [--version](#--version) | Core | Print version information |
 | [why](#why) | Query | Explain why a behavior is or isn't active |

@@ -106,7 +106,7 @@ gh release view v0.2.0
 # Download and test a binary
 gh release download v0.2.0 -p "floop-v0.2.0-linux-amd64.tar.gz"
 tar xzf floop-v0.2.0-linux-amd64.tar.gz
-./floop version
+./floop --version
 ```
 
 Expected output:
@@ -156,7 +156,7 @@ goreleaser build --snapshot --clean
 ls -lh dist/*/
 
 # Test version injection
-./dist/floop_linux_amd64_v1/floop version
+./dist/floop_linux_amd64_v1/floop --version
 
 # Test full release pipeline (doesn't publish)
 goreleaser release --snapshot --clean
@@ -170,7 +170,7 @@ rm -rf dist/
 All binaries include build metadata:
 
 ```bash
-./floop version
+./floop --version
 # Output: floop version v0.2.0 (commit: abc1234, built: 2026-02-10T15:30:00Z)
 
 ./floop version --json

@@ -46,7 +46,7 @@ jobs:
 
           # Test a Linux binary
           echo -e "\nTesting Linux amd64 binary..."
-          ./dist/floop_linux_amd64_v1/floop version
+          ./dist/floop_linux_amd64_v1/floop --version
 
       - name: Check archives
         run: |
