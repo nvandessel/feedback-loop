@@ -325,8 +325,10 @@ func TestApplyHebbianUpdates_SyncsEdgesToJSONL(t *testing.T) {
 		t.Fatalf("Sync: %v", err)
 	}
 
-	// Verify edges.jsonl contains the co-activated edge
-	edgesFile := filepath.Join(tmpDir, ".floop", "edges.jsonl")
+	// Verify edges.jsonl contains the co-activated edge.
+	// AddNode defaults to global store, so edges route there too.
+	// Global store root = $HOME/.floop/ and HOME = tmpDir/home in tests.
+	edgesFile := filepath.Join(tmpDir, "home", ".floop", "edges.jsonl")
 	data, err := os.ReadFile(edgesFile)
 	if err != nil {
 		t.Fatalf("ReadFile(edges.jsonl): %v", err)
