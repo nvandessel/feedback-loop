@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // TestE2E_FullPipeline validates the complete floop pipeline:

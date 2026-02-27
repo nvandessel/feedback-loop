@@ -3,9 +3,9 @@ package simulation
 import (
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/spreading"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/spreading"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // Scenario defines a complete simulation experiment.

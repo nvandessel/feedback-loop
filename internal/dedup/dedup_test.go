@@ -3,7 +3,7 @@ package dedup
 import (
 	"testing"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 func TestDuplicateMatch_Instantiation(t *testing.T) {

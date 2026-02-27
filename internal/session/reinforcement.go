@@ -1,7 +1,7 @@
 package session
 
 import (
-	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 // ReinforcementConfig controls when behaviors should be re-injected.

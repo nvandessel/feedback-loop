@@ -5,8 +5,8 @@ import (
 	"os"
 	"runtime/debug"
 
-	"github.com/nvandessel/feedback-loop/internal/config"
-	"github.com/nvandessel/feedback-loop/internal/llm"
+	"github.com/nvandessel/floop/internal/config"
+	"github.com/nvandessel/floop/internal/llm"
 	"github.com/spf13/cobra"
 )
 

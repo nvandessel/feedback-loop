@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/logging"
-	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/floop/internal/logging"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 func TestDefaultSubagentConfig(t *testing.T) {

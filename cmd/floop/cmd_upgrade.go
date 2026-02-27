@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/nvandessel/feedback-loop/internal/hooks"
+	"github.com/nvandessel/floop/internal/hooks"
 	"github.com/spf13/cobra"
 )
 

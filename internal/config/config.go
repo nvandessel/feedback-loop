@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/constants"
+	"github.com/nvandessel/floop/internal/constants"
 	"gopkg.in/yaml.v3"
 )
 

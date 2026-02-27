@@ -5,7 +5,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 // MockClient implements Client and EmbeddingComparer for testing purposes.

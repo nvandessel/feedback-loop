@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 // ActivationResult represents a behavior that matched the current context

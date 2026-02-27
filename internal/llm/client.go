@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 // ComparisonResult contains the result of comparing two behaviors using an LLM.

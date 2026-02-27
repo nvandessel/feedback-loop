@@ -1,7 +1,7 @@
 package models
 
 import (
-	"github.com/nvandessel/feedback-loop/internal/constants"
+	"github.com/nvandessel/floop/internal/constants"
 )
 
 // localScopeKeys are When condition keys that indicate project-specific behaviors.

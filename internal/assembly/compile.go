@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/tokens"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/tokens"
 )
 
 // Format specifies the output format for compiled prompts

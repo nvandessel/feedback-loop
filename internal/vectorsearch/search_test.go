@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/nvandessel/feedback-loop/internal/store"
-	"github.com/nvandessel/feedback-loop/internal/vecmath"
+	"github.com/nvandessel/floop/internal/store"
+	"github.com/nvandessel/floop/internal/vecmath"
 )
 
 func TestBruteForceSearch_Ordering(t *testing.T) {

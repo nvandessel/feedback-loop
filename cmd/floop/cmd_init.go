@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/config"
-	"github.com/nvandessel/feedback-loop/internal/constants"
-	"github.com/nvandessel/feedback-loop/internal/hooks"
-	"github.com/nvandessel/feedback-loop/internal/seed"
-	"github.com/nvandessel/feedback-loop/internal/setup"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/config"
+	"github.com/nvandessel/floop/internal/constants"
+	"github.com/nvandessel/floop/internal/hooks"
+	"github.com/nvandessel/floop/internal/seed"
+	"github.com/nvandessel/floop/internal/setup"
+	"github.com/nvandessel/floop/internal/store"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )

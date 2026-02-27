@@ -2,8 +2,8 @@
 
 # f(eedback)loop
 
-[![CI](https://github.com/nvandessel/feedback-loop/actions/workflows/ci.yml/badge.svg)](https://github.com/nvandessel/feedback-loop/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/nvandessel/feedback-loop)](https://github.com/nvandessel/feedback-loop/releases/latest)
+[![CI](https://github.com/nvandessel/floop/actions/workflows/ci.yml/badge.svg)](https://github.com/nvandessel/floop/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/nvandessel/floop)](https://github.com/nvandessel/floop/releases/latest)
 [![Go 1.25+](https://img.shields.io/badge/go-1.25%2B-blue.svg)](https://go.dev/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
@@ -25,7 +25,7 @@ floop captures corrections you make to AI agents, extracts reusable behaviors, a
 
 ```bash
 # Install
-go install github.com/nvandessel/feedback-loop/cmd/floop@latest
+go install github.com/nvandessel/floop/cmd/floop@latest
 
 # Initialize in your project
 cd your-project
@@ -102,7 +102,7 @@ When you correct your AI agent, floop captures the correction and extracts a **b
 - [Research & theory](docs/SCIENCE.md) — The cognitive science behind spreading activation
 - [Origin story](docs/LORE.md) — How floop came to be
 - [Contributing](CONTRIBUTING.md) — How to contribute
-- [Releases](https://github.com/nvandessel/feedback-loop/releases) — Release history
+- [Releases](https://github.com/nvandessel/floop/releases) — Release history
 
 ## Project Status
 

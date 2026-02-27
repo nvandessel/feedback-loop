@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // PageRankConfig holds configuration for PageRank computation.

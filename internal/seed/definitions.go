@@ -2,7 +2,7 @@
 package seed
 
 import (
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // SeedVersion is the version of the seed behavior definitions.

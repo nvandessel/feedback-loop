@@ -11,9 +11,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/constants"
-	"github.com/nvandessel/feedback-loop/internal/ranking"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/constants"
+	"github.com/nvandessel/floop/internal/ranking"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // Config holds tunable parameters for the spreading activation engine.

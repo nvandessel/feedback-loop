@@ -3,7 +3,7 @@ package models
 import (
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/constants"
+	"github.com/nvandessel/floop/internal/constants"
 )
 
 // BehaviorKind categorizes what type of behavioral guidance this is

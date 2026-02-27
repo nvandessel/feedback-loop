@@ -1,7 +1,7 @@
 package tiering
 
 import (
-	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 // QuickAssign creates a tiered injection plan using the canonical ActivationTierMapper

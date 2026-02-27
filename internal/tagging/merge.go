@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/nvandessel/feedback-loop/internal/sanitize"
+	"github.com/nvandessel/floop/internal/sanitize"
 )
 
 // MaxExtraTags is the maximum number of user-provided extra tags accepted.

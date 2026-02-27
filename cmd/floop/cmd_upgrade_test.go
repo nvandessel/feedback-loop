@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/nvandessel/feedback-loop/internal/hooks"
+	"github.com/nvandessel/floop/internal/hooks"
 )
 
 func TestUpgradeScopeNoInstallation(t *testing.T) {

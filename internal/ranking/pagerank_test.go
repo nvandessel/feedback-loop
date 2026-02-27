@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // addBehaviorNode is a test helper that adds a behavior node to the store.

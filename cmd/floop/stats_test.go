@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/tiering"
-	"github.com/nvandessel/feedback-loop/internal/tokens"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/tiering"
+	"github.com/nvandessel/floop/internal/tokens"
 )
 
 func TestBudgetSimulationVaryingBudgets(t *testing.T) {

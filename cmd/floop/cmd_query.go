@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/activation"
-	"github.com/nvandessel/feedback-loop/internal/assembly"
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/store"
-	"github.com/nvandessel/feedback-loop/internal/tiering"
+	"github.com/nvandessel/floop/internal/activation"
+	"github.com/nvandessel/floop/internal/assembly"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/store"
+	"github.com/nvandessel/floop/internal/tiering"
 	"github.com/spf13/cobra"
 )
 

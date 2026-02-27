@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/store"
-	"github.com/nvandessel/feedback-loop/internal/vectorsearch"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/store"
+	"github.com/nvandessel/floop/internal/vectorsearch"
 )
 
 // vectorRetrieveTopK is the default number of candidates returned by vector search.

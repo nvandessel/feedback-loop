@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 func TestCompiler_Compile_Empty(t *testing.T) {

@@ -7,10 +7,10 @@ import (
 	"os"
 	"sort"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/store"
-	"github.com/nvandessel/feedback-loop/internal/tiering"
-	"github.com/nvandessel/feedback-loop/internal/tokens"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/store"
+	"github.com/nvandessel/floop/internal/tiering"
+	"github.com/nvandessel/floop/internal/tokens"
 	"github.com/spf13/cobra"
 )
 

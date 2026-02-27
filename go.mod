@@ -1,4 +1,4 @@
-module github.com/nvandessel/feedback-loop
+module github.com/nvandessel/floop
 
 go 1.25
 

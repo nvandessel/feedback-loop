@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"sort"
 
-	"github.com/nvandessel/feedback-loop/internal/sanitize"
+	"github.com/nvandessel/floop/internal/sanitize"
 )
 
 // MaxTags is the maximum number of tags extracted per behavior.

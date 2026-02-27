@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/config"
+	"github.com/nvandessel/floop/internal/config"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )

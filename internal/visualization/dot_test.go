@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 func setupTestStore(t *testing.T) store.GraphStore {

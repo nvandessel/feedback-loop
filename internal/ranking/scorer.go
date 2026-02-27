@@ -3,8 +3,8 @@ package ranking
 import (
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/constants"
-	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/floop/internal/constants"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 // ScorerConfig configures the relevance scorer.

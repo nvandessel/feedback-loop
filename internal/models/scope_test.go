@@ -3,7 +3,7 @@ package models
 import (
 	"testing"
 
-	"github.com/nvandessel/feedback-loop/internal/constants"
+	"github.com/nvandessel/floop/internal/constants"
 )
 
 func TestClassifyScope(t *testing.T) {

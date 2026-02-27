@@ -3,8 +3,8 @@ package simulation_test
 import (
 	"testing"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/simulation"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/simulation"
 )
 
 // TestSeedSelectionIntegration exercises the real Pipeline.Run() path — no

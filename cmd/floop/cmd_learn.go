@@ -8,13 +8,13 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/constants"
-	"github.com/nvandessel/feedback-loop/internal/dedup"
-	"github.com/nvandessel/feedback-loop/internal/learning"
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/sanitize"
-	"github.com/nvandessel/feedback-loop/internal/store"
-	"github.com/nvandessel/feedback-loop/internal/tagging"
+	"github.com/nvandessel/floop/internal/constants"
+	"github.com/nvandessel/floop/internal/dedup"
+	"github.com/nvandessel/floop/internal/learning"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/sanitize"
+	"github.com/nvandessel/floop/internal/store"
+	"github.com/nvandessel/floop/internal/tagging"
 	"github.com/spf13/cobra"
 )
 

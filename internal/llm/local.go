@@ -7,8 +7,8 @@ import (
 	"sync"
 
 	"github.com/hybridgroup/yzma/pkg/llama"
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/vecmath"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/vecmath"
 )
 
 // Package-level library initialization. llama.Load() and llama.Init() are

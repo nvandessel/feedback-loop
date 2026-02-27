@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 // Compiled regex patterns (compiled once at package init for performance)
