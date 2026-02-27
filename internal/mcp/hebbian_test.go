@@ -1,9 +1,15 @@
 package mcp
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/nvandessel/feedback-loop/internal/constants"
 	"github.com/nvandessel/feedback-loop/internal/spreading"
 	"github.com/nvandessel/feedback-loop/internal/store"
 )
@@ -172,4 +178,191 @@ func TestPairKey_Canonical(t *testing.T) {
 	if k1 == k3 {
 		t.Log("note: pairKey is NOT symmetric — caller must ensure canonical order")
 	}
+}
+
+func TestApplyHebbianUpdates_ReturnsChanged(t *testing.T) {
+	server, _ := setupTestServer(t)
+	defer server.Close()
+
+	ctx := context.Background()
+
+	// Add two behavior nodes so edges can reference them
+	nodeA := store.Node{
+		ID:   "behav-a",
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"name": "behav-a",
+			"kind": "directive",
+			"content": map[string]interface{}{
+				"canonical": "Use error wrapping",
+			},
+		},
+	}
+	nodeB := store.Node{
+		ID:   "behav-b",
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"name": "behav-b",
+			"kind": "directive",
+			"content": map[string]interface{}{
+				"canonical": "Return errors from functions",
+			},
+		},
+	}
+	if _, err := server.store.AddNode(ctx, nodeA); err != nil {
+		t.Fatalf("AddNode(a): %v", err)
+	}
+	if _, err := server.store.AddNode(ctx, nodeB); err != nil {
+		t.Fatalf("AddNode(b): %v", err)
+	}
+
+	pair := spreading.CoActivationPair{
+		BehaviorA:   "behav-a",
+		BehaviorB:   "behav-b",
+		ActivationA: 0.8,
+		ActivationB: 0.7,
+	}
+	cfg := spreading.DefaultHebbianConfig()
+	cfg.CreationGate = 3
+	cfg.CreationWindow = 1 * time.Hour
+
+	// Empty pairs → false
+	if server.applyHebbianUpdates(ctx, nil, cfg) {
+		t.Error("empty pairs should return false")
+	}
+
+	// Gate not met → false (only records co-activation, no edge mutation)
+	if server.applyHebbianUpdates(ctx, []spreading.CoActivationPair{pair}, cfg) {
+		t.Error("should return false when gate not met (1/3)")
+	}
+	if server.applyHebbianUpdates(ctx, []spreading.CoActivationPair{pair}, cfg) {
+		t.Error("should return false when gate not met (2/3)")
+	}
+
+	// Gate met on 3rd → true (edge created)
+	if !server.applyHebbianUpdates(ctx, []spreading.CoActivationPair{pair}, cfg) {
+		t.Error("should return true when gate met and edge created")
+	}
+
+	// Verify edge actually exists
+	edges, err := server.store.GetEdges(ctx, "behav-a", store.DirectionOutbound, constants.CoActivatedEdgeKind)
+	if err != nil {
+		t.Fatalf("GetEdges: %v", err)
+	}
+	found := false
+	for _, e := range edges {
+		if e.Target == "behav-b" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("co-activated edge should exist after gate met")
+	}
+
+	// Edge already exists → weight update → true
+	if !server.applyHebbianUpdates(ctx, []spreading.CoActivationPair{pair}, cfg) {
+		t.Error("should return true when existing edge weight is updated")
+	}
+}
+
+func TestApplyHebbianUpdates_SyncsEdgesToJSONL(t *testing.T) {
+	server, tmpDir := setupTestServer(t)
+	defer server.Close()
+
+	ctx := context.Background()
+
+	// Add two behavior nodes
+	nodeA := store.Node{
+		ID:   "behav-x",
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"name": "behav-x",
+			"kind": "directive",
+			"content": map[string]interface{}{
+				"canonical": "Always use context",
+			},
+		},
+	}
+	nodeB := store.Node{
+		ID:   "behav-y",
+		Kind: "behavior",
+		Content: map[string]interface{}{
+			"name": "behav-y",
+			"kind": "directive",
+			"content": map[string]interface{}{
+				"canonical": "Pass context to functions",
+			},
+		},
+	}
+	if _, err := server.store.AddNode(ctx, nodeA); err != nil {
+		t.Fatalf("AddNode(x): %v", err)
+	}
+	if _, err := server.store.AddNode(ctx, nodeB); err != nil {
+		t.Fatalf("AddNode(y): %v", err)
+	}
+
+	// Set creation gate to 1 so edge is created immediately
+	cfg := spreading.DefaultHebbianConfig()
+	cfg.CreationGate = 1
+	cfg.CreationWindow = 1 * time.Hour
+
+	pair := spreading.CoActivationPair{
+		BehaviorA:   "behav-x",
+		BehaviorB:   "behav-y",
+		ActivationA: 0.8,
+		ActivationB: 0.7,
+	}
+
+	// Apply hebbian update — should create edge and return true
+	changed := server.applyHebbianUpdates(ctx, []spreading.CoActivationPair{pair}, cfg)
+	if !changed {
+		t.Fatal("applyHebbianUpdates should return true when edge created")
+	}
+
+	// Now sync (simulating what the fixed background goroutine does)
+	if err := server.store.Sync(ctx); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	// Verify edges.jsonl contains the co-activated edge.
+	// AddNode defaults to global store, so edges route there too.
+	// Global store root = $HOME/.floop/ and HOME = tmpDir/home in tests.
+	edgesFile := filepath.Join(tmpDir, "home", ".floop", "edges.jsonl")
+	data, err := os.ReadFile(edgesFile)
+	if err != nil {
+		t.Fatalf("ReadFile(edges.jsonl): %v", err)
+	}
+
+	type edgeRecord struct {
+		Source string `json:"source"`
+		Target string `json:"target"`
+		Kind   string `json:"kind"`
+	}
+
+	foundEdge := false
+	for _, line := range splitNonEmpty(data) {
+		var rec edgeRecord
+		if err := json.Unmarshal(line, &rec); err != nil {
+			continue
+		}
+		if rec.Source == "behav-x" && rec.Target == "behav-y" && rec.Kind == constants.CoActivatedEdgeKind {
+			foundEdge = true
+			break
+		}
+	}
+	if !foundEdge {
+		t.Errorf("edges.jsonl should contain co-activated edge behav-x→behav-y, got: %s", string(data))
+	}
+}
+
+// splitNonEmpty splits bytes by newline and returns non-empty lines.
+func splitNonEmpty(data []byte) [][]byte {
+	var result [][]byte
+	for _, line := range bytes.Split(data, []byte("\n")) {
+		if len(line) > 0 {
+			result = append(result, line)
+		}
+	}
+	return result
 }
