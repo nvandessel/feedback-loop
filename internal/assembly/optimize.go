@@ -3,7 +3,7 @@ package assembly
 import (
 	"sort"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 // Optimizer handles token budget management for behavior compilation

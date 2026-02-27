@@ -7,11 +7,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/nvandessel/feedback-loop/internal/backup"
-	"github.com/nvandessel/feedback-loop/internal/config"
-	"github.com/nvandessel/feedback-loop/internal/constants"
-	"github.com/nvandessel/feedback-loop/internal/pathutil"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/backup"
+	"github.com/nvandessel/floop/internal/config"
+	"github.com/nvandessel/floop/internal/constants"
+	"github.com/nvandessel/floop/internal/pathutil"
+	"github.com/nvandessel/floop/internal/store"
 	"github.com/spf13/cobra"
 )
 

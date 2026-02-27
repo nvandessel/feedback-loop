@@ -1,8 +1,8 @@
 package learning
 
 import (
-	"github.com/nvandessel/feedback-loop/internal/constants"
-	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/floop/internal/constants"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 // ClassifyScope determines whether a behavior should be stored locally or globally.

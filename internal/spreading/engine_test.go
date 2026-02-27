@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // helper to create a time.Time pointer.

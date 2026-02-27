@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/nvandessel/feedback-loop/internal/mcp"
+	"github.com/nvandessel/floop/internal/mcp"
 	"github.com/spf13/cobra"
 )
 

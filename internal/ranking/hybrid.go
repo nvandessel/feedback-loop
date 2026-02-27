@@ -3,7 +3,7 @@ package ranking
 import (
 	"sort"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 // HybridScorerConfig holds weights for the three scoring signals.

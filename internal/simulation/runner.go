@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/spreading"
-	"github.com/nvandessel/feedback-loop/internal/store"
-	"github.com/nvandessel/feedback-loop/internal/tiering"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/spreading"
+	"github.com/nvandessel/floop/internal/store"
+	"github.com/nvandessel/floop/internal/tiering"
 )
 
 // Runner orchestrates multi-session simulation experiments against a real

@@ -6,10 +6,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/nvandessel/feedback-loop/internal/activation"
-	"github.com/nvandessel/feedback-loop/internal/constants"
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/activation"
+	"github.com/nvandessel/floop/internal/constants"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // SeedSelector determines which behaviors should be activation seeds

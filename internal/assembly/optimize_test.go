@@ -3,7 +3,7 @@ package assembly
 import (
 	"testing"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 func TestOptimizer_Optimize_NoLimit(t *testing.T) {

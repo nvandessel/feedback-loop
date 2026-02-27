@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/nvandessel/feedback-loop/internal/constants"
+	"github.com/nvandessel/floop/internal/constants"
 )
 
 func TestValidEdgeKinds(t *testing.T) {

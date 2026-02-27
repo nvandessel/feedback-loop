@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 // CoalesceConfig controls behavior grouping.

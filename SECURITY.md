@@ -12,7 +12,7 @@
 
 Please report security vulnerabilities through GitHub's **private vulnerability reporting**.
 
-1. Go to the [Security tab](https://github.com/nvandessel/feedback-loop/security) of this repository
+1. Go to the [Security tab](https://github.com/nvandessel/floop/security) of this repository
 2. Click **"Report a vulnerability"**
 3. Fill in the details
 

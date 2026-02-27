@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // Seeder handles injecting seed behaviors into a store.

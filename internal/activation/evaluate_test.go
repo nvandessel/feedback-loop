@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 func TestEvaluator_Evaluate(t *testing.T) {

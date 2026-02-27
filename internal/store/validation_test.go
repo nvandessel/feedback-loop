@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/constants"
+	"github.com/nvandessel/floop/internal/constants"
 )
 
 // setupTestSQLiteStore creates a new SQLite store in a temp directory for testing.

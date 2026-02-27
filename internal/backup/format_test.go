@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 func TestDetectFormat_V1(t *testing.T) {

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/session"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/session"
 	"github.com/spf13/cobra"
 )
 

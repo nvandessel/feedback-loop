@@ -8,13 +8,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/nvandessel/feedback-loop/internal/activation"
-	"github.com/nvandessel/feedback-loop/internal/config"
-	"github.com/nvandessel/feedback-loop/internal/constants"
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/session"
-	"github.com/nvandessel/feedback-loop/internal/spreading"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/activation"
+	"github.com/nvandessel/floop/internal/config"
+	"github.com/nvandessel/floop/internal/constants"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/session"
+	"github.com/nvandessel/floop/internal/spreading"
+	"github.com/nvandessel/floop/internal/store"
 	"github.com/spf13/cobra"
 )
 

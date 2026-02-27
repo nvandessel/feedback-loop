@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/constants"
-	"github.com/nvandessel/feedback-loop/internal/utils"
+	"github.com/nvandessel/floop/internal/constants"
+	"github.com/nvandessel/floop/internal/utils"
 	_ "modernc.org/sqlite" // SQLite driver
 )
 

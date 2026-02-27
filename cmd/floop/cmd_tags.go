@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/store"
-	"github.com/nvandessel/feedback-loop/internal/tagging"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/store"
+	"github.com/nvandessel/floop/internal/tagging"
 	"github.com/spf13/cobra"
 )
 

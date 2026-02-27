@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/nvandessel/feedback-loop/internal/backup"
+	"github.com/nvandessel/floop/internal/backup"
 	"github.com/spf13/cobra"
 )
 

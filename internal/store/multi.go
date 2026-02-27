@@ -7,7 +7,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/nvandessel/feedback-loop/internal/constants"
+	"github.com/nvandessel/floop/internal/constants"
 )
 
 // StoreScope is an alias for constants.Scope for backward compatibility.

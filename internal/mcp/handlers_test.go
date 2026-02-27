@@ -9,10 +9,10 @@ import (
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/nvandessel/feedback-loop/internal/activation"
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/spreading"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/activation"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/spreading"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 func setupTestServer(t *testing.T) (*Server, string) {

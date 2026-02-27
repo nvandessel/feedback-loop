@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/llm"
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/llm"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // DeduplicationResult represents the outcome of deduplicating a single behavior

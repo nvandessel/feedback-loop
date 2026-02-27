@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/nvandessel/feedback-loop/internal/config"
-	"github.com/nvandessel/feedback-loop/internal/pack"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/config"
+	"github.com/nvandessel/floop/internal/pack"
+	"github.com/nvandessel/floop/internal/store"
 	"github.com/spf13/cobra"
 )
 

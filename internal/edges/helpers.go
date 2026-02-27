@@ -6,10 +6,10 @@ package edges
 import (
 	"context"
 
-	"github.com/nvandessel/feedback-loop/internal/dedup"
-	"github.com/nvandessel/feedback-loop/internal/llm"
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/dedup"
+	"github.com/nvandessel/floop/internal/llm"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // LoadBehaviorsFromStore loads all active behaviors (kind == "behavior") from a

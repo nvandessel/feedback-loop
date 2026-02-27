@@ -6,12 +6,12 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/constants"
-	"github.com/nvandessel/feedback-loop/internal/dedup"
-	"github.com/nvandessel/feedback-loop/internal/llm"
-	"github.com/nvandessel/feedback-loop/internal/logging"
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/constants"
+	"github.com/nvandessel/floop/internal/dedup"
+	"github.com/nvandessel/floop/internal/llm"
+	"github.com/nvandessel/floop/internal/logging"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // LearningResult represents the result of processing a correction.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // EmbedFunc is a function that returns a dense vector embedding for the given text.

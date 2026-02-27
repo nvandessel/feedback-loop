@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 // ContextBuilder gathers context from the environment for activation evaluation

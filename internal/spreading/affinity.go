@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/store"
-	"github.com/nvandessel/feedback-loop/internal/tagging"
+	"github.com/nvandessel/floop/internal/store"
+	"github.com/nvandessel/floop/internal/tagging"
 )
 
 // AffinityConfig controls virtual edge generation from shared tags.

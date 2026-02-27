@@ -3,8 +3,8 @@ package similarity
 import (
 	"strings"
 
-	"github.com/nvandessel/feedback-loop/internal/constants"
-	"github.com/nvandessel/feedback-loop/internal/tagging"
+	"github.com/nvandessel/floop/internal/constants"
+	"github.com/nvandessel/floop/internal/tagging"
 )
 
 // ComputeWhenOverlap calculates overlap between two when predicates.

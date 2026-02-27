@@ -3,8 +3,8 @@ package simulation
 import (
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // BehaviorSpec is a flat builder for constructing behavior nodes in tests.

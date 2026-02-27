@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/ranking"
-	"github.com/nvandessel/feedback-loop/internal/store"
-	"github.com/nvandessel/feedback-loop/internal/visualization"
+	"github.com/nvandessel/floop/internal/ranking"
+	"github.com/nvandessel/floop/internal/store"
+	"github.com/nvandessel/floop/internal/visualization"
 	"github.com/spf13/cobra"
 )
 

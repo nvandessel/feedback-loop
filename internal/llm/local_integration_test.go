@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 // These tests require yzma shared libraries and a GGUF embedding model.

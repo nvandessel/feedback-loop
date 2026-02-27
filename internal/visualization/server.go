@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/spreading"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/spreading"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // Server serves the interactive graph HTML and handles activation API requests.

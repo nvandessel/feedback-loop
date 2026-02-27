@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/spreading"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/spreading"
 )
 
 // InjectionRecord tracks a single behavior injection event.

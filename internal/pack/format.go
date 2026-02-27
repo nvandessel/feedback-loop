@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/nvandessel/feedback-loop/internal/backup"
+	"github.com/nvandessel/floop/internal/backup"
 )
 
 // WritePackFile writes a BackupFormat as a pack file with pack metadata in the header.

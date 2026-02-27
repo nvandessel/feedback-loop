@@ -3,9 +3,9 @@ package tiering
 import (
 	"testing"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/ranking"
-	"github.com/nvandessel/feedback-loop/internal/spreading"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/ranking"
+	"github.com/nvandessel/floop/internal/spreading"
 )
 
 func TestScoredBehaviorsToResults(t *testing.T) {

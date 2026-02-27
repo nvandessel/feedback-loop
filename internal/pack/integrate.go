@@ -3,8 +3,8 @@ package pack
 import (
 	"context"
 
-	"github.com/nvandessel/feedback-loop/internal/edges"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/edges"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // IntegratePackBehaviors derives edges between newly installed pack behaviors

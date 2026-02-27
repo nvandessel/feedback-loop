@@ -6,11 +6,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/nvandessel/feedback-loop/internal/constants"
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/ranking"
-	"github.com/nvandessel/feedback-loop/internal/similarity"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/constants"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/ranking"
+	"github.com/nvandessel/floop/internal/similarity"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // MinSharedTagsForEdge is the minimum number of shared tags between two

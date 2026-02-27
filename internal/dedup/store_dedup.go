@@ -7,11 +7,11 @@ import (
 	"log/slog"
 	"sort"
 
-	"github.com/nvandessel/feedback-loop/internal/constants"
-	"github.com/nvandessel/feedback-loop/internal/llm"
-	"github.com/nvandessel/feedback-loop/internal/logging"
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/constants"
+	"github.com/nvandessel/floop/internal/llm"
+	"github.com/nvandessel/floop/internal/logging"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // scopedWriter is implemented by stores that support writing to a specific scope.

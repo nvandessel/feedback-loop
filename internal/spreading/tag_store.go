@@ -4,8 +4,8 @@ import (
 	"context"
 	"log"
 
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // StoreTagProvider implements TagProvider by loading tags from a GraphStore.

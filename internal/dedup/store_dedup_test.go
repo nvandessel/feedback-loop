@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nvandessel/feedback-loop/internal/llm"
-	"github.com/nvandessel/feedback-loop/internal/logging"
-	"github.com/nvandessel/feedback-loop/internal/models"
-	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/floop/internal/llm"
+	"github.com/nvandessel/floop/internal/logging"
+	"github.com/nvandessel/floop/internal/models"
+	"github.com/nvandessel/floop/internal/store"
 )
 
 // createTestStore creates an in-memory store with test behaviors.
