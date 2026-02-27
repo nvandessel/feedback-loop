@@ -26,12 +26,13 @@ Examples:
 			version, err := backup.DetectFormat(filePath)
 			if err != nil {
 				if jsonOut {
-					return json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+					json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 						"file":    filePath,
 						"valid":   false,
 						"error":   err.Error(),
 						"message": fmt.Sprintf("Failed to detect format: %v", err),
 					})
+					return fmt.Errorf("failed to detect format: %w", err)
 				}
 				return fmt.Errorf("failed to detect format: %w", err)
 			}
@@ -50,16 +51,26 @@ Examples:
 				return nil
 			}
 
+			// Read header for schema version info
+			var schemaVersion int
+			var metadata map[string]string
+			if header, err := backup.ReadV2Header(filePath); err == nil {
+				schemaVersion = header.SchemaVersion
+				metadata = header.Metadata
+			}
+
 			err = backup.VerifyChecksum(filePath)
 			if err != nil {
 				if jsonOut {
-					return json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
-						"file":    filePath,
-						"version": 2,
-						"valid":   false,
-						"error":   err.Error(),
-						"message": "Checksum verification FAILED",
+					json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+						"file":           filePath,
+						"version":        2,
+						"schema_version": schemaVersion,
+						"valid":          false,
+						"error":          err.Error(),
+						"message":        "Checksum verification FAILED",
 					})
+					return fmt.Errorf("checksum verification failed")
 				}
 				fmt.Printf("FAILED: %v\n", err)
 				fmt.Printf("  File: %s\n", filePath)
@@ -67,16 +78,24 @@ Examples:
 			}
 
 			if jsonOut {
-				return json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
-					"file":    filePath,
-					"version": 2,
-					"valid":   true,
-					"message": "Checksum OK",
-				})
+				result := map[string]interface{}{
+					"file":           filePath,
+					"version":        2,
+					"schema_version": schemaVersion,
+					"valid":          true,
+					"message":        "Checksum OK",
+				}
+				if len(metadata) > 0 {
+					result["metadata"] = metadata
+				}
+				return json.NewEncoder(os.Stdout).Encode(result)
 			}
 
 			fmt.Printf("OK: checksum verified\n")
 			fmt.Printf("  File: %s\n", filePath)
+			if schemaVersion > 0 {
+				fmt.Printf("  Schema version: %d\n", schemaVersion)
+			}
 			return nil
 		},
 	}

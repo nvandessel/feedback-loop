@@ -10,6 +10,7 @@ import (
 	"github.com/nvandessel/floop/internal/config"
 	"github.com/nvandessel/floop/internal/constants"
 	"github.com/nvandessel/floop/internal/dedup"
+	"github.com/nvandessel/floop/internal/edges"
 	"github.com/nvandessel/floop/internal/llm"
 	"github.com/nvandessel/floop/internal/models"
 	"github.com/nvandessel/floop/internal/store"
@@ -131,7 +132,7 @@ func runSingleStoreDedup(ctx context.Context, root string, scope store.StoreScop
 	defer graphStore.Close()
 
 	// Load all behaviors
-	behaviors, err := loadBehaviorsFromStore(ctx, graphStore)
+	behaviors, err := edges.LoadBehaviorsFromStore(ctx, graphStore)
 	if err != nil {
 		return fmt.Errorf("failed to load behaviors: %w", err)
 	}
@@ -230,7 +231,7 @@ func findDuplicatePairs(behaviors []models.Behavior, cfg dedup.DeduplicatorConfi
 	var duplicates []duplicatePair
 	for i := 0; i < len(behaviors); i++ {
 		for j := i + 1; j < len(behaviors); j++ {
-			sim := computeBehaviorSimilarity(&behaviors[i], &behaviors[j], llmClient, useLLM, cache)
+			sim := edges.ComputeBehaviorSimilarity(&behaviors[i], &behaviors[j], llmClient, useLLM, cache)
 			if sim >= cfg.SimilarityThreshold {
 				duplicates = append(duplicates, duplicatePair{
 					BehaviorA:  &behaviors[i],
@@ -381,31 +382,4 @@ func runCrossStoreDedup(ctx context.Context, root string, cfg dedup.Deduplicator
 	}
 
 	return nil
-}
-
-// loadBehaviorsFromStore loads all behaviors from a graph store.
-func loadBehaviorsFromStore(ctx context.Context, graphStore store.GraphStore) ([]models.Behavior, error) {
-	nodes, err := graphStore.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
-	if err != nil {
-		return nil, err
-	}
-
-	behaviors := make([]models.Behavior, 0, len(nodes))
-	for _, node := range nodes {
-		b := models.NodeToBehavior(node)
-		behaviors = append(behaviors, b)
-	}
-
-	return behaviors, nil
-}
-
-// computeBehaviorSimilarity calculates similarity between two behaviors.
-// Delegates to the unified dedup.ComputeSimilarity function.
-func computeBehaviorSimilarity(a, b *models.Behavior, llmClient llm.Client, useLLM bool, cache *dedup.EmbeddingCache) float64 {
-	result := dedup.ComputeSimilarity(a, b, dedup.SimilarityConfig{
-		UseLLM:         useLLM,
-		LLMClient:      llmClient,
-		EmbeddingCache: cache,
-	})
-	return result.Score
 }

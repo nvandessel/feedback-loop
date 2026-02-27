@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -42,6 +43,21 @@ func (s *SQLiteGraphStore) ImportNodesFromJSONL(ctx context.Context, path string
 			continue
 		}
 
+		// Extract embedding data before adding node (addBehavior strips unknown metadata)
+		var embStr string
+		var embModel string
+		if node.Metadata != nil {
+			if v, ok := node.Metadata["embedding"].(string); ok && v != "" {
+				embStr = v
+			}
+			if v, ok := node.Metadata["embedding_model"].(string); ok {
+				embModel = v
+			}
+			// Remove embedding keys so they don't pollute metadata_extra
+			delete(node.Metadata, "embedding")
+			delete(node.Metadata, "embedding_model")
+		}
+
 		// Add the node (uses INSERT OR REPLACE)
 		if isBehaviorKind(node.Kind) {
 			if _, err := s.addBehavior(ctx, node); err != nil {
@@ -50,6 +66,21 @@ func (s *SQLiteGraphStore) ImportNodesFromJSONL(ctx context.Context, path string
 		} else {
 			if _, err := s.addGenericNode(ctx, node); err != nil {
 				return fmt.Errorf("failed to import node %s: %w", node.ID, err)
+			}
+		}
+
+		// Restore embedding if present in JSONL metadata
+		if embStr != "" {
+			embBytes, err := base64.StdEncoding.DecodeString(embStr)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: failed to decode embedding for %s: %v\n", node.ID, err)
+			} else {
+				vector := decodeEmbedding(embBytes)
+				if vector != nil {
+					if err := s.storeEmbeddingUnlocked(ctx, node.ID, vector, embModel); err != nil {
+						fmt.Fprintf(os.Stderr, "warning: failed to store embedding for %s: %v\n", node.ID, err)
+					}
+				}
 			}
 		}
 	}

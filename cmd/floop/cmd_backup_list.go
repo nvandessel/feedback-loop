@@ -35,13 +35,15 @@ Examples:
 
 			if jsonOut {
 				type jsonEntry struct {
-					Path      string `json:"path"`
-					Version   int    `json:"version"`
-					Size      int64  `json:"size_bytes"`
-					CreatedAt string `json:"created_at"`
-					NodeCount int    `json:"node_count,omitempty"`
-					EdgeCount int    `json:"edge_count,omitempty"`
-					Checksum  string `json:"checksum,omitempty"`
+					Path          string            `json:"path"`
+					Version       int               `json:"version"`
+					SchemaVersion int               `json:"schema_version,omitempty"`
+					Size          int64             `json:"size_bytes"`
+					CreatedAt     string            `json:"created_at"`
+					NodeCount     int               `json:"node_count,omitempty"`
+					EdgeCount     int               `json:"edge_count,omitempty"`
+					Checksum      string            `json:"checksum,omitempty"`
+					Metadata      map[string]string `json:"metadata,omitempty"`
 				}
 				entries := make([]jsonEntry, 0, len(backups))
 				for _, b := range backups {
@@ -56,6 +58,8 @@ Examples:
 							entry.NodeCount = header.NodeCount
 							entry.EdgeCount = header.EdgeCount
 							entry.Checksum = header.Checksum
+							entry.SchemaVersion = header.SchemaVersion
+							entry.Metadata = header.Metadata
 						}
 					}
 					entries = append(entries, entry)
@@ -81,6 +85,7 @@ Examples:
 				formatStr := "json"
 				nodeCount := 0
 				edgeCount := 0
+				schemaVersion := 0
 
 				if b.Version == backup.FormatV2 {
 					versionStr = "v2"
@@ -88,16 +93,23 @@ Examples:
 					if header, err := backup.ReadV2Header(b.Path); err == nil {
 						nodeCount = header.NodeCount
 						edgeCount = header.EdgeCount
+						schemaVersion = header.SchemaVersion
 					}
 				}
 
-				fmt.Printf("  %s  %s  %s  %s  %d nodes  %d edges  %s\n",
+				schemaStr := ""
+				if schemaVersion > 0 {
+					schemaStr = fmt.Sprintf("  schema:v%d", schemaVersion)
+				}
+
+				fmt.Printf("  %s  %s  %s  %s  %d nodes  %d edges%s  %s\n",
 					b.CreatedAt.Format("2006-01-02 15:04"),
 					versionStr,
 					formatStr,
 					formatBytes(b.Size),
 					nodeCount,
 					edgeCount,
+					schemaStr,
 					filepath.Base(b.Path),
 				)
 			}

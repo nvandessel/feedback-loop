@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nvandessel/floop/internal/edges"
 	"github.com/nvandessel/floop/internal/models"
 	"github.com/nvandessel/floop/internal/store"
 )
@@ -35,16 +36,16 @@ func TestDeriveEdgesProposals(t *testing.T) {
 	s := store.NewInMemoryGraphStore()
 
 	// Weighted scoring: when(0.4) + content(0.6) + tags(0.2), normalized by
-	// sum of present weights. All three present → totalWeight = 1.2.
+	// sum of present weights. All three present -> totalWeight = 1.2.
 	//
 	// b-general-go and b-go-related:
-	//   when: both {"language":"go"} → overlap = 1.0
-	//   content: partial word overlap → ~0.5
+	//   when: both {"language":"go"} -> overlap = 1.0
+	//   content: partial word overlap -> ~0.5
 	//   tags: Jaccard(["go","errors"], ["go","api"]) = 1/3 = 0.33
-	//   score ≈ 1.0*0.333 + 0.5*0.5 + 0.33*0.167 ≈ 0.64 → in [0.5, 0.9) ✓
+	//   score ~ 1.0*0.333 + 0.5*0.5 + 0.33*0.167 ~ 0.64 -> in [0.5, 0.9)
 	//
 	// b-specific-go-test overrides b-general-go (superset when):
-	//   when={language:go, task:testing} ⊃ {language:go}
+	//   when={language:go, task:testing} > {language:go}
 	behaviors := []models.Behavior{
 		{
 			ID:   "b-general-go",
@@ -97,9 +98,9 @@ func TestDeriveEdgesProposals(t *testing.T) {
 	}
 
 	// Run derive-edges in dry-run mode
-	result, err := deriveEdgesForStore(ctx, s, "test", true, false)
+	result, err := edges.DeriveEdgesForStore(ctx, s, "test", true, false)
 	if err != nil {
-		t.Fatalf("deriveEdgesForStore failed: %v", err)
+		t.Fatalf("DeriveEdgesForStore failed: %v", err)
 	}
 
 	if result.Behaviors != 4 {
@@ -125,7 +126,7 @@ func TestDeriveEdgesProposals(t *testing.T) {
 	}
 
 	// b-general-go and b-go-related have same when, partial content/tag overlap.
-	// Score should be in [0.5, 0.9) → similar-to edge.
+	// Score should be in [0.5, 0.9) -> similar-to edge.
 	foundSimilarTo := false
 	for _, pe := range result.ProposedEdges {
 		if pe.Kind == "similar-to" &&
@@ -160,7 +161,7 @@ func TestDeriveEdgesSkipsExisting(t *testing.T) {
 	ctx := context.Background()
 	s := store.NewInMemoryGraphStore()
 
-	// Two behaviors with same when and partial content overlap → score in [0.5, 0.9)
+	// Two behaviors with same when and partial content overlap -> score in [0.5, 0.9)
 	behaviors := []models.Behavior{
 		{
 			ID:   "b-a",
@@ -199,10 +200,10 @@ func TestDeriveEdgesSkipsExisting(t *testing.T) {
 		CreatedAt: now,
 	})
 
-	// Run derive — should skip the existing edge
-	result, err := deriveEdgesForStore(ctx, s, "test", true, false)
+	// Run derive -- should skip the existing edge
+	result, err := edges.DeriveEdgesForStore(ctx, s, "test", true, false)
 	if err != nil {
-		t.Fatalf("deriveEdgesForStore failed: %v", err)
+		t.Fatalf("DeriveEdgesForStore failed: %v", err)
 	}
 
 	// The similar-to edge should be skipped (already exists)
@@ -255,7 +256,7 @@ func TestDeriveEdgesConnectivity(t *testing.T) {
 		{ID: "b-3"},
 	}
 
-	info := computeConnectivity(ctx, s, behaviors)
+	info := edges.ComputeConnectivity(ctx, s, behaviors)
 
 	if info.TotalNodes != 3 {
 		t.Errorf("total nodes = %d, want 3", info.TotalNodes)
@@ -272,7 +273,7 @@ func TestDeriveEdgesHistogram(t *testing.T) {
 	ctx := context.Background()
 	s := store.NewInMemoryGraphStore()
 
-	// Create identical behaviors → score = 1.0 → bucket 9
+	// Create identical behaviors -> score = 1.0 -> bucket 9
 	behaviors := []models.Behavior{
 		{
 			ID:   "b-identical-1",
@@ -301,9 +302,9 @@ func TestDeriveEdgesHistogram(t *testing.T) {
 		s.AddNode(ctx, node)
 	}
 
-	result, err := deriveEdgesForStore(ctx, s, "test", true, false)
+	result, err := edges.DeriveEdgesForStore(ctx, s, "test", true, false)
 	if err != nil {
-		t.Fatalf("deriveEdgesForStore failed: %v", err)
+		t.Fatalf("DeriveEdgesForStore failed: %v", err)
 	}
 
 	// Identical behaviors should score 1.0, landing in bucket 9 [0.9-1.0]
@@ -350,9 +351,9 @@ func TestDeriveEdgesClear(t *testing.T) {
 	})
 
 	// Run with --clear (not dry-run)
-	result, err := deriveEdgesForStore(ctx, s, "test", false, true)
+	result, err := edges.DeriveEdgesForStore(ctx, s, "test", false, true)
 	if err != nil {
-		t.Fatalf("deriveEdgesForStore failed: %v", err)
+		t.Fatalf("DeriveEdgesForStore failed: %v", err)
 	}
 
 	// Should have cleared the similar-to edge but NOT the requires edge
@@ -361,9 +362,9 @@ func TestDeriveEdgesClear(t *testing.T) {
 	}
 
 	// Verify requires edge still exists
-	edges, _ := s.GetEdges(ctx, "b-x", store.DirectionOutbound, "requires")
-	if len(edges) != 1 {
-		t.Errorf("requires edges remaining = %d, want 1", len(edges))
+	foundEdges, _ := s.GetEdges(ctx, "b-x", store.DirectionOutbound, "requires")
+	if len(foundEdges) != 1 {
+		t.Errorf("requires edges remaining = %d, want 1", len(foundEdges))
 	}
 }
 
@@ -412,13 +413,13 @@ func TestDeriveEdgesTagOverlap(t *testing.T) {
 		s.AddNode(ctx, node)
 	}
 
-	result, err := deriveEdgesForStore(ctx, s, "test", true, false)
+	result, err := edges.DeriveEdgesForStore(ctx, s, "test", true, false)
 	if err != nil {
-		t.Fatalf("deriveEdgesForStore failed: %v", err)
+		t.Fatalf("DeriveEdgesForStore failed: %v", err)
 	}
 
 	// git-basics and worktree-cleanup share 2 tags ("git", "worktree")
-	// → should get a similar-to edge even with low content similarity
+	// -> should get a similar-to edge even with low content similarity
 	foundTagEdge := false
 	for _, pe := range result.ProposedEdges {
 		if pe.Kind == "similar-to" &&
@@ -434,7 +435,7 @@ func TestDeriveEdgesTagOverlap(t *testing.T) {
 		}
 	}
 
-	// python-typing shares 0 tags with git behaviors → no edge
+	// python-typing shares 0 tags with git behaviors -> no edge
 	for _, pe := range result.ProposedEdges {
 		if pe.Kind == "similar-to" &&
 			(pe.Source == "b-python-typing" || pe.Target == "b-python-typing") {

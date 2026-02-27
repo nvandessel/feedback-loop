@@ -70,7 +70,10 @@ Examples:
 			}
 			defer graphStore.Close()
 
-			result, err := backup.BackupWithOptions(ctx, graphStore, outputPath, compress)
+			result, err := backup.BackupWithOptions(ctx, graphStore, outputPath, backup.BackupOptions{
+				Compress:     compress,
+				FloopVersion: version,
+			})
 			if err != nil {
 				return fmt.Errorf("backup failed: %w", err)
 			}

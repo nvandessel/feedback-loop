@@ -102,13 +102,14 @@ func (t *coActivationTracker) record(pair spreading.CoActivationPair, cfg spread
 //   - If the edge already exists, apply Oja's rule to update the weight.
 //
 // After all updates, prune edges whose weight has decayed below MinWeight.
+// Returns true if any edges were created, updated, or pruned.
 func (s *Server) applyHebbianUpdates(
 	ctx context.Context,
 	pairs []spreading.CoActivationPair,
 	cfg spreading.HebbianConfig,
-) {
+) bool {
 	if len(pairs) == 0 {
-		return
+		return false
 	}
 
 	// Duck-typed interfaces for batch operations
@@ -120,6 +121,7 @@ func (s *Server) applyHebbianUpdates(
 	}
 
 	var weightUpdates []store.EdgeWeightUpdate
+	changed := false
 
 	for _, pair := range pairs {
 		// Check if edge already exists
@@ -161,6 +163,8 @@ func (s *Server) applyHebbianUpdates(
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "warning: hebbian: create edge %s→%s: %v\n",
 						pair.BehaviorA, pair.BehaviorB, err)
+				} else {
+					changed = true
 				}
 			}
 		}
@@ -171,6 +175,8 @@ func (s *Server) applyHebbianUpdates(
 		if updater, ok := s.store.(edgeWeightUpdater); ok {
 			if err := updater.BatchUpdateEdgeWeights(ctx, weightUpdates); err != nil {
 				fmt.Fprintf(os.Stderr, "warning: hebbian: batch update weights: %v\n", err)
+			} else {
+				changed = true
 			}
 		}
 	}
@@ -181,6 +187,9 @@ func (s *Server) applyHebbianUpdates(
 			fmt.Fprintf(os.Stderr, "warning: hebbian: prune weak edges: %v\n", err)
 		} else if n > 0 {
 			fmt.Fprintf(os.Stderr, "floop: pruned %d weak co-activated edge(s)\n", n)
+			changed = true
 		}
 	}
+
+	return changed
 }

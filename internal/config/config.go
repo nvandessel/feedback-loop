@@ -30,6 +30,9 @@ type FloopConfig struct {
 
 	// Backup contains settings for backup operations.
 	Backup BackupConfig `json:"backup" yaml:"backup"`
+
+	// Packs tracks installed skill packs.
+	Packs PacksConfig `json:"packs" yaml:"packs"`
 }
 
 // TokenBudgetConfig configures token budget limits for behavior injection.
@@ -63,6 +66,28 @@ type RetentionConfig struct {
 
 	// MaxTotalSize is the maximum total size of backups (e.g., "100MB", "1GB"). Empty = disabled.
 	MaxTotalSize string `json:"max_total_size" yaml:"max_total_size"`
+}
+
+// PacksConfig tracks installed skill packs.
+type PacksConfig struct {
+	Installed  []InstalledPack `json:"installed,omitempty" yaml:"installed,omitempty"`
+	Registries []Registry      `json:"registries,omitempty" yaml:"registries,omitempty"`
+}
+
+// InstalledPack records a skill pack that has been installed.
+type InstalledPack struct {
+	ID            string    `json:"id" yaml:"id"`
+	Version       string    `json:"version" yaml:"version"`
+	InstalledAt   time.Time `json:"installed_at" yaml:"installed_at"`
+	Source        string    `json:"source,omitempty" yaml:"source,omitempty"`
+	BehaviorCount int       `json:"behavior_count" yaml:"behavior_count"`
+	EdgeCount     int       `json:"edge_count" yaml:"edge_count"`
+}
+
+// Registry is a URL for discovering skill packs.
+type Registry struct {
+	Name string `json:"name" yaml:"name"`
+	URL  string `json:"url" yaml:"url"`
 }
 
 // LoggingConfig configures floop's logging behavior.
@@ -416,6 +441,40 @@ func applyEnvOverrides(config *FloopConfig) {
 	if v := os.Getenv("FLOOP_BACKUP_MAX_AGE"); v != "" {
 		config.Backup.Retention.MaxAge = v
 	}
+}
+
+// Save writes the config to the default config file with atomic write.
+func (c *FloopConfig) Save() error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("getting home directory: %w", err)
+	}
+	configPath := filepath.Join(homeDir, ".floop", "config.yaml")
+	return c.SaveTo(configPath)
+}
+
+// SaveTo writes the config to a specific path with atomic write (tmp + rename).
+func (c *FloopConfig) SaveTo(path string) error {
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("marshaling config: %w", err)
+	}
+
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("creating config directory: %w", err)
+	}
+
+	// Atomic write: write to temp file, then rename
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
+		return fmt.Errorf("writing temp config: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath) // cleanup on failure
+		return fmt.Errorf("renaming config: %w", err)
+	}
+	return nil
 }
 
 // expandEnvVars expands ${VAR} patterns in a string with environment variable values.
