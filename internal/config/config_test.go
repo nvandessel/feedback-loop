@@ -592,3 +592,104 @@ llm:
 		t.Error("expected error for invalid YAML")
 	}
 }
+
+func TestSaveTo_RoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	// Create a config with non-default values
+	cfg := Default()
+	cfg.LLM.Provider = "anthropic"
+	cfg.LLM.Enabled = true
+	cfg.Deduplication.SimilarityThreshold = 0.85
+	cfg.Backup.Compression = false
+	cfg.Packs.Installed = []InstalledPack{
+		{
+			ID:            "test-org/test-pack",
+			Version:       "1.0.0",
+			BehaviorCount: 5,
+			EdgeCount:     2,
+		},
+	}
+
+	// Save
+	if err := cfg.SaveTo(configPath); err != nil {
+		t.Fatalf("SaveTo failed: %v", err)
+	}
+
+	// Load it back
+	loaded, err := LoadFromFile(configPath)
+	if err != nil {
+		t.Fatalf("LoadFromFile failed: %v", err)
+	}
+
+	// Verify fields match
+	if loaded.LLM.Provider != "anthropic" {
+		t.Errorf("expected Provider 'anthropic', got '%s'", loaded.LLM.Provider)
+	}
+	if !loaded.LLM.Enabled {
+		t.Error("expected LLM.Enabled to be true")
+	}
+	if loaded.Deduplication.SimilarityThreshold != 0.85 {
+		t.Errorf("expected SimilarityThreshold 0.85, got %f", loaded.Deduplication.SimilarityThreshold)
+	}
+	if loaded.Backup.Compression {
+		t.Error("expected Backup.Compression to be false")
+	}
+	if len(loaded.Packs.Installed) != 1 {
+		t.Fatalf("expected 1 installed pack, got %d", len(loaded.Packs.Installed))
+	}
+	if loaded.Packs.Installed[0].ID != "test-org/test-pack" {
+		t.Errorf("expected pack ID 'test-org/test-pack', got '%s'", loaded.Packs.Installed[0].ID)
+	}
+	if loaded.Packs.Installed[0].Version != "1.0.0" {
+		t.Errorf("expected pack version '1.0.0', got '%s'", loaded.Packs.Installed[0].Version)
+	}
+}
+
+func TestSaveTo_AtomicWrite(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	cfg := Default()
+
+	// Save config
+	if err := cfg.SaveTo(configPath); err != nil {
+		t.Fatalf("SaveTo failed: %v", err)
+	}
+
+	// Verify the file exists
+	if _, err := os.Stat(configPath); err != nil {
+		t.Fatalf("config file should exist: %v", err)
+	}
+
+	// Verify the temp file does not exist (was renamed)
+	tmpPath := configPath + ".tmp"
+	if _, err := os.Stat(tmpPath); !os.IsNotExist(err) {
+		t.Error("temp file should not exist after successful save")
+	}
+
+	// Verify file permissions
+	info, err := os.Stat(configPath)
+	if err != nil {
+		t.Fatalf("failed to stat config: %v", err)
+	}
+	if info.Mode().Perm() != 0600 {
+		t.Errorf("expected permissions 0600, got %o", info.Mode().Perm())
+	}
+}
+
+func TestSaveTo_CreatesDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "nested", "dir", "config.yaml")
+
+	cfg := Default()
+	if err := cfg.SaveTo(configPath); err != nil {
+		t.Fatalf("SaveTo failed: %v", err)
+	}
+
+	// Verify file was created
+	if _, err := os.Stat(configPath); err != nil {
+		t.Fatalf("config file should exist: %v", err)
+	}
+}

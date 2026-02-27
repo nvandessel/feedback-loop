@@ -11,8 +11,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
+
+	"github.com/nvandessel/feedback-loop/internal/store"
 )
 
 // Format version constants.
@@ -26,13 +29,20 @@ const MaxDecompressedSize = 200 * 1024 * 1024
 
 // BackupHeader is the plain-text first line of a V2 backup file.
 type BackupHeader struct {
-	Version    int               `json:"version"`
-	CreatedAt  time.Time         `json:"created_at"`
-	Checksum   string            `json:"checksum"`
-	NodeCount  int               `json:"node_count"`
-	EdgeCount  int               `json:"edge_count"`
-	Compressed bool              `json:"compressed"`
-	Metadata   map[string]string `json:"metadata,omitempty"`
+	Version       int               `json:"version"`
+	SchemaVersion int               `json:"schema_version,omitempty"`
+	CreatedAt     time.Time         `json:"created_at"`
+	Checksum      string            `json:"checksum"`
+	NodeCount     int               `json:"node_count"`
+	EdgeCount     int               `json:"edge_count"`
+	Compressed    bool              `json:"compressed"`
+	Metadata      map[string]string `json:"metadata,omitempty"`
+}
+
+// WriteOptions controls metadata population when writing V2 backups.
+type WriteOptions struct {
+	FloopVersion string            // floop binary version (from ldflags)
+	Metadata     map[string]string // additional user-supplied metadata
 }
 
 // DetectFormat reads the first bytes of a file to determine V1 vs V2.
@@ -74,7 +84,8 @@ func DetectFormat(path string) (int, error) {
 }
 
 // WriteV2 writes a BackupFormat as a V2 file: header line + gzip-compressed payload.
-func WriteV2(path string, b *BackupFormat) error {
+// opts may be nil for backward compatibility (no metadata population).
+func WriteV2(path string, b *BackupFormat, opts *WriteOptions) error {
 	// Marshal the payload
 	payload, err := json.Marshal(b)
 	if err != nil {
@@ -100,13 +111,17 @@ func WriteV2(path string, b *BackupFormat) error {
 
 	// Build header
 	header := BackupHeader{
-		Version:    FormatV2,
-		CreatedAt:  b.CreatedAt,
-		Checksum:   checksum,
-		NodeCount:  len(b.Nodes),
-		EdgeCount:  len(b.Edges),
-		Compressed: true,
+		Version:       FormatV2,
+		SchemaVersion: store.SchemaVersion,
+		CreatedAt:     b.CreatedAt,
+		Checksum:      checksum,
+		NodeCount:     len(b.Nodes),
+		EdgeCount:     len(b.Edges),
+		Compressed:    true,
 	}
+
+	// Populate metadata
+	header.Metadata = buildHeaderMetadata(opts)
 
 	headerBytes, err := json.Marshal(header)
 	if err != nil {
@@ -139,6 +154,32 @@ func WriteV2(path string, b *BackupFormat) error {
 	}
 
 	return nil
+}
+
+// buildHeaderMetadata constructs the metadata map for the backup header.
+// It always includes hostname, platform, and schema version. When opts is
+// provided, floop_version and user-supplied metadata are merged in.
+func buildHeaderMetadata(opts *WriteOptions) map[string]string {
+	meta := map[string]string{
+		"platform": runtime.GOOS + "/" + runtime.GOARCH,
+		"schema":   fmt.Sprintf("v%d", store.SchemaVersion),
+	}
+
+	// Best-effort hostname — skip on error
+	if hostname, err := os.Hostname(); err == nil {
+		meta["hostname"] = hostname
+	}
+
+	if opts != nil {
+		if opts.FloopVersion != "" {
+			meta["floop_version"] = opts.FloopVersion
+		}
+		for k, v := range opts.Metadata {
+			meta[k] = v
+		}
+	}
+
+	return meta
 }
 
 // ReadV2 reads a V2 backup file, verifies the checksum, and decompresses the payload.
@@ -201,6 +242,68 @@ func ReadV2(path string) (*BackupFormat, error) {
 	}
 
 	return &backup, nil
+}
+
+// ReadV2WithHeader reads a V2 backup file and returns both the data and header in a
+// single file open, avoiding the TOCTOU race of separate ReadV2Header + ReadV2 calls.
+func ReadV2WithHeader(path string) (*BackupFormat, *BackupHeader, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("opening file: %w", err)
+	}
+	defer f.Close()
+
+	// Read header line
+	reader := bufio.NewReader(f)
+	headerLine, err := reader.ReadBytes('\n')
+	if err != nil {
+		return nil, nil, fmt.Errorf("reading header line: %w", err)
+	}
+
+	var header BackupHeader
+	if err := json.Unmarshal(bytes.TrimSpace(headerLine), &header); err != nil {
+		return nil, nil, fmt.Errorf("parsing header: %w", err)
+	}
+
+	if header.Version != FormatV2 {
+		return nil, nil, fmt.Errorf("expected V2 format, got version %d", header.Version)
+	}
+
+	// Read the rest (compressed payload)
+	compressedData, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, nil, fmt.Errorf("reading compressed payload: %w", err)
+	}
+
+	// Verify checksum
+	hash := sha256.Sum256(compressedData)
+	actualChecksum := "sha256:" + hex.EncodeToString(hash[:])
+	if actualChecksum != header.Checksum {
+		return nil, nil, fmt.Errorf("checksum mismatch: expected %s, got %s", header.Checksum, actualChecksum)
+	}
+
+	// Decompress
+	gzr, err := gzip.NewReader(bytes.NewReader(compressedData))
+	if err != nil {
+		return nil, nil, fmt.Errorf("creating gzip reader: %w", err)
+	}
+	defer gzr.Close()
+
+	limitedReader := io.LimitReader(gzr, MaxDecompressedSize+1)
+	decompressed, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return nil, nil, fmt.Errorf("decompressing payload: %w", err)
+	}
+	if int64(len(decompressed)) > MaxDecompressedSize {
+		return nil, nil, fmt.Errorf("decompressed payload exceeds maximum size of %d bytes", MaxDecompressedSize)
+	}
+
+	var backup BackupFormat
+	if err := json.Unmarshal(decompressed, &backup); err != nil {
+		return nil, nil, fmt.Errorf("parsing backup data: %w", err)
+	}
+
+	return &backup, &header, nil
 }
 
 // ReadV2Header reads only the header line from a V2 backup file without decompressing.

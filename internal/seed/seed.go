@@ -55,7 +55,7 @@ func (s *Seeder) SeedGlobalStore(ctx context.Context) (*SeedResult, error) {
 		}
 
 		// Check version for upgrade
-		existingVersion := extractPackageVersion(existing)
+		existingVersion := models.ExtractPackageVersion(existing.Metadata)
 		if existingVersion != SeedVersion {
 			// Version mismatch — update content
 			if err := s.store.UpdateNode(ctx, seed); err != nil {
@@ -74,17 +74,4 @@ func (s *Seeder) SeedGlobalStore(ctx context.Context) (*SeedResult, error) {
 	}
 
 	return result, nil
-}
-
-// extractPackageVersion gets the package_version from a node's provenance metadata.
-func extractPackageVersion(node *store.Node) string {
-	if node.Metadata == nil {
-		return ""
-	}
-	prov, ok := node.Metadata["provenance"].(map[string]interface{})
-	if !ok {
-		return ""
-	}
-	version, _ := prov["package_version"].(string)
-	return version
 }
