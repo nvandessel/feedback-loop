@@ -111,9 +111,15 @@ func TestEmbedder_EmbedAndStore(t *testing.T) {
 		es := newMockEmbeddingStore()
 		e := NewEmbedder(mock.embedCall, "nomic-embed-text")
 
-		err := e.EmbedAndStore(context.Background(), es, "b1", "always use snake_case")
+		vec, err := e.EmbedAndStore(context.Background(), es, "b1", "always use snake_case")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
+		}
+		if vec == nil {
+			t.Fatal("expected non-nil vector on success")
+		}
+		if len(vec) != 3 {
+			t.Errorf("expected returned vector with 3 dims, got %d", len(vec))
 		}
 
 		// Verify search_document prefix was added
@@ -144,9 +150,12 @@ func TestEmbedder_EmbedAndStore(t *testing.T) {
 		es := newMockEmbeddingStore()
 		e := NewEmbedder(mock.embedCall, "test-model")
 
-		err := e.EmbedAndStore(context.Background(), es, "b1", "some text")
+		vec, err := e.EmbedAndStore(context.Background(), es, "b1", "some text")
 		if err == nil {
 			t.Fatal("expected error")
+		}
+		if vec != nil {
+			t.Error("expected nil vector on error")
 		}
 	})
 }

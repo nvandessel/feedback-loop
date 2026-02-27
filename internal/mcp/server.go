@@ -22,6 +22,7 @@ import (
 	"github.com/nvandessel/feedback-loop/internal/setup"
 	"github.com/nvandessel/feedback-loop/internal/spreading"
 	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/feedback-loop/internal/vectorindex"
 	"github.com/nvandessel/feedback-loop/internal/vectorsearch"
 )
 
@@ -69,6 +70,9 @@ type Server struct {
 	// Vector embedding retrieval
 	embedder  *vectorsearch.Embedder
 	llmClient llm.Client // held for cleanup (Close)
+
+	// Vector index for fast ANN search over behavior embeddings
+	vectorIndex vectorindex.VectorIndex
 
 	// Shutdown coordination
 	done      chan struct{} // closed on shutdown
@@ -167,6 +171,29 @@ func NewServer(cfg *Config) (*Server, error) {
 				modelName := filepath.Base(detected.ModelPath)
 				s.embedder = vectorsearch.NewEmbedder(localClient.Embed, modelName)
 			}
+		}
+	}
+
+	// Initialize vector index for fast ANN retrieval.
+	if s.embedder != nil && s.embedder.Available() {
+		indexDir := filepath.Join(cfg.Root, ".floop")
+		tieredCfg := vectorindex.TieredConfig{
+			HNSW: vectorindex.HNSWConfig{Dir: indexDir},
+		}
+		idx, err := vectorindex.NewTieredIndex(tieredCfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to create vector index: %v\n", err)
+		} else {
+			// Populate index from SQLite embeddings (cold start)
+			allEmb, err := graphStore.GetAllEmbeddings(context.Background())
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: failed to load embeddings for index: %v\n", err)
+			} else {
+				for _, emb := range allEmb {
+					_ = idx.Add(context.Background(), emb.BehaviorID, emb.Embedding)
+				}
+			}
+			s.vectorIndex = idx
 		}
 	}
 
@@ -352,6 +379,12 @@ func (s *Server) Close() error {
 
 		if s.auditLogger != nil {
 			s.auditLogger.Close()
+		}
+
+		if s.vectorIndex != nil {
+			if err := s.vectorIndex.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: failed to close vector index: %v\n", err)
+			}
 		}
 
 		if c, ok := s.llmClient.(llm.Closer); ok {

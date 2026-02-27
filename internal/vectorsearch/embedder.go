@@ -43,14 +43,18 @@ func (e *Embedder) Available() bool {
 }
 
 // EmbedAndStore embeds the given text with a search_document prefix and stores
-// the resulting vector in the embedding store.
-func (e *Embedder) EmbedAndStore(ctx context.Context, es store.EmbeddingStore, behaviorID, text string) error {
+// the resulting vector in the embedding store. Returns the embedding vector
+// so callers can also insert it into the in-memory vector index.
+func (e *Embedder) EmbedAndStore(ctx context.Context, es store.EmbeddingStore, behaviorID, text string) ([]float32, error) {
 	prefixed := "search_document: " + text
 	vec, err := e.embed(ctx, prefixed)
 	if err != nil {
-		return fmt.Errorf("embed behavior %s: %w", behaviorID, err)
+		return nil, fmt.Errorf("embed behavior %s: %w", behaviorID, err)
 	}
-	return es.StoreEmbedding(ctx, behaviorID, vec, e.modelName)
+	if err := es.StoreEmbedding(ctx, behaviorID, vec, e.modelName); err != nil {
+		return nil, err
+	}
+	return vec, nil
 }
 
 // EmbedQuery embeds a context query with a search_query prefix for retrieval.
@@ -79,7 +83,7 @@ func (e *Embedder) BackfillMissing(ctx context.Context, ns NodeGetter) (int, err
 			continue // skip behaviors without canonical text
 		}
 
-		if err := e.EmbedAndStore(ctx, ns, id, text); err != nil {
+		if _, err := e.EmbedAndStore(ctx, ns, id, text); err != nil {
 			continue // skip failures, best-effort backfill
 		}
 		count++

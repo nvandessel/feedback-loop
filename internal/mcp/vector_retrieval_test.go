@@ -7,6 +7,7 @@ import (
 
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/feedback-loop/internal/vectorindex"
 	"github.com/nvandessel/feedback-loop/internal/vectorsearch"
 )
 
@@ -48,6 +49,27 @@ func (m *mockGraphStoreWithEmbeddings) GetBehaviorIDsWithoutEmbeddings(_ context
 	return m.unembedded, nil
 }
 
+// mockVectorIndex implements vectorindex.VectorIndex for testing.
+type mockVectorIndex struct {
+	results []vectorindex.SearchResult
+	err     error
+}
+
+func (m *mockVectorIndex) Add(_ context.Context, _ string, _ []float32) error { return nil }
+func (m *mockVectorIndex) Remove(_ context.Context, _ string) error           { return nil }
+func (m *mockVectorIndex) Search(_ context.Context, _ []float32, topK int) ([]vectorindex.SearchResult, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if topK > len(m.results) {
+		topK = len(m.results)
+	}
+	return m.results[:topK], nil
+}
+func (m *mockVectorIndex) Len() int                     { return len(m.results) }
+func (m *mockVectorIndex) Save(_ context.Context) error { return nil }
+func (m *mockVectorIndex) Close() error                 { return nil }
+
 func TestVectorRetrieve(t *testing.T) {
 	t.Run("returns nodes from vector search plus unembedded behaviors", func(t *testing.T) {
 		gs := &mockGraphStoreWithEmbeddings{
@@ -71,8 +93,15 @@ func TestVectorRetrieve(t *testing.T) {
 			"test-model",
 		)
 
+		index := &mockVectorIndex{
+			results: []vectorindex.SearchResult{
+				{BehaviorID: "b1", Score: 0.99},
+				{BehaviorID: "b2", Score: 0.1},
+			},
+		}
+
 		actCtx := models.ContextSnapshot{Task: "development"}
-		nodes, err := vectorRetrieve(context.Background(), embedder, gs, actCtx, 10)
+		nodes, err := vectorRetrieve(context.Background(), embedder, index, gs, actCtx, 10)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -117,8 +146,17 @@ func TestVectorRetrieve(t *testing.T) {
 			"test-model",
 		)
 
+		// Mock returns results sorted by score; topK=1 means only b1
+		index := &mockVectorIndex{
+			results: []vectorindex.SearchResult{
+				{BehaviorID: "b1", Score: 1.0},
+				{BehaviorID: "b2", Score: 0.9},
+				{BehaviorID: "b3", Score: 0.1},
+			},
+		}
+
 		actCtx := models.ContextSnapshot{Task: "development"}
-		nodes, err := vectorRetrieve(context.Background(), embedder, gs, actCtx, 1)
+		nodes, err := vectorRetrieve(context.Background(), embedder, index, gs, actCtx, 1)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -155,10 +193,32 @@ func TestVectorRetrieve(t *testing.T) {
 			"test-model",
 		)
 
+		index := &mockVectorIndex{}
+
 		actCtx := models.ContextSnapshot{Task: "development"}
-		_, err := vectorRetrieve(context.Background(), embedder, gs, actCtx, 10)
+		_, err := vectorRetrieve(context.Background(), embedder, index, gs, actCtx, 10)
 		if err == nil {
 			t.Fatal("expected error")
+		}
+	})
+
+	t.Run("returns error when index is nil", func(t *testing.T) {
+		gs := &mockGraphStoreWithEmbeddings{
+			nodes:      map[string]store.Node{},
+			embeddings: []store.BehaviorEmbedding{},
+		}
+
+		embedder := vectorsearch.NewEmbedder(
+			func(_ context.Context, _ string) ([]float32, error) {
+				return []float32{1.0}, nil
+			},
+			"test-model",
+		)
+
+		actCtx := models.ContextSnapshot{Task: "development"}
+		_, err := vectorRetrieve(context.Background(), embedder, nil, gs, actCtx, 10)
+		if err == nil {
+			t.Fatal("expected error for nil index")
 		}
 	})
 
@@ -181,8 +241,14 @@ func TestVectorRetrieve(t *testing.T) {
 			"test-model",
 		)
 
+		index := &mockVectorIndex{
+			results: []vectorindex.SearchResult{
+				{BehaviorID: "b1", Score: 1.0},
+			},
+		}
+
 		actCtx := models.ContextSnapshot{Task: "development"}
-		nodes, err := vectorRetrieve(context.Background(), embedder, gs, actCtx, 10)
+		nodes, err := vectorRetrieve(context.Background(), embedder, index, gs, actCtx, 10)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -213,8 +279,15 @@ func TestVectorRetrieve(t *testing.T) {
 			"test-model",
 		)
 
+		index := &mockVectorIndex{
+			results: []vectorindex.SearchResult{
+				{BehaviorID: "b1", Score: 0.7},
+				{BehaviorID: "b2", Score: 0.7},
+			},
+		}
+
 		actCtx := models.ContextSnapshot{Task: "development"}
-		nodes, err := vectorRetrieve(context.Background(), embedder, gs, actCtx, 10)
+		nodes, err := vectorRetrieve(context.Background(), embedder, index, gs, actCtx, 10)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

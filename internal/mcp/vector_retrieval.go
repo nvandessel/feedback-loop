@@ -6,19 +6,23 @@ import (
 
 	"github.com/nvandessel/feedback-loop/internal/models"
 	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/feedback-loop/internal/vectorindex"
 	"github.com/nvandessel/feedback-loop/internal/vectorsearch"
 )
 
 // vectorRetrieveTopK is the default number of candidates returned by vector search.
 const vectorRetrieveTopK = 50
 
-// vectorRetrieve uses the embedder to find semantically relevant behaviors via
-// vector similarity, then appends any behaviors that don't yet have embeddings
-// (safety net during migration). Returns the combined node set.
-func vectorRetrieve(ctx context.Context, embedder *vectorsearch.Embedder, gs store.GraphStore, actCtx models.ContextSnapshot, topK int) ([]store.Node, error) {
+// vectorRetrieve uses the embedder and vector index to find semantically relevant
+// behaviors via ANN search, then appends any behaviors that don't yet have
+// embeddings (safety net during migration). Returns the combined node set.
+func vectorRetrieve(ctx context.Context, embedder *vectorsearch.Embedder, index vectorindex.VectorIndex, gs store.GraphStore, actCtx models.ContextSnapshot, topK int) ([]store.Node, error) {
 	es, ok := gs.(store.EmbeddingStore)
 	if !ok {
 		return nil, fmt.Errorf("store does not implement EmbeddingStore")
+	}
+	if index == nil {
+		return nil, fmt.Errorf("vector index not initialized")
 	}
 
 	// 1. Compose and embed the context query
@@ -28,16 +32,13 @@ func vectorRetrieve(ctx context.Context, embedder *vectorsearch.Embedder, gs sto
 		return nil, fmt.Errorf("embedding context query: %w", err)
 	}
 
-	// 2. Get all stored embeddings
-	allEmbeddings, err := es.GetAllEmbeddings(ctx)
+	// 2. ANN search via vector index
+	results, err := index.Search(ctx, queryVec, topK)
 	if err != nil {
-		return nil, fmt.Errorf("loading embeddings: %w", err)
+		return nil, fmt.Errorf("vector search: %w", err)
 	}
 
-	// 3. Brute-force kNN
-	results := vectorsearch.BruteForceSearch(queryVec, allEmbeddings, topK)
-
-	// 4. Load matched nodes
+	// 3. Load matched nodes
 	seen := make(map[string]bool, len(results))
 	nodes := make([]store.Node, 0, len(results))
 	for _, r := range results {
@@ -49,7 +50,7 @@ func vectorRetrieve(ctx context.Context, embedder *vectorsearch.Embedder, gs sto
 		seen[r.BehaviorID] = true
 	}
 
-	// 5. Include all behaviors without embeddings (no silent drops during migration)
+	// 4. Include all behaviors without embeddings (no silent drops during migration)
 	unembedded, err := es.GetBehaviorIDsWithoutEmbeddings(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("loading unembedded behavior IDs: %w", err)
