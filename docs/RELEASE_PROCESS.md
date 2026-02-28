@@ -30,9 +30,7 @@ Download binaries from [GitHub Releases](https://github.com/nvandessel/floop/rel
 
 ## Auto-Release
 
-Every push to `main` that changes code files triggers `auto-release.yml`. Documentation-only changes (`.md`, `docs/`, `.beads/`, `.floop/`, `LICENSE`) and workflow changes (`.github/`) are ignored via `paths-ignore`.
-
-Before releasing, auto-release waits for the CI workflow to complete on the same commit. If CI fails, the release is skipped. If no CI run is found (e.g., the commit only touched paths ignored by CI), the release proceeds.
+Every push to `main` that changes code files triggers `auto-release.yml`. Documentation-only changes (`.md`, `docs/`, `.beads/`, `.floop/`, `LICENSE`) and workflow changes (`.github/`) are ignored via `paths-ignore`. CI (Test, Lint, Build) is enforced as a required status check via GitHub rulesets, so it must pass before merge.
 
 ### Semantic Version Bumping
 
@@ -211,7 +209,7 @@ gh pr create --base main --title "fix: critical bug" --body "Emergency hotfix fo
 **Purpose:** Automatically release with semantic version bumping from commit messages
 
 **Jobs:**
-1. `check-skip` — Evaluate skip conditions (bot actor, commit message, PR label), then wait for CI to pass
+1. `check-skip` — Evaluate skip conditions (bot actor, commit message, PR label)
 2. `release` — Use `svu next` to determine version, tag, and run GoReleaser
 
 ### test-release.yml
