@@ -284,7 +284,9 @@ func TestDeriveEdgesForSubset_PerformanceGuard(t *testing.T) {
 
 	// We don't actually need to add all to the store for the warning check,
 	// but we need the function to run
-	_, _ = DeriveEdgesForSubset(ctx, s, newIDs, allBehaviors)
+	if _, err := DeriveEdgesForSubset(ctx, s, newIDs, allBehaviors); err != nil {
+		t.Fatalf("DeriveEdgesForSubset() error = %v", err)
+	}
 
 	w.Close()
 	var buf bytes.Buffer
