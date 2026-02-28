@@ -63,92 +63,15 @@ When you want to merge several PRs before cutting a release:
 2. Merge the PRs
 3. On the last PR, remove the label (or omit the skip marker) — the auto-release triggers
 
-## Manual Release Override
+## Manual Release
 
-Minor and major releases are now handled automatically by commit message parsing. Manual triggers are still available as an override. Release notes for minor and major releases automatically span back to the last tag of the same level — a minor release includes all commits since the previous `vX.Y.0`, and a major release since the previous `vX.0.0`. This means auto-patches between minor/major releases don't cause empty changelogs.
-
-### 1. Prepare for Release
-
-Ensure the `main` branch is ready:
+For forcing a specific bump (e.g., major release for API stability commitment):
 
 ```bash
-# Pull latest changes
-git checkout main
-git pull origin main
-
-# Verify tests pass
-make test
-
-# Verify CI suite passes
-make ci
-
-# Check for any uncommitted changes
-git status
+gh workflow run version-bump.yml -f bump=minor   # or patch, major
 ```
 
-### 2. Choose Version Bump Type
-
-| Bump Type | When to Use | Example |
-|-----------|-------------|---------|
-| **patch** | Bug fixes, minor improvements (usually auto-released) | 0.1.0 → 0.1.1 |
-| **minor** | New features, backwards-compatible API additions | 0.1.0 → 0.2.0 |
-| **major** | Breaking changes, major architectural changes | 0.1.0 → 1.0.0 |
-
-**Current versioning stage**: Pre-1.0 (0.x.x)
-- Use `minor` for new features or significant changes
-- Use `patch` for bug fixes
-- Reserve `major` for when ready to commit to API stability (1.0.0)
-
-### 3. Trigger Version Bump
-
-```bash
-# For a minor release (0.1.0 → 0.2.0)
-gh workflow run version-bump.yml -f bump=minor
-
-# For a major release (0.1.0 → 1.0.0)
-gh workflow run version-bump.yml -f bump=major
-```
-
-Alternatively, use the GitHub web UI:
-1. Go to **Actions** tab
-2. Select **Version Bump and Release** workflow
-3. Click **Run workflow**
-4. Choose bump type from dropdown
-5. Click **Run workflow**
-
-### 4. Monitor Release
-
-```bash
-# Watch the workflow
-gh run watch --workflow=version-bump.yml
-
-# Or list recent runs
-gh run list --workflow=version-bump.yml
-```
-
-### 5. Verify Release
-
-```bash
-# View the release
-gh release view v0.2.0
-
-# Download and test a binary
-gh release download v0.2.0 -p "floop-v0.2.0-linux-amd64.tar.gz"
-tar xzf floop-v0.2.0-linux-amd64.tar.gz
-./floop --version
-```
-
-Expected output:
-```
-floop version v0.2.0 (commit: abc1234, built: 2026-02-10T15:30:00Z)
-```
-
-### 6. Announce Release
-
-After verification:
-- Update any deployment documentation
-- Notify users via appropriate channels
-- Update integration guides if needed
+Or use the GitHub web UI: **Actions** → **Manual Release** → **Run workflow** → pick bump type.
 
 ## Release Artifacts
 
@@ -301,25 +224,17 @@ gh pr create --base main --title "fix: critical bug" --body "Emergency hotfix fo
 
 **Jobs:**
 1. `check-skip` — Evaluate skip conditions (bot actor, commit message, PR label), then wait for CI to pass
-2. `release` — If not skipped, call `version-bump.yml` with `bump: auto`
+2. `release` — Use `svu next` to determine version, tag, and run GoReleaser
 
 ### version-bump.yml
 
-**Trigger:** Manual `workflow_dispatch` or `workflow_call` from auto-release
-**Permissions:** `contents: write`
-**Purpose:** Calculate next version, create tag, and publish release
-
-**Inputs:**
-- `bump`: `auto`, `patch`, `minor`, or `major`
+**Trigger:** Manual `workflow_dispatch` only
+**Purpose:** Force a specific version bump (patch/minor/major)
 
 **Steps:**
-1. Checkout with full history
-2. Use `svu` to calculate next version from conventional commits (`auto`) or force a specific bump
-3. If no bump needed (current == next), skip gracefully
-4. Create annotated tag and push
-5. Calculate changelog base tag (for minor/major, overrides GoReleaser's default)
-6. Run GoReleaser with `release --clean`
-7. Publish GitHub release artifacts, notes, and Homebrew cask
+1. Use `svu patch/minor/major` to calculate next version
+2. Create annotated tag and push
+3. Run GoReleaser with `release --clean`
 
 ### test-release.yml
 
@@ -339,8 +254,8 @@ gh pr create --base main --title "fix: critical bug" --body "Emergency hotfix fo
 |------|---------|
 | `.goreleaser.yml` | GoReleaser configuration (builds, archives, changelog, Homebrew cask) |
 | `.github/workflows/pr-title.yml` | Conventional commit enforcement on PR titles |
-| `.github/workflows/auto-release.yml` | Semantic version bump on merge to main |
-| `.github/workflows/version-bump.yml` | Version tagging and release workflow |
+| `.github/workflows/auto-release.yml` | Auto-release on merge to main (svu + GoReleaser) |
+| `.github/workflows/version-bump.yml` | Manual release trigger |
 | `.github/workflows/test-release.yml` | PR validation workflow |
 | `Makefile` | Local build with version injection |
 

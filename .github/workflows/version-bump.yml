@@ -1,4 +1,4 @@
-name: Version Bump and Release
+name: Manual Release
 
 on:
   workflow_dispatch:
@@ -8,42 +8,23 @@ on:
         required: true
         type: choice
         options:
-          - auto
           - patch
           - minor
           - major
-  workflow_call:
-    inputs:
-      bump:
-        description: 'Version bump type (auto, patch, minor, major)'
-        required: true
-        type: string
 
 permissions:
   contents: write
 
-env:
-  GORELEASER_VERSION: v2.14.1
-
 jobs:
-  bump:
-    name: Bump Version
+  release:
+    name: Release
     runs-on: ubuntu-latest
-    outputs:
-      new_version: ${{ steps.version.outputs.new_version }}
-      should_release: ${{ steps.version.outputs.should_release }}
-      bump_type: ${{ steps.version.outputs.bump_type }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -53,105 +34,26 @@ jobs:
       - name: Install svu
         run: go install github.com/caarlos0/svu/v3@latest
 
-      - name: Calculate next version
-        id: version
+      - name: Tag next version
+        id: tag
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
           CURRENT=$(svu current || echo "v0.0.0")
+          NEXT=$(svu ${{ inputs.bump }})
 
-          case "${{ inputs.bump }}" in
-            auto) NEXT=$(svu next) ;;
-            major) NEXT=$(svu major) ;;
-            minor) NEXT=$(svu minor) ;;
-            patch) NEXT=$(svu patch) ;;
-          esac
-
-          echo "Current version: $CURRENT"
-          echo "Next version: $NEXT"
-
-          if [ "$CURRENT" = "$NEXT" ]; then
-            echo "No version bump needed"
-            echo "should_release=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Derive bump type from version diff
-          IFS='.' read -r CURR_MAJOR CURR_MINOR _ <<< "${CURRENT#v}"
-          IFS='.' read -r NEXT_MAJOR NEXT_MINOR _ <<< "${NEXT#v}"
-          if [ "$NEXT_MAJOR" != "$CURR_MAJOR" ]; then
-            BUMP_TYPE="major"
-          elif [ "$NEXT_MINOR" != "$CURR_MINOR" ]; then
-            BUMP_TYPE="minor"
-          else
-            BUMP_TYPE="patch"
-          fi
-
-          echo "Bump type: $BUMP_TYPE ($CURRENT → $NEXT)"
-          echo "new_version=$NEXT" >> "$GITHUB_OUTPUT"
-          echo "should_release=true" >> "$GITHUB_OUTPUT"
-          echo "bump_type=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
-
-      - name: Create and push tag
-        if: steps.version.outputs.should_release == 'true'
-        run: |
-          git tag -a "${{ steps.version.outputs.new_version }}" -m "Release ${{ steps.version.outputs.new_version }}"
-          git push origin "${{ steps.version.outputs.new_version }}"
-
-      - name: Summary
-        if: steps.version.outputs.should_release == 'true'
-        run: |
-          echo "✅ Tagged ${{ steps.version.outputs.new_version }} (${{ steps.version.outputs.bump_type }} bump)" >> $GITHUB_STEP_SUMMARY
-
-  release:
-    name: Release with GoReleaser
-    needs: bump
-    if: needs.bump.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          ref: ${{ needs.bump.outputs.new_version }}
-
-      - name: Fetch tags
-        run: git fetch --force --tags
-
-      - name: Calculate changelog base tag
-        id: changelog
-        run: |
-          case "${{ needs.bump.outputs.bump_type }}" in
-            minor)
-              # Find last minor/major tag (patch == 0), excluding the current release
-              BASE_TAG=$(git tag -l "v*" --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.0$' | grep -v "${{ needs.bump.outputs.new_version }}" | head -n1)
-              ;;
-            major)
-              # Find last major tag (minor == 0, patch == 0), excluding the current release
-              BASE_TAG=$(git tag -l "v*" --sort=-v:refname | grep -E '^v[0-9]+\.0\.0$' | grep -v "${{ needs.bump.outputs.new_version }}" | head -n1)
-              ;;
-          esac
-          if [ -n "${BASE_TAG:-}" ]; then
-            echo "previous_tag=$BASE_TAG" >> "$GITHUB_OUTPUT"
-            echo "Changelog base: $BASE_TAG (override for ${{ needs.bump.outputs.bump_type }} release)"
-          else
-            echo "Changelog base: default (GoReleaser auto-detect)"
-          fi
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: "go.mod"
+          echo "$CURRENT → $NEXT"
+          git tag -a "$NEXT" -m "Release $NEXT"
+          git push origin "$NEXT"
+          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
-          version: ${{ env.GORELEASER_VERSION }}
+          version: v2.14.1
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
-          GORELEASER_PREVIOUS_TAG: ${{ steps.changelog.outputs.previous_tag }}
-
-      - name: Summary
-        run: |
-          echo "✅ Release ${{ needs.bump.outputs.new_version }} published successfully!" >> $GITHUB_STEP_SUMMARY
