@@ -165,6 +165,20 @@ Codex supports MCP, but does not expose Claude-style lifecycle hooks. Use:
 
 Full guide: [codex.md](./codex.md)
 
+Quick install highlights:
+
+```bash
+cat >> ~/.codex/config.toml <<'EOF'
+[mcp_servers.floop]
+command = "floop"
+args = ["mcp-server"]
+cwd = "/path/to/your/project"
+EOF
+
+mkdir -p ~/.agents/skills/floop
+ln -sfn "$(pwd)/docs/integrations/templates/floop.SKILL.md.template" ~/.agents/skills/floop/SKILL.md
+```
+
 ## Generic MCP Configuration
 
 For any MCP-capable tool not listed above:

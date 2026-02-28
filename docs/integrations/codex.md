@@ -12,6 +12,35 @@ That means Codex integrations need two layers:
 
 This guide shows both.
 
+## Quick Install (Codex)
+
+Run from your project root:
+
+```bash
+# 1) Ensure floop is installed
+which floop
+
+# 2) Configure MCP in Codex (~/.codex/config.toml)
+cat >> ~/.codex/config.toml <<'EOF'
+[mcp_servers.floop]
+command = "floop"
+args = ["mcp-server"]
+cwd = "/path/to/your/project"
+EOF
+
+# 3) Install AGENTS baseline rules
+cp docs/integrations/templates/codex-agents.md.template AGENTS.md
+
+# 4) Install floop skill via Codex skill discovery path
+mkdir -p ~/.agents/skills/floop
+ln -sfn "$(pwd)/docs/integrations/templates/floop.SKILL.md.template" ~/.agents/skills/floop/SKILL.md
+```
+
+Then restart Codex (fully quit and relaunch).
+
+If you already have an `AGENTS.md`, merge the template content instead of
+overwriting the file.
+
 ## 1) Configure MCP
 
 Add floop as an MCP server in your Codex config.
@@ -68,7 +97,7 @@ For stronger consistency, add a dedicated Codex skill:
 
 Recommended install location:
 
-`$CODEX_HOME/skills/floop/SKILL.md`
+`~/.agents/skills/floop/SKILL.md`
 
 Use project-local skills if your team prefers repository-scoped behavior.
 
@@ -108,3 +137,30 @@ Run this sequence to validate end-to-end behavior:
 
 If step 2 or 4 is missed, tighten your `AGENTS.md` trigger language or install
 the Codex skill template.
+
+## Skill Maintenance
+
+Because the recommended install uses a symlink, updates are immediate when the
+template file changes in your repo.
+
+### Verify Skill Install
+
+```bash
+ls -la ~/.agents/skills/floop/SKILL.md
+```
+
+You should see a symlink pointing to:
+`docs/integrations/templates/floop.SKILL.md.template`.
+
+### Update
+
+```bash
+cd /path/to/your/project
+git pull
+```
+
+### Uninstall
+
+```bash
+rm -f ~/.agents/skills/floop/SKILL.md
+```
