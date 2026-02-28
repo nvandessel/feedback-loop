@@ -1,6 +1,6 @@
 # Go Development Guidelines
 
-This guide outlines the coding standards for the feedback-loop project.
+This guide outlines the coding standards for the floop project.
 
 ## 1. Project Structure
 

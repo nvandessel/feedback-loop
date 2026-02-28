@@ -1,6 +1,6 @@
 # Release Process
 
-This document describes the automated release process for feedback-loop using GoReleaser.
+This document describes the automated release process for floop using GoReleaser.
 
 ## Overview
 
