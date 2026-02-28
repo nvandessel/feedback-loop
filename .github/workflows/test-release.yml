@@ -4,7 +4,6 @@ on:
   pull_request:
     paths:
       - '.goreleaser.yml'
-      - '.github/workflows/version-bump.yml'
       - '.github/workflows/auto-release.yml'
       - '.github/workflows/test-release.yml'
       - 'Makefile'

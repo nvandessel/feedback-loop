@@ -10,8 +10,6 @@ The release pipeline is fully automated with semantic version bumping:
 3. Chore-only merges (docs, ci, test, refactor, etc.) skip the release entirely
 4. GoReleaser builds binaries, publishes to GitHub Releases, and updates the Homebrew tap
 
-For manual overrides, maintainers can trigger the version-bump workflow directly.
-
 ## Installation
 
 ### Homebrew (macOS/Linux)
@@ -62,16 +60,6 @@ When you want to merge several PRs before cutting a release:
 1. Add the `skip-release` label to each PR (or include `[skip release]` in merge commits)
 2. Merge the PRs
 3. On the last PR, remove the label (or omit the skip marker) — the auto-release triggers
-
-## Manual Release
-
-For forcing a specific bump (e.g., major release for API stability commitment):
-
-```bash
-gh workflow run version-bump.yml -f bump=minor   # or patch, major
-```
-
-Or use the GitHub web UI: **Actions** → **Manual Release** → **Run workflow** → pick bump type.
 
 ## Release Artifacts
 
@@ -226,16 +214,6 @@ gh pr create --base main --title "fix: critical bug" --body "Emergency hotfix fo
 1. `check-skip` — Evaluate skip conditions (bot actor, commit message, PR label), then wait for CI to pass
 2. `release` — Use `svu next` to determine version, tag, and run GoReleaser
 
-### version-bump.yml
-
-**Trigger:** Manual `workflow_dispatch` only
-**Purpose:** Force a specific version bump (patch/minor/major)
-
-**Steps:**
-1. Use `svu patch/minor/major` to calculate next version
-2. Create annotated tag and push
-3. Run GoReleaser with `release --clean`
-
 ### test-release.yml
 
 **Trigger:** PR changes to release files
@@ -255,7 +233,6 @@ gh pr create --base main --title "fix: critical bug" --body "Emergency hotfix fo
 | `.goreleaser.yml` | GoReleaser configuration (builds, archives, changelog, Homebrew cask) |
 | `.github/workflows/pr-title.yml` | Conventional commit enforcement on PR titles |
 | `.github/workflows/auto-release.yml` | Auto-release on merge to main (svu + GoReleaser) |
-| `.github/workflows/version-bump.yml` | Manual release trigger |
 | `.github/workflows/test-release.yml` | PR validation workflow |
 | `Makefile` | Local build with version injection |
 
