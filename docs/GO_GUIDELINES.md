@@ -1,6 +1,6 @@
 # Go Development Guidelines
 
-This guide outlines the coding standards for the feedback-loop project.
+This guide outlines the coding standards for the floop project.
 
 ## 1. Project Structure
 
@@ -152,6 +152,7 @@ func (c *ContextSnapshot) Matches(predicate map[string]any) bool { ... }
 - Current dependencies:
   - `github.com/spf13/cobra` - CLI framework
   - `gopkg.in/yaml.v3` - YAML parsing
+  - `github.com/coder/hnsw` - HNSW vector index (non-Windows only; see `//go:build` tags)
 
 ## 9. CLI Patterns (Cobra)
 

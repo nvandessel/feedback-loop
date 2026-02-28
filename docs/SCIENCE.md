@@ -133,10 +133,23 @@ While spreading activation excels at exploiting graph structure, it requires beh
 
 floop uses a two-stage retrieval pipeline:
 
-1. **Vector pre-filter** — Embed the current context (file, task, language) and find the top-K most similar behaviors via brute-force cosine similarity over stored embeddings
+1. **Vector pre-filter** — Embed the current context (file, task, language) and find the top-K most similar behaviors via the VectorIndex
 2. **Spreading activation** — Apply the full activation pipeline (seeding, spreading, lateral inhibition, relevance scoring) to the pre-filtered candidates
 
-This is analogous to how modern search engines use embedding retrieval for recall and then re-rank with more expensive models. At floop's scale (~200 behaviors × 768 dimensions), brute-force search completes in microseconds, so approximate nearest neighbor indices aren't needed.
+This is analogous to how modern search engines use embedding retrieval for recall and then re-rank with more expensive models.
+
+### Vector Indexing Strategy
+
+The vector pre-filter uses a **TieredIndex** that automatically selects the optimal search backend based on the number of stored embeddings:
+
+| Backend | Threshold | Complexity | Notes |
+|---------|-----------|------------|-------|
+| **BruteForceIndex** | ≤1,000 vectors | O(n) | Exhaustive cosine similarity; zero overhead, exact results |
+| **HNSWIndex** | >1,000 vectors | O(log n) | Hierarchical Navigable Small World graph; approximate but fast |
+
+At small scales (~200 behaviors), brute-force completes in microseconds. When a store grows past 1,000 behaviors, the tiered index automatically promotes to HNSW — no configuration needed. The HNSW graph is persisted to disk (`.floop/hnsw.bin`) and reloaded on server restart for instant warm-start. Once promoted, the index stays HNSW (no demotion) to avoid oscillation at the boundary.
+
+The HNSW implementation wraps `github.com/coder/hnsw` with a shadow-map rebuild strategy: since the upstream library's `Delete` method can leave dangling neighbor pointers, mutations that remove nodes rebuild the graph from a shadow map of all vectors. This trades write performance for correctness — acceptable since writes (learn, deduplicate) are rare compared to reads (active).
 
 ### Embedding Model
 
