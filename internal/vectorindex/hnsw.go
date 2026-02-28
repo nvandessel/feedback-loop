@@ -147,14 +147,17 @@ func (h *HNSWIndex) Add(_ context.Context, behaviorID string, vector []float32) 
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	cp := make([]float32, len(vector))
+	copy(cp, vector)
+
 	_, existed := h.vectors[behaviorID]
-	h.vectors[behaviorID] = vector
+	h.vectors[behaviorID] = cp
 
 	if existed {
 		// Rebuild to safely replace the node.
 		h.rebuild()
 	} else {
-		h.graph.Add(hnsw.MakeNode(behaviorID, vector))
+		h.graph.Add(hnsw.MakeNode(behaviorID, cp))
 	}
 
 	return nil
