@@ -32,10 +32,19 @@ func DefaultGraphPlacerConfig() *GraphPlacerConfig {
 	}
 }
 
+// PlacementAction describes the action to take when placing a behavior in the graph.
+type PlacementAction string
+
+const (
+	PlacementActionCreate     PlacementAction = "create"
+	PlacementActionMerge      PlacementAction = "merge"
+	PlacementActionSpecialize PlacementAction = "specialize"
+)
+
 // PlacementDecision describes where a new behavior should go in the graph.
 type PlacementDecision struct {
-	// Action indicates what to do: "create", "merge", or "specialize"
-	Action string
+	// Action indicates what to do: create, merge, or specialize
+	Action PlacementAction
 
 	// TargetID is set for merge/specialize actions to indicate the existing behavior
 	TargetID string
@@ -92,7 +101,7 @@ func NewGraphPlacerWithConfig(s store.GraphStore, cfg *GraphPlacerConfig) GraphP
 // Place determines where a behavior should be placed in the graph.
 func (p *graphPlacer) Place(ctx context.Context, behavior *models.Behavior) (*PlacementDecision, error) {
 	decision := &PlacementDecision{
-		Action:           "create",
+		Action:           PlacementActionCreate,
 		ProposedEdges:    make([]ProposedEdge, 0),
 		SimilarBehaviors: make([]SimilarityMatch, 0),
 		Confidence:       0.7, // Default confidence for new behaviors
@@ -135,13 +144,13 @@ func (p *graphPlacer) Place(ctx context.Context, behavior *models.Behavior) (*Pl
 	// Decide action based on similarity
 	if highestSimilarity > constants.SimilarToUpperBound && mostSimilar != nil {
 		// Very high similarity - suggest merge
-		decision.Action = "merge"
+		decision.Action = PlacementActionMerge
 		decision.TargetID = mostSimilar.ID
 		decision.Confidence = 0.5 // Lower confidence for merges (needs review)
 	} else if highestSimilarity > constants.SpecializeThreshold && mostSimilar != nil {
 		// High similarity but not duplicate - check if we should specialize
 		if p.isMoreSpecific(behavior.When, mostSimilar.When) {
-			decision.Action = "specialize"
+			decision.Action = PlacementActionSpecialize
 			decision.TargetID = mostSimilar.ID
 			decision.Confidence = 0.6
 		}
