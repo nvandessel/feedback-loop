@@ -4,6 +4,9 @@ import (
 	"context"
 	"sync"
 	"testing"
+
+	"github.com/nvandessel/feedback-loop/internal/store"
+	"github.com/nvandessel/feedback-loop/internal/vectorsearch"
 )
 
 func TestBruteForceIndex_AddAndSearch(t *testing.T) {
@@ -148,18 +151,33 @@ func TestBruteForceIndex_MatchesBruteForceSearch(t *testing.T) {
 	idx := NewBruteForceIndex()
 	ctx := context.Background()
 
-	_ = idx.Add(ctx, "b1", []float32{1, 0, 0})
-	_ = idx.Add(ctx, "b2", []float32{0.9, 0.1, 0})
-	_ = idx.Add(ctx, "b3", []float32{0, 0, 1})
+	vecs := []struct {
+		id  string
+		vec []float32
+	}{
+		{"b1", []float32{1, 0, 0}},
+		{"b2", []float32{0.9, 0.1, 0}},
+		{"b3", []float32{0, 0, 1}},
+	}
+	candidates := make([]store.BehaviorEmbedding, len(vecs))
+	for i, v := range vecs {
+		_ = idx.Add(ctx, v.id, v.vec)
+		candidates[i] = store.BehaviorEmbedding{BehaviorID: v.id, Embedding: v.vec}
+	}
 
 	query := []float32{1, 0, 0}
-	results, _ := idx.Search(ctx, query, 3)
+	idxResults, err := idx.Search(ctx, query, 3)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	bfResults := vectorsearch.BruteForceSearch(query, candidates, 3)
 
-	// Expected order: b1 (exact match), b2 (close), b3 (orthogonal)
-	expected := []string{"b1", "b2", "b3"}
-	for i, r := range results {
-		if r.BehaviorID != expected[i] {
-			t.Errorf("position %d: expected %s, got %s", i, expected[i], r.BehaviorID)
+	if len(idxResults) != len(bfResults) {
+		t.Fatalf("length mismatch: index=%d, brute-force=%d", len(idxResults), len(bfResults))
+	}
+	for i := range idxResults {
+		if idxResults[i].BehaviorID != bfResults[i].BehaviorID {
+			t.Errorf("position %d: index=%s, brute-force=%s", i, idxResults[i].BehaviorID, bfResults[i].BehaviorID)
 		}
 	}
 }

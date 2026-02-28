@@ -26,7 +26,9 @@ func NewBruteForceIndex() *BruteForceIndex {
 func (b *BruteForceIndex) Add(_ context.Context, behaviorID string, vector []float32) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.vectors[behaviorID] = vector
+	cp := make([]float32, len(vector))
+	copy(cp, vector)
+	b.vectors[behaviorID] = cp
 	return nil
 }
 
