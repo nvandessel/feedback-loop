@@ -5,6 +5,7 @@ package vectorindex
 import (
 	"context"
 	"path/filepath"
+	"sort"
 	"sync"
 
 	"github.com/coder/hnsw"
@@ -206,6 +207,10 @@ func (h *HNSWIndex) Search(_ context.Context, query []float32, topK int) ([]Sear
 			Score:      score,
 		})
 	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Score > results[j].Score
+	})
 
 	return results, nil
 }
