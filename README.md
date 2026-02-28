@@ -24,10 +24,19 @@ floop captures corrections you make to AI agents, extracts reusable behaviors, a
 
 ## Quick Start
 
-```bash
-# Install
-go install github.com/nvandessel/floop/cmd/floop@latest
+### Install
 
+```bash
+# Homebrew (macOS/Linux)
+brew install nvandessel/tap/floop
+
+# Go
+go install github.com/nvandessel/floop/cmd/floop@latest
+```
+
+### Initialize and use
+
+```bash
 # Initialize in your project
 cd your-project
 floop init
