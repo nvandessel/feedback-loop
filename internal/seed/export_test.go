@@ -1,9 +1,10 @@
 package seed
 
 import (
+	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"testing"
 
@@ -11,23 +12,38 @@ import (
 	"github.com/nvandessel/floop/internal/pack"
 )
 
+// repoRoot walks up from the working directory to find the go.mod sentinel.
+// This is immune to -trimpath and to the test file being moved.
+func repoRoot(t *testing.T) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatal("could not find repo root (no go.mod found)")
+		}
+		dir = parent
+	}
+}
+
 // committedPackPath returns the absolute path to the committed floop-core.fpack.
 func committedPackPath(t *testing.T) string {
 	t.Helper()
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("cannot determine test file path")
-	}
-	// thisFile is internal/seed/export_test.go — repo root is two dirs up
-	repoRoot := filepath.Join(filepath.Dir(thisFile), "..", "..")
-	return filepath.Join(repoRoot, ".floop", "packs", "floop-core.fpack")
+	return filepath.Join(repoRoot(t), ".floop", "packs", "floop-core.fpack")
 }
 
 func TestExportCorePack(t *testing.T) {
+	ctx := context.Background()
 	dir := t.TempDir()
 	out := filepath.Join(dir, "floop-core.fpack")
 
-	if err := ExportCorePack(out); err != nil {
+	if err := ExportCorePack(ctx, out); err != nil {
 		t.Fatalf("ExportCorePack() error = %v", err)
 	}
 
@@ -74,7 +90,7 @@ func TestExportCorePack(t *testing.T) {
 		if err := os.MkdirAll(filepath.Dir(committed), 0o755); err != nil {
 			t.Fatalf("creating packs dir: %v", err)
 		}
-		if err := ExportCorePack(committed); err != nil {
+		if err := ExportCorePack(ctx, committed); err != nil {
 			t.Fatalf("updating committed pack: %v", err)
 		}
 		t.Logf("updated committed pack at %s", committed)
@@ -82,6 +98,7 @@ func TestExportCorePack(t *testing.T) {
 }
 
 func TestCorePackFreshness(t *testing.T) {
+	ctx := context.Background()
 	committed := committedPackPath(t)
 	if _, err := os.Stat(committed); os.IsNotExist(err) {
 		t.Fatalf("committed pack not found at %s — generate with: UPDATE_GOLDEN=1 go test -run TestExportCorePack ./internal/seed/", committed)
@@ -96,7 +113,7 @@ func TestCorePackFreshness(t *testing.T) {
 	// Generate fresh pack
 	dir := t.TempDir()
 	freshPath := filepath.Join(dir, "floop-core.fpack")
-	if err := ExportCorePack(freshPath); err != nil {
+	if err := ExportCorePack(ctx, freshPath); err != nil {
 		t.Fatalf("generating fresh pack: %v", err)
 	}
 
@@ -127,13 +144,13 @@ func TestCorePackFreshness(t *testing.T) {
 		}
 	}
 
-	// Compare node content (canonical text)
-	committedContent := nodeContentMap(committedData.Nodes)
-	freshContent := nodeContentMap(freshData.Nodes)
+	// Compare full node content (Content + Metadata) via JSON serialization
+	committedContent := nodeSerializedMap(committedData.Nodes)
+	freshContent := nodeSerializedMap(freshData.Nodes)
 
-	for id, freshCanonical := range freshContent {
-		if committedCanonical, ok := committedContent[id]; ok {
-			if committedCanonical != freshCanonical {
+	for id, freshJSON := range freshContent {
+		if committedJSON, ok := committedContent[id]; ok {
+			if committedJSON != freshJSON {
 				t.Errorf("content drift for %q — committed floop-core.fpack is stale — regenerate with: UPDATE_GOLDEN=1 go test -run TestExportCorePack ./internal/seed/", id)
 			}
 		}
@@ -149,16 +166,24 @@ func sortedNodeIDs(nodes []backup.BackupNode) []string {
 	return ids
 }
 
-func nodeContentMap(nodes []backup.BackupNode) map[string]string {
+// nodeSerializedMap returns a map from node ID to a stable JSON serialization
+// of the full node (Content + Metadata), enabling deep drift detection beyond
+// just the canonical text.
+func nodeSerializedMap(nodes []backup.BackupNode) map[string]string {
 	m := make(map[string]string, len(nodes))
 	for _, n := range nodes {
-		canonical := ""
-		if content, ok := n.Node.Content["content"].(map[string]interface{}); ok {
-			if c, ok := content["canonical"].(string); ok {
-				canonical = c
-			}
+		// Serialize both Content and Metadata for full comparison
+		payload := map[string]interface{}{
+			"content":  n.Node.Content,
+			"metadata": n.Node.Metadata,
 		}
-		m[n.Node.ID] = canonical
+		b, err := json.Marshal(payload)
+		if err != nil {
+			// Fallback: use node ID as placeholder so comparison still works
+			m[n.Node.ID] = n.Node.ID
+			continue
+		}
+		m[n.Node.ID] = string(b)
 	}
 	return m
 }

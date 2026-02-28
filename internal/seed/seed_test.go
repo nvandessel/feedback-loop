@@ -226,7 +226,7 @@ func TestCoreBehaviors_Structure(t *testing.T) {
 				t.Errorf("source_type = %v, want imported", prov["source_type"])
 			}
 			if prov["package"] != "floop/core" {
-				t.Errorf("package = %v, want floop-core", prov["package"])
+				t.Errorf("package = %v, want floop/core", prov["package"])
 			}
 			if prov["package_version"] != SeedVersion {
 				t.Errorf("package_version = %v, want %s", prov["package_version"], SeedVersion)
@@ -270,7 +270,7 @@ func TestCoreBehaviors_Provenance(t *testing.T) {
 				t.Fatalf("seed %s: metadata.provenance is not a map", seed.ID)
 			}
 			if prov["package"] != "floop/core" {
-				t.Errorf("package = %v, want floop-core", prov["package"])
+				t.Errorf("package = %v, want floop/core", prov["package"])
 			}
 			if prov["package_version"] != SeedVersion {
 				t.Errorf("package_version = %v, want %s", prov["package_version"], SeedVersion)

@@ -11,8 +11,7 @@ import (
 // ExportCorePack generates a .fpack file from the core seed behaviors.
 // It creates an in-memory store, seeds it, and exports via pack.Create,
 // dogfooding the full pack pipeline.
-func ExportCorePack(outputPath string) error {
-	ctx := context.Background()
+func ExportCorePack(ctx context.Context, outputPath string) error {
 	s := store.NewInMemoryGraphStore()
 
 	seeder := NewSeeder(s)
@@ -25,7 +24,7 @@ func ExportCorePack(outputPath string) error {
 		Version:     SeedVersion,
 		Description: "Core behaviors that teach agents how to use floop",
 		Author:      "floop",
-		Source:      "https://github.com/nvandessel/feedback-loop",
+		Source:      "https://github.com/nvandessel/floop",
 	}
 
 	_, err := pack.Create(ctx, s, pack.CreateFilter{}, manifest, outputPath, pack.CreateOptions{})
