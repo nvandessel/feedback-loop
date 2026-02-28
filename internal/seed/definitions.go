@@ -7,7 +7,7 @@ import (
 
 // SeedVersion is the version of the seed behavior definitions.
 // Bump this when seed content changes to trigger updates.
-const SeedVersion = "0.3.0"
+const SeedVersion = "0.4.0"
 
 // coreBehaviors returns the seed behaviors that bootstrap floop's self-teaching.
 func coreBehaviors() []store.Node {
@@ -27,7 +27,7 @@ func coreBehaviors() []store.Node {
 				"priority":   100,
 				"provenance": map[string]interface{}{
 					"source_type":     "imported",
-					"package":         "floop-core",
+					"package":         "floop/core",
 					"package_version": SeedVersion,
 				},
 			},
@@ -47,7 +47,7 @@ func coreBehaviors() []store.Node {
 				"priority":   100,
 				"provenance": map[string]interface{}{
 					"source_type":     "imported",
-					"package":         "floop-core",
+					"package":         "floop/core",
 					"package_version": SeedVersion,
 				},
 			},
@@ -67,7 +67,7 @@ func coreBehaviors() []store.Node {
 				"priority":   90,
 				"provenance": map[string]interface{}{
 					"source_type":     "imported",
-					"package":         "floop-core",
+					"package":         "floop/core",
 					"package_version": SeedVersion,
 				},
 			},
@@ -87,7 +87,7 @@ func coreBehaviors() []store.Node {
 				"priority":   90,
 				"provenance": map[string]interface{}{
 					"source_type":     "imported",
-					"package":         "floop-core",
+					"package":         "floop/core",
 					"package_version": SeedVersion,
 				},
 			},
@@ -107,7 +107,7 @@ func coreBehaviors() []store.Node {
 				"priority":   90,
 				"provenance": map[string]interface{}{
 					"source_type":     "imported",
-					"package":         "floop-core",
+					"package":         "floop/core",
 					"package_version": SeedVersion,
 				},
 			},
@@ -127,7 +127,7 @@ func coreBehaviors() []store.Node {
 				"priority":   90,
 				"provenance": map[string]interface{}{
 					"source_type":     "imported",
-					"package":         "floop-core",
+					"package":         "floop/core",
 					"package_version": SeedVersion,
 				},
 			},
@@ -147,7 +147,7 @@ func coreBehaviors() []store.Node {
 				"priority":   90,
 				"provenance": map[string]interface{}{
 					"source_type":     "imported",
-					"package":         "floop-core",
+					"package":         "floop/core",
 					"package_version": SeedVersion,
 				},
 			},
@@ -167,7 +167,7 @@ func coreBehaviors() []store.Node {
 				"priority":   90,
 				"provenance": map[string]interface{}{
 					"source_type":     "imported",
-					"package":         "floop-core",
+					"package":         "floop/core",
 					"package_version": SeedVersion,
 				},
 			},
@@ -187,7 +187,7 @@ func coreBehaviors() []store.Node {
 				"priority":   90,
 				"provenance": map[string]interface{}{
 					"source_type":     "imported",
-					"package":         "floop-core",
+					"package":         "floop/core",
 					"package_version": SeedVersion,
 				},
 			},
