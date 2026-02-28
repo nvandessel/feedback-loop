@@ -21,7 +21,7 @@ floop integrates with AI coding tools through 3 methods:
 | Windsurf | Yes | — | Yes (.windsurfrules) | Researched |
 | GitHub Copilot | Yes | — | Yes (copilot-instructions.md) | Researched |
 | Aider | — | — | Yes (wrapper script) | Researched |
-| OpenAI Codex CLI | — | — | Yes (Skills/agents.md) | Researched |
+| OpenAI Codex CLI | Yes | — | Yes (AGENTS.md + Skills) | Researched |
 
 ## Tested Integrations
 
@@ -158,7 +158,12 @@ Or add `floop prompt` output to `.aider/conventions.md`.
 
 ### OpenAI Codex CLI
 
-No MCP support yet. Add `floop prompt` output to `codex/agents.md` (Skills file).
+Codex supports MCP, but does not expose Claude-style lifecycle hooks. Use:
+
+- MCP for bidirectional tool access
+- `AGENTS.md` + Codex `SKILL.md` for runtime cadence (task start, context refresh, correction capture)
+
+Full guide: [codex.md](./codex.md)
 
 ## Generic MCP Configuration
 

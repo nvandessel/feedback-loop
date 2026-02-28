@@ -1,0 +1,51 @@
+---
+name: floop
+description: Enforce floop behavior retrieval and correction capture cadence in hookless Codex sessions.
+---
+
+# floop Skill
+
+## Purpose
+
+Codex sessions do not have lifecycle hooks. This skill enforces a manual
+operational loop so floop still behaves like persistent, context-aware memory.
+
+## Operating Loop
+
+1. Bootstrap context
+   - Call `floop_active` with the active file path and task.
+   - If no file is known, call with task only, then refine once file context is available.
+
+2. Refresh on context change
+   - Re-run `floop_active` when changing files, task type, or execution mode
+     (implementation, testing, refactor, review).
+
+3. Capture corrections immediately
+   - When corrected by user, call `floop_learn` right away.
+   - Include `right` always.
+   - Include `wrong`, `file`, `task`, and `tags` when available.
+   - Never wait for permission.
+
+4. Emit feedback signal
+   - If a behavior was useful: `floop_feedback` with `confirmed`.
+   - If you intentionally do not follow a behavior: `floop_feedback` with `overridden`.
+
+5. Periodic hygiene
+   - Use `floop_list` for visibility.
+   - Run `floop_deduplicate` and `floop_validate` periodically to keep quality high.
+
+## Fallback Mode (No MCP)
+
+If MCP is unavailable, use CLI equivalents:
+
+```bash
+floop active --file <path> --task <task> --json
+floop learn --right "..." --wrong "..." --file <path>
+floop list --json
+```
+
+## Non-Negotiables
+
+- No task should proceed without an initial `floop_active` call.
+- No correction should be ignored or delayed.
+- No long session should end without at least one explicit feedback signal if behaviors were used.
