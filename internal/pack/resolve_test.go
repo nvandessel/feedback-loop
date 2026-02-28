@@ -17,9 +17,9 @@ func TestResolveSource(t *testing.T) {
 		wantErr   bool
 	}{
 		{
-			name:     "empty source",
-			source:   "",
-			wantErr:  true,
+			name:    "empty source",
+			source:  "",
+			wantErr: true,
 		},
 		{
 			name:      "github latest",
@@ -153,8 +153,8 @@ func TestResolveSource_Canonical(t *testing.T) {
 			wantCanonical: "https://example.com/pack.fpack",
 		},
 		{
-			name:   "local canonical is absolute",
-			source: "/tmp/test.fpack",
+			name:          "local canonical is absolute",
+			source:        "/tmp/test.fpack",
 			wantCanonical: "/tmp/test.fpack",
 		},
 	}

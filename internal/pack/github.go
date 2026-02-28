@@ -140,8 +140,10 @@ func resolveGitHubToken() string {
 		return token
 	}
 
-	// 2. gh auth token
-	cmd := exec.Command("gh", "auth", "token")
+	// 2. gh auth token (with timeout to avoid hanging)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "gh", "auth", "token")
 	out, err := cmd.Output()
 	if err == nil {
 		token := strings.TrimSpace(string(out))
