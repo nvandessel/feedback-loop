@@ -151,10 +151,11 @@ jobs:
 
           BUMP="none"
 
-          # Check each commit since the last tag
-          while IFS= read -r line; do
-            SUBJECT=$(echo "$line" | cut -d'|' -f1)
-            BODY=$(echo "$line" | cut -d'|' -f2-)
+          # Iterate over each commit hash individually to avoid
+          # multi-line body text being mis-parsed as separate commits
+          for HASH in $(git log "$LATEST_TAG"..HEAD --format='%H'); do
+            SUBJECT=$(git log -1 --format='%s' "$HASH")
+            BODY=$(git log -1 --format='%b' "$HASH")
 
             # Check for breaking changes
             if echo "$SUBJECT" | grep -qE '^[a-z]+(\(.+\))?!:'; then
@@ -181,7 +182,7 @@ jobs:
                 BUMP="patch"
               fi
             fi
-          done <<< "$(git log "$LATEST_TAG"..HEAD --format='%s|%b')"
+          done
 
           if [ "$BUMP" = "none" ]; then
             echo "No release-worthy commits found (chore/ci/test/docs/build/style/refactor only)"
@@ -193,7 +194,7 @@ jobs:
   release:
     name: Auto Release
     needs: determine-bump
-    if: needs.determine-bump.outputs.bump != 'none'
+    if: needs.determine-bump.result == 'success' && needs.determine-bump.outputs.bump != 'none'
     permissions:
       contents: write
     uses: ./.github/workflows/version-bump.yml
