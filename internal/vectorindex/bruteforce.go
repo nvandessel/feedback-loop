@@ -5,7 +5,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/nvandessel/feedback-loop/internal/vecmath"
+	"github.com/nvandessel/floop/internal/vecmath"
 )
 
 // BruteForceIndex performs exhaustive nearest neighbor search using cosine similarity.

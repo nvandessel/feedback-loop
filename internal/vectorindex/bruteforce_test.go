@@ -5,8 +5,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/nvandessel/feedback-loop/internal/store"
-	"github.com/nvandessel/feedback-loop/internal/vectorsearch"
+	"github.com/nvandessel/floop/internal/store"
+	"github.com/nvandessel/floop/internal/vectorsearch"
 )
 
 func TestBruteForceIndex_AddAndSearch(t *testing.T) {
