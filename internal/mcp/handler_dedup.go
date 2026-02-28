@@ -3,7 +3,6 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -89,10 +88,10 @@ func (s *Server) handleFloopDeduplicate(ctx context.Context, req *sdk.CallToolRe
 						if es, ok := s.store.(store.EmbeddingStore); ok {
 							vec, err := s.embedder.EmbedAndStore(context.Background(), es, bid, text)
 							if err != nil {
-								fmt.Fprintf(os.Stderr, "warning: failed to embed merged behavior %s: %v\n", bid, err)
+								s.logger.Warn("failed to embed merged behavior", "behavior_id", bid, "error", err)
 							} else if s.vectorIndex != nil {
 								if err := s.vectorIndex.Add(context.Background(), bid, vec); err != nil {
-									fmt.Fprintf(os.Stderr, "warning: failed to add merged behavior %s to vector index: %v\n", bid, err)
+									s.logger.Warn("failed to add merged behavior to vector index", "behavior_id", bid, "error", err)
 								}
 							}
 						}

@@ -3,7 +3,6 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -59,7 +58,7 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 		nodes, err = vectorRetrieve(ctx, s.embedder, s.vectorIndex, s.store, actCtx, vectorRetrieveTopK)
 		if err != nil {
 			nodes = nil // distinguish error from empty results
-			fmt.Fprintf(os.Stderr, "warning: vector retrieval failed, falling back to full scan: %v\n", err)
+			s.logger.Warn("vector retrieval failed, falling back to full scan", "error", err)
 		}
 	}
 	if nodes == nil {
@@ -99,7 +98,7 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 		var err error
 		spreadResults, err = engine.Activate(ctx, seeds)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: spreading activation failed: %v\n", err)
+			s.logger.Warn("spreading activation failed", "error", err)
 		} else {
 			matches = mergeSpreadResults(ctx, s.store, matches, spreadResults)
 		}
@@ -115,7 +114,7 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 			}
 			if toucher, ok := s.store.(edgeToucher); ok {
 				if err := toucher.TouchEdges(context.Background(), seedIDs); err != nil {
-					fmt.Fprintf(os.Stderr, "warning: edge timestamp failed: %v\n", err)
+					s.logger.Warn("edge timestamp failed", "error", err)
 				}
 			}
 		})
@@ -132,7 +131,7 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 			s.runBackground("hebbian-update", func() {
 				if s.applyHebbianUpdates(context.Background(), pairs, s.hebbianConfig) {
 					if err := s.store.Sync(context.Background()); err != nil {
-						fmt.Fprintf(os.Stderr, "warning: hebbian: sync after edge update: %v\n", err)
+						s.logger.Warn("hebbian sync after edge update failed", "error", err)
 					}
 				}
 				s.debouncedRefreshPageRank()
@@ -254,7 +253,7 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 					continue
 				}
 				if err := recorder.RecordActivationHit(context.Background(), b.ID); err != nil {
-					fmt.Fprintf(os.Stderr, "warning: activation hit recording failed: %v\n", err)
+					s.logger.Warn("activation hit recording failed", "behavior_id", b.ID, "error", err)
 				}
 			}
 		}
@@ -266,7 +265,7 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 		if recorder, ok := s.store.(confirmRecorder); ok {
 			for _, id := range implicitConfirmIDs {
 				if err := recorder.RecordConfirmed(context.Background(), id); err != nil {
-					fmt.Fprintf(os.Stderr, "warning: implicit confirmation recording failed: %v\n", err)
+					s.logger.Warn("implicit confirmation recording failed", "behavior_id", id, "error", err)
 				}
 			}
 		}

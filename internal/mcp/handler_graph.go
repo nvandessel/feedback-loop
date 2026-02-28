@@ -3,7 +3,6 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -83,7 +82,7 @@ func (s *Server) handleFloopConnect(ctx context.Context, req *sdk.CallToolReques
 	}
 	for _, e := range existing {
 		if e.Target == args.Target {
-			fmt.Fprintf(os.Stderr, "warning: edge %s -[%s]-> %s already exists (weight: %.2f)\n", args.Source, args.Kind, args.Target, e.Weight)
+			s.logger.Warn("edge already exists", "source", args.Source, "kind", args.Kind, "target", args.Target, "weight", e.Weight)
 		}
 	}
 

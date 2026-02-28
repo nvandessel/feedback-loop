@@ -56,7 +56,7 @@ func (s *Server) handleFloopBackup(ctx context.Context, req *sdk.CallToolRequest
 	// Apply retention policy
 	backupDir := filepath.Dir(outputPath)
 	if _, err := backup.ApplyRetention(backupDir, s.retentionPolicy); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: failed to apply retention: %v\n", err)
+		s.logger.Warn("failed to apply retention", "error", err)
 	}
 
 	// Get file size for output

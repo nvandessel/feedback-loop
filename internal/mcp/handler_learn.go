@@ -135,16 +135,16 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 		s.runBackground("auto-backup", func() {
 			backupDir, err := backup.DefaultBackupDir()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "warning: auto-backup failed (dir): %v\n", err)
+				s.logger.Warn("auto-backup failed (dir)", "error", err)
 				return
 			}
 			backupPath := backup.GenerateBackupPath(backupDir)
 			if _, err := backup.Backup(context.Background(), s.store, backupPath); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: auto-backup failed: %v\n", err)
+				s.logger.Warn("auto-backup failed", "error", err)
 				return
 			}
 			if _, err := backup.ApplyRetention(backupDir, s.retentionPolicy); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: auto-backup retention failed: %v\n", err)
+				s.logger.Warn("auto-backup retention failed", "error", err)
 			}
 		})
 	}
@@ -158,10 +158,10 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 				if es, ok := s.store.(store.EmbeddingStore); ok {
 					vec, err := s.embedder.EmbedAndStore(context.Background(), es, bid, text)
 					if err != nil {
-						fmt.Fprintf(os.Stderr, "warning: failed to embed behavior %s: %v\n", bid, err)
+						s.logger.Warn("failed to embed behavior", "behavior_id", bid, "error", err)
 					} else if s.vectorIndex != nil {
 						if err := s.vectorIndex.Add(context.Background(), bid, vec); err != nil {
-							fmt.Fprintf(os.Stderr, "warning: failed to add behavior %s to vector index: %v\n", bid, err)
+							s.logger.Warn("failed to add behavior to vector index", "behavior_id", bid, "error", err)
 						}
 					}
 				}

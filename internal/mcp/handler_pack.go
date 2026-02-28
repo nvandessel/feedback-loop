@@ -84,7 +84,7 @@ func (s *Server) handleFloopPackInstall(ctx context.Context, req *sdk.CallToolRe
 
 	// Save config with updated pack list
 	if saveErr := cfg.Save(); saveErr != nil {
-		fmt.Fprintf(os.Stderr, "warning: failed to save config: %v\n", saveErr)
+		s.logger.Warn("failed to save config", "error", saveErr)
 	}
 
 	return nil, FloopPackInstallOutput{

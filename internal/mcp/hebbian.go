@@ -126,7 +126,7 @@ func (s *Server) applyHebbianUpdates(
 		// Check if edge already exists
 		edges, err := s.store.GetEdges(ctx, pair.BehaviorA, store.DirectionOutbound, store.EdgeKindCoActivated)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: hebbian: get edges for %s: %v\n", pair.BehaviorA, err)
+			s.logger.Warn("hebbian: get edges failed", "behavior_id", pair.BehaviorA, "error", err)
 			continue
 		}
 
@@ -160,8 +160,7 @@ func (s *Server) applyHebbianUpdates(
 					CreatedAt: time.Now(),
 				})
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "warning: hebbian: create edge %s→%s: %v\n",
-						pair.BehaviorA, pair.BehaviorB, err)
+					s.logger.Warn("hebbian: create edge failed", "source", pair.BehaviorA, "target", pair.BehaviorB, "error", err)
 				} else {
 					changed = true
 				}
@@ -173,7 +172,7 @@ func (s *Server) applyHebbianUpdates(
 	if len(weightUpdates) > 0 {
 		if updater, ok := s.store.(edgeWeightUpdater); ok {
 			if err := updater.BatchUpdateEdgeWeights(ctx, weightUpdates); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: hebbian: batch update weights: %v\n", err)
+				s.logger.Warn("hebbian: batch update weights failed", "error", err)
 			} else {
 				changed = true
 			}
@@ -183,9 +182,9 @@ func (s *Server) applyHebbianUpdates(
 	// Prune edges whose weight has decayed below MinWeight
 	if pruner, ok := s.store.(edgePruner); ok {
 		if n, err := pruner.PruneWeakEdges(ctx, store.EdgeKindCoActivated, cfg.MinWeight); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: hebbian: prune weak edges: %v\n", err)
+			s.logger.Warn("hebbian: prune weak edges failed", "error", err)
 		} else if n > 0 {
-			fmt.Fprintf(os.Stderr, "floop: pruned %d weak co-activated edge(s)\n", n)
+			s.logger.Info("pruned weak co-activated edges", "count", n)
 			changed = true
 		}
 	}
