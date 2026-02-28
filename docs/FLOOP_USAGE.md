@@ -232,10 +232,20 @@ This downloads two runtime dependencies (~130 MB total, cached in `~/.floop/`):
 ### How It Works
 
 1. **At learn-time:** New behaviors are embedded and stored alongside the behavior
-2. **At retrieval-time:** The current context (file, task, language) is embedded and compared against stored behavior embeddings using cosine similarity
-3. **Fallback:** When embeddings are unavailable, floop uses the standard predicate-matching pipeline
+2. **At startup:** Embeddings are loaded into an in-memory vector index for fast search
+3. **At retrieval-time:** The current context (file, task, language) is embedded and searched against the vector index
+4. **Fallback:** When embeddings are unavailable, floop uses the standard predicate-matching pipeline
 
 Behaviors without embeddings are always included in candidates — no behavior is silently dropped during migration.
+
+### Vector Index Tiers
+
+The vector index automatically selects the optimal backend based on your store size:
+
+- **≤1,000 behaviors** — Brute-force cosine similarity (exact, microsecond latency)
+- **>1,000 behaviors** — HNSW approximate nearest neighbor (O(log n), persisted to `.floop/hnsw.bin`)
+
+Promotion from brute-force to HNSW happens automatically — no configuration needed.
 
 For setup details, see [EMBEDDINGS.md](EMBEDDINGS.md). For the theory behind vector retrieval, see [SCIENCE.md](SCIENCE.md).
 
