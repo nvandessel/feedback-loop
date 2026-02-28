@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nvandessel/floop/internal/models"
 	"github.com/nvandessel/floop/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -112,7 +111,7 @@ Use 'floop restore' to undo this action.`,
 			if reason != "" {
 				node.Metadata["forget_reason"] = reason
 			}
-			node.Kind = string(models.BehaviorKindForgotten)
+			node.Kind = store.NodeKindForgotten
 
 			if err := graphStore.UpdateNode(ctx, *node); err != nil {
 				return fmt.Errorf("failed to update behavior: %w", err)
@@ -238,7 +237,7 @@ Use --replacement to link to a newer behavior.`,
 			if replacement != "" {
 				node.Metadata["replacement_id"] = replacement
 			}
-			node.Kind = string(models.BehaviorKindDeprecated)
+			node.Kind = store.NodeKindDeprecated
 
 			if err := graphStore.UpdateNode(ctx, *node); err != nil {
 				return fmt.Errorf("failed to update behavior: %w", err)
@@ -340,7 +339,7 @@ This undoes 'floop forget' or 'floop deprecate'.`,
 			}
 
 			// Verify it's restorable (deprecated or forgotten)
-			if node.Kind != string(models.BehaviorKindDeprecated) && node.Kind != string(models.BehaviorKindForgotten) {
+			if node.Kind != store.NodeKindDeprecated && node.Kind != store.NodeKindForgotten {
 				if jsonOut {
 					json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 						"error":        "behavior is not deprecated or forgotten",
@@ -361,9 +360,9 @@ This undoes 'floop forget' or 'floop deprecate'.`,
 			previousKind := node.Kind
 
 			// Restore original kind
-			originalKind := "behavior"
+			originalKind := store.NodeKindBehavior
 			if origKind, ok := node.Metadata["original_kind"].(string); ok {
-				originalKind = origKind
+				originalKind = store.NodeKind(origKind)
 			}
 			node.Kind = originalKind
 
@@ -387,7 +386,7 @@ This undoes 'floop forget' or 'floop deprecate'.`,
 			}
 
 			// Remove deprecated-to edges if this was deprecated
-			if previousKind == string(models.BehaviorKindDeprecated) {
+			if previousKind == store.NodeKindDeprecated {
 				edges, err := graphStore.GetEdges(ctx, id, store.DirectionOutbound, "deprecated-to")
 				if err == nil {
 					for _, e := range edges {
@@ -563,7 +562,7 @@ This action cannot be undone with restore.`,
 			sourceNode.Metadata["merged_into"] = targetID
 			sourceNode.Metadata["merged_at"] = now.Format(time.RFC3339)
 			sourceNode.Metadata["merged_by"] = os.Getenv("USER")
-			sourceNode.Kind = string(models.BehaviorKindMerged)
+			sourceNode.Kind = store.NodeKindMerged
 
 			if err := graphStore.UpdateNode(ctx, *sourceNode); err != nil {
 				return fmt.Errorf("failed to update source behavior: %w", err)

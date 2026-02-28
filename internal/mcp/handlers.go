@@ -133,7 +133,7 @@ func (s *Server) handleBehaviorsResource(ctx context.Context, req *sdk.ReadResou
 	actCtx := ctxBuilder.Build()
 
 	// Load all behaviors from store
-	nodes, err := s.store.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
+	nodes, err := s.store.QueryNodes(ctx, map[string]interface{}{"kind": string(store.NodeKindBehavior)})
 	if err != nil {
 		return nil, fmt.Errorf("failed to query behaviors: %w", err)
 	}
@@ -222,7 +222,7 @@ func (s *Server) handleBehaviorExpandResource(ctx context.Context, req *sdk.Read
 
 	// Query for the specific behavior
 	nodes, err := s.store.QueryNodes(ctx, map[string]interface{}{
-		"kind": "behavior",
+		"kind": string(store.NodeKindBehavior),
 		"id":   behaviorID,
 	})
 	if err != nil {
@@ -323,7 +323,7 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 		}
 	}
 	if nodes == nil {
-		nodes, err = s.store.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
+		nodes, err = s.store.QueryNodes(ctx, map[string]interface{}{"kind": string(store.NodeKindBehavior)})
 		if err != nil {
 			return nil, FloopActiveOutput{}, fmt.Errorf("failed to query behaviors: %w", err)
 		}
@@ -791,7 +791,7 @@ func (s *Server) handleFloopList(ctx context.Context, req *sdk.CallToolRequest, 
 	}
 
 	// List behaviors
-	nodes, err := s.store.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
+	nodes, err := s.store.QueryNodes(ctx, map[string]interface{}{"kind": string(store.NodeKindBehavior)})
 	if err != nil {
 		return nil, FloopListOutput{}, fmt.Errorf("failed to query behaviors: %w", err)
 	}
@@ -1428,7 +1428,7 @@ func (s *Server) handleFloopGraph(ctx context.Context, req *sdk.CallToolRequest,
 			return nil, FloopGraphOutput{}, fmt.Errorf("render DOT: %w", err)
 		}
 		// Count nodes for output metadata
-		nodes, err := s.store.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
+		nodes, err := s.store.QueryNodes(ctx, map[string]interface{}{"kind": string(store.NodeKindBehavior)})
 		if err != nil {
 			return nil, FloopGraphOutput{}, fmt.Errorf("query nodes: %w", err)
 		}
@@ -1463,7 +1463,7 @@ func (s *Server) handleFloopGraph(ctx context.Context, req *sdk.CallToolRequest,
 			return nil, FloopGraphOutput{}, fmt.Errorf("render HTML: %w", err)
 		}
 
-		nodes, err := s.store.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
+		nodes, err := s.store.QueryNodes(ctx, map[string]interface{}{"kind": string(store.NodeKindBehavior)})
 		if err != nil {
 			return nil, FloopGraphOutput{}, fmt.Errorf("query nodes: %w", err)
 		}

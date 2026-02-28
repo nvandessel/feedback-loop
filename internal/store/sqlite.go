@@ -161,12 +161,12 @@ func (s *SQLiteGraphStore) AddNode(ctx context.Context, node Node) (string, erro
 }
 
 // isBehaviorKind returns true if the kind represents a behavior (active or curated).
-func isBehaviorKind(kind string) bool {
+func isBehaviorKind(kind NodeKind) bool {
 	switch kind {
-	case "behavior",
-		constants.BehaviorKindForgotten,
-		constants.BehaviorKindDeprecated,
-		constants.BehaviorKindMerged:
+	case NodeKindBehavior,
+		NodeKindForgotten,
+		NodeKindDeprecated,
+		NodeKindMerged:
 		return true
 	default:
 		return false
@@ -652,7 +652,7 @@ func (s *SQLiteGraphStore) getNodeUnlocked(ctx context.Context, id string) (*Nod
 	// (can be "behavior", "forgotten-behavior", "merged-behavior", "correction", etc.)
 	return &Node{
 		ID:       id,
-		Kind:     kind,
+		Kind:     NodeKind(kind),
 		Content:  content,
 		Metadata: metadata,
 	}, nil

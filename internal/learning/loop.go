@@ -353,7 +353,7 @@ func (l *learningLoop) commitBehavior(ctx context.Context, behavior *models.Beha
 	// Convert behavior to node
 	node := store.Node{
 		ID:   behavior.ID,
-		Kind: "behavior",
+		Kind: store.NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name":       behavior.Name,
 			"kind":       string(behavior.Kind),

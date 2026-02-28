@@ -10,7 +10,7 @@ import (
 // Node represents a node in the behavior graph.
 type Node struct {
 	ID       string                 `json:"id"`
-	Kind     string                 `json:"kind"` // "behavior", "correction", "context-snapshot"
+	Kind     NodeKind               `json:"kind"` // "behavior", "correction", "context-snapshot"
 	Content  map[string]interface{} `json:"content"`
 	Metadata map[string]interface{} `json:"metadata"`
 }
@@ -55,6 +55,18 @@ var ValidUserEdgeKinds = map[EdgeKind]bool{
 	EdgeKindSimilarTo:   true,
 	EdgeKindLearnedFrom: true,
 }
+
+// NodeKind represents the type of a node in the behavior graph.
+type NodeKind string
+
+const (
+	NodeKindBehavior        NodeKind = "behavior"
+	NodeKindCorrection      NodeKind = "correction"
+	NodeKindContextSnapshot NodeKind = "context-snapshot"
+	NodeKindForgotten       NodeKind = "forgotten-behavior"
+	NodeKindDeprecated      NodeKind = "deprecated-behavior"
+	NodeKindMerged          NodeKind = "merged-behavior"
+)
 
 // Direction specifies edge traversal direction.
 type Direction string

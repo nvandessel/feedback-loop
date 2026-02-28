@@ -42,7 +42,7 @@ var edgeStyles = map[store.EdgeKind]string{
 // RenderDOT produces a Graphviz DOT representation of the behavior graph.
 func RenderDOT(ctx context.Context, gs store.GraphStore) (string, error) {
 	// Get all behavior nodes
-	nodes, err := gs.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
+	nodes, err := gs.QueryNodes(ctx, map[string]interface{}{"kind": string(store.NodeKindBehavior)})
 	if err != nil {
 		return "", fmt.Errorf("query nodes: %w", err)
 	}
@@ -109,7 +109,7 @@ func RenderDOT(ctx context.Context, gs store.GraphStore) (string, error) {
 
 // RenderJSON produces a JSON graph representation with nodes and edges arrays.
 func RenderJSON(ctx context.Context, gs store.GraphStore) (map[string]interface{}, error) {
-	nodes, err := gs.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
+	nodes, err := gs.QueryNodes(ctx, map[string]interface{}{"kind": string(store.NodeKindBehavior)})
 	if err != nil {
 		return nil, fmt.Errorf("query nodes: %w", err)
 	}
@@ -178,7 +178,7 @@ type EnrichmentData struct {
 // and additional node fields (canonical content) for the HTML visualization.
 // If enrichment is nil, it still adds content fields but skips PageRank.
 func RenderEnrichedJSON(ctx context.Context, gs store.GraphStore, enrichment *EnrichmentData) (map[string]interface{}, error) {
-	nodes, err := gs.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
+	nodes, err := gs.QueryNodes(ctx, map[string]interface{}{"kind": string(store.NodeKindBehavior)})
 	if err != nil {
 		return nil, fmt.Errorf("query nodes: %w", err)
 	}

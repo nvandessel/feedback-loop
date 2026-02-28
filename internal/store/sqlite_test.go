@@ -97,7 +97,7 @@ func TestSQLiteGraphStore_AddGetNode(t *testing.T) {
 	ctx := context.Background()
 	node := Node{
 		ID:   "test-1",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "Test Behavior",
 			"kind": "directive",
@@ -141,7 +141,7 @@ func TestSQLiteGraphStore_AddNodeRequiresID(t *testing.T) {
 	defer store.Close()
 
 	ctx := context.Background()
-	node := Node{Kind: "behavior"} // Missing ID
+	node := Node{Kind: NodeKindBehavior} // Missing ID
 
 	_, err = store.AddNode(ctx, node)
 	if err == nil {
@@ -160,7 +160,7 @@ func TestSQLiteGraphStore_UpdateNode(t *testing.T) {
 	ctx := context.Background()
 	node := Node{
 		ID:   "test-1",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "Original",
 			"kind": "directive",
@@ -195,7 +195,7 @@ func TestSQLiteGraphStore_UpdateNodeNotFound(t *testing.T) {
 	defer store.Close()
 
 	ctx := context.Background()
-	node := Node{ID: "nonexistent", Kind: "behavior"}
+	node := Node{ID: "nonexistent", Kind: NodeKindBehavior}
 
 	err = store.UpdateNode(ctx, node)
 	if err == nil {
@@ -214,7 +214,7 @@ func TestSQLiteGraphStore_DeleteNode(t *testing.T) {
 	ctx := context.Background()
 	node := Node{
 		ID:   "test-1",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "Test",
 			"kind": "directive",
@@ -260,7 +260,7 @@ func TestSQLiteGraphStore_QueryNodes(t *testing.T) {
 	// Add behavior nodes
 	store.AddNode(ctx, Node{
 		ID:   "b-1",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "B1",
 			"kind": "directive",
@@ -271,7 +271,7 @@ func TestSQLiteGraphStore_QueryNodes(t *testing.T) {
 	})
 	store.AddNode(ctx, Node{
 		ID:   "b-2",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "B2",
 			"kind": "directive",
@@ -283,7 +283,7 @@ func TestSQLiteGraphStore_QueryNodes(t *testing.T) {
 	// Add a different kind
 	store.AddNode(ctx, Node{
 		ID:   "c-1",
-		Kind: "correction",
+		Kind: NodeKindCorrection,
 		Content: map[string]interface{}{
 			"name": "Correction 1",
 			"kind": "correction",
@@ -294,7 +294,7 @@ func TestSQLiteGraphStore_QueryNodes(t *testing.T) {
 	})
 
 	// Query by kind (node type, not behavior type)
-	results, err := store.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
+	results, err := store.QueryNodes(ctx, map[string]interface{}{"kind": string(NodeKindBehavior)})
 	if err != nil {
 		t.Fatalf("QueryNodes() error = %v", err)
 	}
@@ -317,7 +317,7 @@ func TestSQLiteGraphStore_Edges(t *testing.T) {
 	for _, id := range []string{"a", "b", "c"} {
 		store.AddNode(ctx, Node{
 			ID:   id,
-			Kind: "behavior",
+			Kind: NodeKindBehavior,
 			Content: map[string]interface{}{
 				"name": id,
 				"kind": "directive",
@@ -371,7 +371,7 @@ func TestSQLiteGraphStore_Traverse(t *testing.T) {
 	for _, id := range []string{"a", "b", "c"} {
 		store.AddNode(ctx, Node{
 			ID:   id,
-			Kind: "behavior",
+			Kind: NodeKindBehavior,
 			Content: map[string]interface{}{
 				"name": id,
 				"kind": "directive",
@@ -409,7 +409,7 @@ func TestSQLiteGraphStore_Persistence(t *testing.T) {
 	ctx := context.Background()
 	store1.AddNode(ctx, Node{
 		ID:   "persist-1",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "Test",
 			"kind": "directive",
@@ -458,7 +458,7 @@ func TestSQLiteGraphStore_SyncCreatesJSONL(t *testing.T) {
 	// Add a node
 	store.AddNode(ctx, Node{
 		ID:   "test",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "Test",
 			"kind": "directive",
@@ -543,7 +543,7 @@ func TestSQLiteGraphStore_WhenConditions(t *testing.T) {
 	ctx := context.Background()
 	node := Node{
 		ID:   "when-test",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "When Test",
 			"kind": "directive",
@@ -602,7 +602,7 @@ func TestSQLiteGraphStore_DirtyTracking(t *testing.T) {
 	// Add a node
 	store.AddNode(ctx, Node{
 		ID:   "dirty-test",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "Dirty Test",
 			"kind": "directive",
@@ -664,7 +664,7 @@ func TestSQLiteGraphStore_IncrementalExport(t *testing.T) {
 	// Add two behaviors and sync
 	store.AddNode(ctx, Node{
 		ID:   "b-1",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "Behavior 1",
 			"kind": "directive",
@@ -675,7 +675,7 @@ func TestSQLiteGraphStore_IncrementalExport(t *testing.T) {
 	})
 	store.AddNode(ctx, Node{
 		ID:   "b-2",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "Behavior 2",
 			"kind": "directive",
@@ -702,7 +702,7 @@ func TestSQLiteGraphStore_IncrementalExport(t *testing.T) {
 	// Update only one behavior
 	store.UpdateNode(ctx, Node{
 		ID:   "b-1",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "Behavior 1 Updated",
 			"kind": "directive",
@@ -795,7 +795,7 @@ func TestValidateIntegrity_WithData(t *testing.T) {
 	// Add some data
 	store.AddNode(ctx, Node{
 		ID:   "test-1",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "Test",
 			"kind": "directive",
@@ -846,7 +846,7 @@ func TestSQLiteGraphStore_ContentHashCollision(t *testing.T) {
 	// Add first behavior with canonical content "Same content"
 	node1 := Node{
 		ID:   "behavior-1",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "First Behavior",
 			"kind": "directive",
@@ -864,7 +864,7 @@ func TestSQLiteGraphStore_ContentHashCollision(t *testing.T) {
 	// This should error because it would cause data loss
 	node2 := Node{
 		ID:   "behavior-2", // Different ID
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "Second Behavior",
 			"kind": "directive",
@@ -879,7 +879,7 @@ func TestSQLiteGraphStore_ContentHashCollision(t *testing.T) {
 	}
 
 	// Verify only one behavior exists
-	behaviors, err := store.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
+	behaviors, err := store.QueryNodes(ctx, map[string]interface{}{"kind": string(NodeKindBehavior)})
 	if err != nil {
 		t.Fatalf("QueryNodes() error = %v", err)
 	}
@@ -913,7 +913,7 @@ func TestSQLiteGraphStore_ContentHashSameIDUpdate(t *testing.T) {
 	// Add behavior
 	node := Node{
 		ID:   "behavior-1",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "Test Behavior",
 			"kind": "directive",
@@ -1418,7 +1418,7 @@ func TestSQLiteGraphStore_ProvenanceCreatedAtRoundTrip(t *testing.T) {
 
 	node := Node{
 		ID:   "ts-test",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "Timestamp Test",
 			"kind": "directive",
@@ -1473,7 +1473,7 @@ func TestSQLiteStore_RecordActivationHit(t *testing.T) {
 	// Add a behavior
 	_, err = s.AddNode(ctx, Node{
 		ID:   "hit-test",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "Hit Test",
 			"kind": "directive",
@@ -1555,7 +1555,7 @@ func TestSQLiteStore_TouchEdges(t *testing.T) {
 	for _, id := range []string{"touch-a", "touch-b", "touch-c", "touch-d"} {
 		s.AddNode(ctx, Node{
 			ID:   id,
-			Kind: "behavior",
+			Kind: NodeKindBehavior,
 			Content: map[string]interface{}{
 				"name": id,
 				"kind": "directive",
@@ -1631,7 +1631,7 @@ func TestSQLiteStore_RecordConfirmed(t *testing.T) {
 	// Add a behavior
 	_, err = s.AddNode(ctx, Node{
 		ID:   "confirm-test",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "Confirm Test",
 			"kind": "directive",
@@ -1709,7 +1709,7 @@ func TestSQLiteStore_RecordOverridden(t *testing.T) {
 	// Add a behavior
 	_, err = s.AddNode(ctx, Node{
 		ID:   "override-test",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "Override Test",
 			"kind": "directive",
@@ -1782,7 +1782,7 @@ func TestSQLiteGraphStore_BatchUpdateEdgeWeights(t *testing.T) {
 
 	// Create nodes and edges
 	for _, id := range []string{"a", "b", "c"} {
-		s.AddNode(ctx, Node{ID: id, Kind: "behavior", Content: map[string]interface{}{"name": id}})
+		s.AddNode(ctx, Node{ID: id, Kind: NodeKindBehavior, Content: map[string]interface{}{"name": id}})
 	}
 	s.AddEdge(ctx, Edge{Source: "a", Target: "b", Kind: EdgeKindCoActivated, Weight: 0.5, CreatedAt: time.Now()})
 	s.AddEdge(ctx, Edge{Source: "b", Target: "c", Kind: EdgeKindCoActivated, Weight: 0.3, CreatedAt: time.Now()})
@@ -1841,7 +1841,7 @@ func TestSQLiteGraphStore_PruneWeakEdges(t *testing.T) {
 
 	// Create nodes and edges with various weights
 	for _, id := range []string{"a", "b", "c", "d"} {
-		s.AddNode(ctx, Node{ID: id, Kind: "behavior", Content: map[string]interface{}{"name": id}})
+		s.AddNode(ctx, Node{ID: id, Kind: NodeKindBehavior, Content: map[string]interface{}{"name": id}})
 	}
 	s.AddEdge(ctx, Edge{Source: "a", Target: "b", Kind: EdgeKindCoActivated, Weight: 0.005, CreatedAt: time.Now()}) // Below threshold
 	s.AddEdge(ctx, Edge{Source: "a", Target: "c", Kind: EdgeKindCoActivated, Weight: 0.01, CreatedAt: time.Now()})  // At threshold
@@ -1953,7 +1953,7 @@ func TestStoreAndGetEmbeddings(t *testing.T) {
 	// Add a behavior
 	_, err = s.AddNode(ctx, Node{
 		ID:   "emb-1",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "Embedding Test",
 			"kind": "directive",
@@ -2012,7 +2012,7 @@ func TestGetBehaviorIDsWithoutEmbeddings(t *testing.T) {
 	for _, id := range []string{"emb-yes", "emb-no"} {
 		_, err = s.AddNode(ctx, Node{
 			ID:   id,
-			Kind: "behavior",
+			Kind: NodeKindBehavior,
 			Content: map[string]interface{}{
 				"name": id,
 				"kind": "directive",
@@ -2061,7 +2061,7 @@ func TestStoreEmbedding_NullHandling(t *testing.T) {
 	for _, id := range []string{"has-emb", "no-emb"} {
 		_, err = s.AddNode(ctx, Node{
 			ID:   id,
-			Kind: "behavior",
+			Kind: NodeKindBehavior,
 			Content: map[string]interface{}{
 				"name": id,
 				"kind": "directive",
@@ -2111,7 +2111,7 @@ func TestSQLiteGraphStore_SyncReconcilesTruncatedJSONL(t *testing.T) {
 		id := fmt.Sprintf("b-%d", i)
 		_, err := s.AddNode(ctx, Node{
 			ID:   id,
-			Kind: "behavior",
+			Kind: NodeKindBehavior,
 			Content: map[string]interface{}{
 				"name": id,
 				"kind": "directive",
@@ -2165,7 +2165,7 @@ func TestSQLiteGraphStore_SyncReconcilesTruncatedJSONL(t *testing.T) {
 	// Add a 6th behavior to make the store dirty
 	_, err = s.AddNode(ctx, Node{
 		ID:   "b-6",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "b-6",
 			"kind": "directive",
@@ -2219,7 +2219,7 @@ func TestSQLiteStore_StatsRoundTrip(t *testing.T) {
 	// Add a behavior
 	_, err = s.AddNode(ctx, Node{
 		ID:   "stats-rt",
-		Kind: "behavior",
+		Kind: NodeKindBehavior,
 		Content: map[string]interface{}{
 			"name": "Stats Round Trip",
 			"kind": "directive",

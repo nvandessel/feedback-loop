@@ -251,7 +251,7 @@ func (s *InMemoryGraphStore) GetBehaviorIDsWithoutEmbeddings(ctx context.Context
 
 	var ids []string
 	for id, node := range s.nodes {
-		if node.Kind == "behavior" {
+		if node.Kind == NodeKindBehavior {
 			if _, has := s.embeddings[id]; !has {
 				ids = append(ids, id)
 			}
@@ -277,7 +277,12 @@ func matchesPredicate(node Node, predicate map[string]interface{}) bool {
 
 		switch key {
 		case "kind":
-			actual = node.Kind
+			// Compare as string to handle both string and NodeKind predicate values
+			reqStr := fmt.Sprintf("%v", required)
+			if string(node.Kind) != reqStr {
+				return false
+			}
+			continue
 		case "id":
 			actual = node.ID
 		default:

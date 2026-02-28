@@ -157,7 +157,7 @@ func (p *graphPlacer) Place(ctx context.Context, behavior *models.Behavior) (*Pl
 func (p *graphPlacer) findRelatedBehaviors(ctx context.Context, behavior *models.Behavior) ([]models.Behavior, error) {
 	// Query for all behavior nodes
 	nodes, err := p.store.QueryNodes(ctx, map[string]interface{}{
-		"kind": "behavior",
+		"kind": string(store.NodeKindBehavior),
 	})
 	if err != nil {
 		return nil, err
