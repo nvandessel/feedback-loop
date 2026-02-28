@@ -4,7 +4,7 @@ Ready-to-paste instructions for teaching any AI coding agent how to use floop.
 
 ## Prerequisites
 
-1. Install floop and run `floop init` in your project root.
+1. Install floop (`brew install nvandessel/tap/floop` or `go install github.com/nvandessel/floop/cmd/floop@latest`) and run `floop init` in your project root.
 2. Configure the MCP server for your tool — see the [compatibility matrix](./README.md) for tool-specific config snippets.
 
 ## MCP Template (Bidirectional)
