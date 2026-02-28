@@ -4,7 +4,6 @@ on:
   pull_request:
     paths:
       - '.goreleaser.yml'
-      - '.github/workflows/version-bump.yml'
       - '.github/workflows/auto-release.yml'
       - '.github/workflows/test-release.yml'
       - 'Makefile'
@@ -15,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  GORELEASER_VERSION: v2.8.0
+  GORELEASER_VERSION: v2.14.1
 
 jobs:
   test-release:

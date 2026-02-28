@@ -1,22 +1,47 @@
 # Release Process
 
-This document describes the automated release process for feedback-loop using GoReleaser.
+This document describes the automated release process for floop using GoReleaser.
 
 ## Overview
 
-The release pipeline is fully automated:
-1. Code merges to `main` trigger an automatic patch release
-2. The auto-release checks skip conditions (bot actor, `[skip release]`, `skip-release` label)
-3. If not skipped, it calls the version-bump workflow to create a tag and publish
-4. GoReleaser builds binaries and publishes to GitHub Releases with auto-generated notes
+The release pipeline is fully automated with semantic version bumping:
+1. Code merges to `main` trigger automatic version detection from commit messages
+2. Commits are parsed for conventional commit prefixes: `feat:` → minor, `fix:`/`perf:` → patch, breaking changes → major
+3. Chore-only merges (docs, ci, test, refactor, etc.) skip the release entirely
+4. GoReleaser builds binaries, publishes to GitHub Releases, and updates the Homebrew tap
 
-For minor or major releases, maintainers trigger the version-bump workflow manually.
+## Installation
+
+### Homebrew (macOS/Linux)
+
+```bash
+brew install nvandessel/tap/floop
+```
+
+### Go
+
+```bash
+go install github.com/nvandessel/floop/cmd/floop@latest
+```
+
+### Manual
+
+Download binaries from [GitHub Releases](https://github.com/nvandessel/floop/releases), extract, and add to your PATH.
 
 ## Auto-Release
 
-Every push to `main` that changes code files triggers `auto-release.yml`. Documentation-only changes (`.md`, `docs/`, `.beads/`, `.floop/`, `LICENSE`) and workflow changes (`.github/`) are ignored via `paths-ignore`.
+Every push to `main` that changes code files triggers `auto-release.yml`. Documentation-only changes (`.md`, `docs/`, `.beads/`, `.floop/`, `LICENSE`) and workflow changes (`.github/`) are ignored via `paths-ignore`. CI (Test, Lint, Build) is enforced as a required status check via GitHub rulesets, so it must pass before merge.
 
-Before releasing, auto-release waits for the CI workflow to complete on the same commit. If CI fails, the release is skipped. If no CI run is found (e.g., the commit only touched paths ignored by CI), the release proceeds.
+### Semantic Version Bumping
+
+Since the repo uses squash-merge, PR titles become commit messages. The `pr-title.yml` workflow enforces conventional commit format on PR titles. Version bumping uses [`svu`](https://github.com/caarlos0/svu) (by the GoReleaser maintainer) to parse commits since the last tag and determine the bump type:
+
+| Commit Type | Bump | Example |
+|-------------|------|---------|
+| `feat!:` or `BREAKING CHANGE:` in body | **major** | `feat!: remove legacy API` |
+| `feat:` | **minor** | `feat: add --tags flag` |
+| `fix:`, `perf:` | **patch** | `fix: handle empty input` |
+| `chore:`, `ci:`, `test:`, `docs:`, `build:`, `style:`, `refactor:` | **skip** | `chore: update deps` |
 
 ### Skip Mechanisms
 
@@ -33,93 +58,6 @@ When you want to merge several PRs before cutting a release:
 1. Add the `skip-release` label to each PR (or include `[skip release]` in merge commits)
 2. Merge the PRs
 3. On the last PR, remove the label (or omit the skip marker) — the auto-release triggers
-
-## Manual Release (Minor/Major)
-
-Release notes for minor and major releases automatically span back to the last tag of the same level — a minor release includes all commits since the previous `vX.Y.0`, and a major release since the previous `vX.0.0`. This means auto-patches between minor/major releases don't cause empty changelogs.
-
-### 1. Prepare for Release
-
-Ensure the `main` branch is ready:
-
-```bash
-# Pull latest changes
-git checkout main
-git pull origin main
-
-# Verify tests pass
-make test
-
-# Verify CI suite passes
-make ci
-
-# Check for any uncommitted changes
-git status
-```
-
-### 2. Choose Version Bump Type
-
-| Bump Type | When to Use | Example |
-|-----------|-------------|---------|
-| **patch** | Bug fixes, minor improvements (usually auto-released) | 0.1.0 → 0.1.1 |
-| **minor** | New features, backwards-compatible API additions | 0.1.0 → 0.2.0 |
-| **major** | Breaking changes, major architectural changes | 0.1.0 → 1.0.0 |
-
-**Current versioning stage**: Pre-1.0 (0.x.x)
-- Use `minor` for new features or significant changes
-- Use `patch` for bug fixes
-- Reserve `major` for when ready to commit to API stability (1.0.0)
-
-### 3. Trigger Version Bump
-
-```bash
-# For a minor release (0.1.0 → 0.2.0)
-gh workflow run version-bump.yml -f bump=minor
-
-# For a major release (0.1.0 → 1.0.0)
-gh workflow run version-bump.yml -f bump=major
-```
-
-Alternatively, use the GitHub web UI:
-1. Go to **Actions** tab
-2. Select **Version Bump and Release** workflow
-3. Click **Run workflow**
-4. Choose bump type from dropdown
-5. Click **Run workflow**
-
-### 4. Monitor Release
-
-```bash
-# Watch the workflow
-gh run watch --workflow=version-bump.yml
-
-# Or list recent runs
-gh run list --workflow=version-bump.yml
-```
-
-### 5. Verify Release
-
-```bash
-# View the release
-gh release view v0.2.0
-
-# Download and test a binary
-gh release download v0.2.0 -p "floop-v0.2.0-linux-amd64.tar.gz"
-tar xzf floop-v0.2.0-linux-amd64.tar.gz
-./floop --version
-```
-
-Expected output:
-```
-floop version v0.2.0 (commit: abc1234, built: 2026-02-10T15:30:00Z)
-```
-
-### 6. Announce Release
-
-After verification:
-- Update any deployment documentation
-- Notify users via appropriate channels
-- Update integration guides if needed
 
 ## Release Artifacts
 
@@ -143,8 +81,13 @@ Archives include:
 Test the release process locally before pushing:
 
 ```bash
-# Install GoReleaser (if not already installed)
-go install github.com/goreleaser/goreleaser/v2@v2.8.0
+# Install tools (if not already installed)
+go install github.com/goreleaser/goreleaser/v2@v2.14.1
+go install github.com/caarlos0/svu/v3@latest
+
+# Preview what svu would do
+svu current   # show current version
+svu next      # show next version based on commits
 
 # Validate configuration
 goreleaser check
@@ -252,33 +195,22 @@ gh pr create --base main --title "fix: critical bug" --body "Emergency hotfix fo
 
 ## CI/CD Workflows
 
+### pr-title.yml
+
+**Trigger:** Pull request opened, edited, or synchronized
+**Purpose:** Enforce conventional commit format on PR titles (since squash-merge uses PR title as commit message)
+
+**Steps:**
+1. Validate PR title against allowed conventional commit types using `amannn/action-semantic-pull-request`
+
 ### auto-release.yml
 
 **Trigger:** Push to `main` (code changes only, docs excluded)
-**Purpose:** Automatically release patches when code merges
+**Purpose:** Automatically release with semantic version bumping from commit messages
 
 **Jobs:**
-1. `check-skip` — Evaluate skip conditions (bot actor, commit message, PR label), then wait for CI to pass
-2. `release` — If not skipped and CI passed, call `version-bump.yml` with `bump: patch`
-
-### version-bump.yml
-
-**Trigger:** Manual `workflow_dispatch` or `workflow_call` from auto-release
-**Permissions:** `contents: write`
-**Purpose:** Calculate next version, create tag, and publish release
-
-**Inputs:**
-- `bump`: `patch`, `minor`, or `major`
-
-**Steps:**
-1. Checkout with full history
-2. Calculate next version from latest tag
-3. Create annotated tag
-4. Push tag
-5. Checkout the new tag
-6. Calculate changelog base tag (for minor/major, overrides GoReleaser's default)
-7. Run GoReleaser with `release --clean`
-8. Publish GitHub release artifacts and notes
+1. `check-skip` — Evaluate skip conditions (bot actor, commit message, PR label)
+2. `release` — Use `svu next` to determine version, tag, and run GoReleaser
 
 ### test-release.yml
 
@@ -296,17 +228,29 @@ gh pr create --base main --title "fix: critical bug" --body "Emergency hotfix fo
 
 | File | Purpose |
 |------|---------|
-| `.goreleaser.yml` | GoReleaser configuration (builds, archives, changelog) |
-| `.github/workflows/auto-release.yml` | Auto-patch on merge to main |
-| `.github/workflows/version-bump.yml` | Version tagging and release workflow |
+| `.goreleaser.yml` | GoReleaser configuration (builds, archives, changelog, Homebrew cask) |
+| `.github/workflows/pr-title.yml` | Conventional commit enforcement on PR titles |
+| `.github/workflows/auto-release.yml` | Auto-release on merge to main (svu + GoReleaser) |
 | `.github/workflows/test-release.yml` | PR validation workflow |
 | `Makefile` | Local build with version injection |
+
+## Homebrew Distribution
+
+Each release automatically pushes a Homebrew cask to `nvandessel/homebrew-tap` via GoReleaser's `homebrew_casks` configuration.
+
+**How it works:**
+1. GoReleaser builds archives for all platforms
+2. The `homebrew_casks` section creates/updates a cask file in the tap repo
+3. Users install with `brew install nvandessel/tap/floop`
+
+**Requirements:**
+- `HOMEBREW_TAP_GITHUB_TOKEN` secret on the floop repo (PAT with repo scope to push to `homebrew-tap`)
+- The `nvandessel/homebrew-tap` repository must exist
 
 ## Future Enhancements
 
 Not currently implemented but can be added later:
 
-- **Homebrew tap** — Automatic formula updates
 - **Docker images** — Multi-arch container publishing
 - **Scoop manifest** — Windows package manager
 - **AUR package** — Arch Linux user repository

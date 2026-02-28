@@ -14,7 +14,6 @@ on:
 permissions:
   contents: read
   pull-requests: read
-  actions: read
 
 concurrency:
   group: release
@@ -25,7 +24,7 @@ jobs:
     name: Check Skip Conditions
     runs-on: ubuntu-latest
     outputs:
-      should_release: ${{ steps.ci-gate.outputs.should_release }}
+      should_release: ${{ steps.check.outputs.should_release }}
     steps:
       - name: Check skip conditions
         id: check
@@ -33,103 +32,88 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
-          # Skip if pushed by github-actions[bot] (e.g. version bump commits)
           if [ "${{ github.actor }}" = "github-actions[bot]" ]; then
             echo "Skipping: pushed by github-actions[bot]"
             echo "should_release=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Skip if commit message contains [skip release]
           if echo "$COMMIT_MSG" | grep -qi '\[skip release\]'; then
             echo "Skipping: commit message contains [skip release]"
             echo "should_release=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Skip if merged PR has skip-release label
-          # Method 1: extract PR number from commit message (squash merges include (#N))
           PR_NUM=$(echo "$COMMIT_MSG" | grep -oP '\(#\K\d+' | head -1 || true)
-
-          # Method 2: extract from "Merge pull request #N" (merge commits)
           if [ -z "$PR_NUM" ]; then
-            PR_NUM=$(echo "$COMMIT_MSG" | grep -oP '^Merge pull request #\K\d+' || true)
-          fi
-
-          # Method 3: fall back to commits-to-PR association API
-          if [ -z "$PR_NUM" ]; then
-            echo "No PR number in commit message, trying commits/pulls API..."
             PR_NUM=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
               --jq '.[0].number // empty' 2>&1) || true
-            if echo "$PR_NUM" | grep -qiE 'error|not found|null'; then
-              echo "Warning: commits/pulls API returned: $PR_NUM"
+            if echo "$PR_NUM" | grep -qiE 'error|not found'; then
               PR_NUM=""
             fi
           fi
 
           if [ -n "$PR_NUM" ]; then
-            echo "Checking labels on PR #$PR_NUM..."
             LABELS=$(gh pr view "$PR_NUM" --json labels --jq '.labels[].name' 2>&1) || true
-            echo "Labels found: ${LABELS:-<none>}"
             if echo "$LABELS" | grep -q 'skip-release'; then
               echo "Skipping: PR #$PR_NUM has skip-release label"
               echo "should_release=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
-          else
-            echo "Warning: could not determine PR number for commit ${{ github.sha }}"
           fi
 
           echo "should_release=true" >> "$GITHUB_OUTPUT"
 
-      - name: Wait for CI to pass
-        id: ci-gate
-        timeout-minutes: 30
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SHOULD_RELEASE: ${{ steps.check.outputs.should_release }}
-        run: |
-          # Pass through skip decisions from previous step
-          if [ "$SHOULD_RELEASE" != "true" ]; then
-            echo "should_release=$SHOULD_RELEASE" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "Waiting for CI workflow on commit ${{ github.sha }}..."
-
-          # Find the CI run for this commit (may take a moment to start)
-          for i in 1 2 3 4 5; do
-            RUN_ID=$(gh run list --workflow=ci.yml --commit="${{ github.sha }}" \
-              --json databaseId --jq '.[0].databaseId // empty' 2>/dev/null || true)
-            if [ -n "$RUN_ID" ]; then
-              break
-            fi
-            echo "CI run not found yet, waiting 10s... (attempt $i/5)"
-            sleep 10
-          done
-
-          if [ -z "$RUN_ID" ]; then
-            echo "No CI run found for this commit — CI may have been skipped by paths-ignore"
-            echo "should_release=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "Found CI run $RUN_ID, waiting for completion..."
-          if gh run watch "$RUN_ID" --exit-status; then
-            echo "CI passed — proceeding with release"
-            echo "should_release=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "CI failed — skipping release"
-            echo "should_release=false" >> "$GITHUB_OUTPUT"
-          fi
-
   release:
-    name: Auto Patch Release
+    name: Release
     needs: check-skip
     if: needs.check-skip.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
     permissions:
       contents: write
-    uses: ./.github/workflows/version-bump.yml
-    with:
-      bump: patch
-    secrets: inherit
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Install svu
+        run: go install github.com/caarlos0/svu/v3@latest
+
+      - name: Tag next version
+        id: tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          CURRENT=$(svu current || echo "v0.0.0")
+          NEXT=$(svu next)
+
+          if [ "$CURRENT" = "$NEXT" ]; then
+            echo "No version bump needed ($CURRENT)"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "$CURRENT → $NEXT"
+          git tag -a "$NEXT" -m "Release $NEXT"
+          git push origin "$NEXT"
+          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+
+      - name: Run GoReleaser
+        if: steps.tag.outputs.should_release == 'true'
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: v2.14.1
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
