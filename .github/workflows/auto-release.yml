@@ -123,81 +123,13 @@ jobs:
             echo "should_release=false" >> "$GITHUB_OUTPUT"
           fi
 
-  determine-bump:
-    name: Determine Version Bump
-    needs: check-skip
-    if: needs.check-skip.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      bump: ${{ steps.bump.outputs.bump }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Parse commits for bump type
-        id: bump
-        run: |
-          # Get the latest version tag
-          LATEST_TAG=$(git tag -l "v*" --sort=-v:refname | head -n1)
-          if [ -z "$LATEST_TAG" ]; then
-            echo "No previous tag found, defaulting to minor"
-            echo "bump=minor" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "Analyzing commits since $LATEST_TAG..."
-
-          BUMP="none"
-
-          # Iterate over each commit hash individually to avoid
-          # multi-line body text being mis-parsed as separate commits
-          for HASH in $(git log "$LATEST_TAG"..HEAD --format='%H'); do
-            SUBJECT=$(git log -1 --format='%s' "$HASH")
-            BODY=$(git log -1 --format='%b' "$HASH")
-
-            # Check for breaking changes
-            if echo "$SUBJECT" | grep -qE '^[a-z]+(\(.+\))?!:'; then
-              echo "Breaking change found in subject: $SUBJECT"
-              BUMP="major"
-              break
-            fi
-            if echo "$BODY" | grep -q 'BREAKING CHANGE:'; then
-              echo "Breaking change found in body of: $SUBJECT"
-              BUMP="major"
-              break
-            fi
-
-            # Check for features (only upgrade if not already major)
-            if [ "$BUMP" != "major" ] && echo "$SUBJECT" | grep -qE '^feat(\(.+\))?:'; then
-              echo "Feature found: $SUBJECT"
-              BUMP="minor"
-            fi
-
-            # Check for patch-worthy changes (only upgrade if still none)
-            if [ "$BUMP" = "none" ]; then
-              if echo "$SUBJECT" | grep -qE '^(fix|perf)(\(.+\))?:'; then
-                echo "Patch-worthy change found: $SUBJECT"
-                BUMP="patch"
-              fi
-            fi
-          done
-
-          if [ "$BUMP" = "none" ]; then
-            echo "No release-worthy commits found (chore/ci/test/docs/build/style/refactor only)"
-          fi
-
-          echo "Determined bump type: $BUMP"
-          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
-
   release:
     name: Auto Release
-    needs: determine-bump
-    if: needs.determine-bump.result == 'success' && needs.determine-bump.outputs.bump != 'none'
+    needs: check-skip
+    if: needs.check-skip.outputs.should_release == 'true'
     permissions:
       contents: write
     uses: ./.github/workflows/version-bump.yml
     with:
-      bump: ${{ needs.determine-bump.outputs.bump }}
+      bump: auto
     secrets: inherit

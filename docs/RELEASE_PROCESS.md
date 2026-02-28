@@ -38,7 +38,7 @@ Before releasing, auto-release waits for the CI workflow to complete on the same
 
 ### Semantic Version Bumping
 
-Since the repo uses squash-merge, PR titles become commit messages. The `pr-title.yml` workflow enforces conventional commit format on PR titles. Auto-release parses commits since the last tag to determine the bump type:
+Since the repo uses squash-merge, PR titles become commit messages. The `pr-title.yml` workflow enforces conventional commit format on PR titles. Version bumping uses [`svu`](https://github.com/caarlos0/svu) (by the GoReleaser maintainer) to parse commits since the last tag and determine the bump type:
 
 | Commit Type | Bump | Example |
 |-------------|------|---------|
@@ -172,8 +172,13 @@ Archives include:
 Test the release process locally before pushing:
 
 ```bash
-# Install GoReleaser (if not already installed)
+# Install tools (if not already installed)
 go install github.com/goreleaser/goreleaser/v2@v2.14.1
+go install github.com/caarlos0/svu/v3@latest
+
+# Preview what svu would do
+svu current   # show current version
+svu next      # show next version based on commits
 
 # Validate configuration
 goreleaser check
@@ -296,8 +301,7 @@ gh pr create --base main --title "fix: critical bug" --body "Emergency hotfix fo
 
 **Jobs:**
 1. `check-skip` — Evaluate skip conditions (bot actor, commit message, PR label), then wait for CI to pass
-2. `determine-bump` — Parse commits since last tag for bump type (major/minor/patch/none)
-3. `release` — If bump is needed, call `version-bump.yml` with the determined bump type
+2. `release` — If not skipped, call `version-bump.yml` with `bump: auto`
 
 ### version-bump.yml
 
@@ -306,17 +310,16 @@ gh pr create --base main --title "fix: critical bug" --body "Emergency hotfix fo
 **Purpose:** Calculate next version, create tag, and publish release
 
 **Inputs:**
-- `bump`: `patch`, `minor`, or `major`
+- `bump`: `auto`, `patch`, `minor`, or `major`
 
 **Steps:**
 1. Checkout with full history
-2. Calculate next version from latest tag
-3. Create annotated tag
-4. Push tag
-5. Checkout the new tag
-6. Calculate changelog base tag (for minor/major, overrides GoReleaser's default)
-7. Run GoReleaser with `release --clean`
-8. Publish GitHub release artifacts and notes
+2. Use `svu` to calculate next version from conventional commits (`auto`) or force a specific bump
+3. If no bump needed (current == next), skip gracefully
+4. Create annotated tag and push
+5. Calculate changelog base tag (for minor/major, overrides GoReleaser's default)
+6. Run GoReleaser with `release --clean`
+7. Publish GitHub release artifacts, notes, and Homebrew cask
 
 ### test-release.yml
 
