@@ -560,7 +560,6 @@ func TestBehaviorExtractor_BuildContent(t *testing.T) {
 	tests := []struct {
 		name       string
 		correction models.Correction
-		wantAvoid  string
 		wantPrefer string
 	}{
 		{
@@ -569,7 +568,6 @@ func TestBehaviorExtractor_BuildContent(t *testing.T) {
 				AgentAction:     "used pip",
 				CorrectedAction: "use uv instead",
 			},
-			wantAvoid:  "used pip",
 			wantPrefer: "use uv instead",
 		},
 		{
@@ -578,7 +576,6 @@ func TestBehaviorExtractor_BuildContent(t *testing.T) {
 				AgentAction:     "",
 				CorrectedAction: "always run tests",
 			},
-			wantAvoid:  "",
 			wantPrefer: "always run tests",
 		},
 	}
@@ -601,29 +598,14 @@ func TestBehaviorExtractor_BuildContent(t *testing.T) {
 				t.Error("missing Structured[prefer]")
 			}
 
-			// Check structured.avoid
-			if tt.wantAvoid != "" {
-				if avoid, ok := content.Structured["avoid"]; ok {
-					if avoid != tt.wantAvoid {
-						t.Errorf("Structured[avoid] = %q, want %q", avoid, tt.wantAvoid)
-					}
-				} else {
-					t.Error("missing Structured[avoid]")
-				}
-			} else {
-				if _, ok := content.Structured["avoid"]; ok {
-					t.Error("Structured[avoid] should not be set when AgentAction is empty")
-				}
+			// Structured["avoid"] should never be present (wrong is provenance only)
+			if _, ok := content.Structured["avoid"]; ok {
+				t.Error("Structured[avoid] should not be set — wrong is stored as provenance only")
 			}
 
-			// Check expanded contains the correction info
-			if tt.wantAvoid != "" {
-				if !strings.Contains(content.Expanded, tt.wantAvoid) {
-					t.Errorf("Expanded should contain avoid text: %q", tt.wantAvoid)
-				}
-			}
-			if !strings.Contains(content.Expanded, tt.wantPrefer) {
-				t.Errorf("Expanded should contain prefer text: %q", tt.wantPrefer)
+			// Expanded should equal canonical (no avoid text)
+			if content.Expanded != tt.wantPrefer {
+				t.Errorf("Expanded = %q, want %q", content.Expanded, tt.wantPrefer)
 			}
 		})
 	}

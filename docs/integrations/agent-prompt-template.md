@@ -34,8 +34,8 @@ be in your context via `floop://behaviors/active`. Check before calling
 #### When Corrected
 
 When the user corrects you, immediately call `floop_learn` with:
-- `wrong`: what you did that was incorrect
-- `right`: what the correct approach is
+- `right`: what the correct approach is (required)
+- `wrong`: what you did that was incorrect (optional — stored as provenance only, not injected into behavior content)
 - `file`: the relevant file path (if applicable)
 - `language`: programming language override (if file path isn't provided or doesn't reflect the actual language)
 - `task`: the current task type (if applicable)
@@ -85,7 +85,7 @@ Paste the output into your tool's instruction file (`.cursorrules`, `copilot-ins
 **Limitations:** Static mode is **read-only** — the agent can follow behaviors but cannot capture new corrections automatically. To capture corrections, run `floop learn` manually in your terminal:
 
 ```bash
-floop learn --wrong 'what the agent did wrong' --right 'what it should do instead'
+floop learn --right 'what it should do instead'
 ```
 
 Or switch to an MCP-capable tool for bidirectional support.

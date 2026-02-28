@@ -572,9 +572,6 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 	}
 
 	// Validate required parameters
-	if args.Wrong == "" {
-		return nil, FloopLearnOutput{}, fmt.Errorf("'wrong' parameter is required")
-	}
 	if args.Right == "" {
 		return nil, FloopLearnOutput{}, fmt.Errorf("'right' parameter is required")
 	}
@@ -582,7 +579,9 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 	// Sanitize inputs at the handler level as defense-in-depth.
 	// The extraction layer also sanitizes, but this protects against
 	// any code path that bypasses the learning loop.
-	args.Wrong = sanitize.SanitizeBehaviorContent(args.Wrong)
+	if args.Wrong != "" {
+		args.Wrong = sanitize.SanitizeBehaviorContent(args.Wrong)
+	}
 	args.Right = sanitize.SanitizeBehaviorContent(args.Right)
 	if args.Task != "" {
 		args.Task = sanitize.SanitizeBehaviorContent(args.Task)

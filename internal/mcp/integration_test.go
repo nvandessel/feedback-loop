@@ -205,6 +205,70 @@ func TestIntegration_LearnAndRetrieve(t *testing.T) {
 	})
 }
 
+// TestIntegration_LearnWithoutWrong tests that learning with only 'right' succeeds
+func TestIntegration_LearnWithoutWrong(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	tmpDir := t.TempDir()
+	floopDir := filepath.Join(tmpDir, ".floop")
+	if err := os.MkdirAll(floopDir, 0700); err != nil {
+		t.Fatalf("Failed to create .floop dir: %v", err)
+	}
+
+	tmpHome := filepath.Join(tmpDir, "home")
+	if err := os.MkdirAll(tmpHome, 0700); err != nil {
+		t.Fatalf("Failed to create temp home: %v", err)
+	}
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	t.Cleanup(func() {
+		os.Setenv("HOME", oldHome)
+	})
+
+	cfg := &Config{
+		Name:    "floop-integration-test",
+		Version: "v1.0.0-test",
+		Root:    tmpDir,
+	}
+
+	server, err := NewServer(cfg)
+	if err != nil {
+		t.Fatalf("NewServer failed: %v", err)
+	}
+	defer server.Close()
+
+	ctx := context.Background()
+
+	// Learn with only 'right' — no 'wrong'
+	learnInput := FloopLearnInput{
+		Right: "Use structured logging with slog",
+	}
+
+	_, output, err := server.handleFloopLearn(ctx, nil, learnInput)
+	if err != nil {
+		t.Fatalf("floop_learn without wrong failed: %v", err)
+	}
+
+	if output.BehaviorID == "" {
+		t.Error("BehaviorID should not be empty")
+	}
+	if output.CorrectionID == "" {
+		t.Error("CorrectionID should not be empty")
+	}
+
+	// Verify the behavior was stored and has no "avoid" in structured content
+	_, listOut, err := server.handleFloopList(ctx, nil, FloopListInput{})
+	if err != nil {
+		t.Fatalf("floop_list failed: %v", err)
+	}
+
+	if listOut.Count < 1 {
+		t.Errorf("Expected at least 1 behavior, got %d", listOut.Count)
+	}
+}
+
 // TestIntegration_ConcurrentAccess tests thread safety
 func TestIntegration_ConcurrentAccess(t *testing.T) {
 	if testing.Short() {

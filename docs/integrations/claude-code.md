@@ -238,7 +238,7 @@ Inject only relevant behaviors by maintaining good `when` predicates:
 
 ```bash
 # Learn with context
-floop learn --wrong "used print for errors" --right "use stderr" --file main.go
+floop learn --right "use stderr" --file main.go
 ```
 
 ### 2. Use Both MCP and Hooks

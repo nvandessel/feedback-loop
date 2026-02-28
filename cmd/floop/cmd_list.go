@@ -120,7 +120,7 @@ func newListCmd() *cobra.Command {
 
 				if len(behaviors) == 0 {
 					fmt.Fprintf(cmd.OutOrStdout(), "No behaviors learned yet (%s scope).\n", scopeStr)
-					fmt.Fprintln(cmd.OutOrStdout(), "\nUse 'floop learn --wrong \"X\" --right \"Y\"' to capture corrections.")
+					fmt.Fprintln(cmd.OutOrStdout(), "\nUse 'floop learn --right \"Y\"' to capture corrections.")
 					return nil
 				}
 

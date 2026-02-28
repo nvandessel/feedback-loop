@@ -58,10 +58,13 @@ The MCP server also exposes resources that clients can subscribe to:
 ```
 # Agent automatically gets active behaviors via floop_active at session start
 # When corrected, agent calls:
-floop_learn(wrong="Used print for debugging", right="Use structured logging")
+floop_learn(right="Use structured logging")
+
+# With optional wrong context:
+floop_learn(right="Use structured logging", wrong="Used print for debugging")
 
 # With explicit tags for reliable filtering (e.g., for skill packs):
-floop_learn(wrong="used pip", right="use uv instead", tags=["frond", "workflow"])
+floop_learn(right="use uv instead", tags=["frond", "workflow"])
 
 # Agent can check what's active for a specific file:
 floop_active(file="internal/store/file.go", task="development")
@@ -84,28 +87,29 @@ floop stats
 ### Capturing Corrections
 
 ```bash
-# Basic correction
+# Basic correction (right only — wrong is optional)
+floop learn --right "Use log.Fatal or return error"
+
+# With optional wrong context
 floop learn --wrong "Used fmt.Println for errors" --right "Use log.Fatal or return error"
 
-# With context
+# With file context
 floop learn \
-  --wrong "Designed only local storage" \
   --right "Support both global and local scopes" \
   --file "internal/store/file.go" \
   --task "architecture"
 
 # With explicit tags (merged with auto-inferred tags)
 floop learn \
-  --wrong "used pip install" \
   --right "use uv for Python packages" \
   --tags frond,workflow
 
 # With auto-merge to consolidate similar behaviors
-floop learn --wrong "..." --right "..." --auto-merge
+floop learn --right "..." --auto-merge
 
 # Override auto-classification (default: auto-classify based on When conditions)
-floop learn --wrong "..." --right "..." --scope local
-floop learn --wrong "..." --right "..." --scope global
+floop learn --right "..." --scope local
+floop learn --right "..." --scope global
 
 # Note: Scope is automatically classified based on the behavior's activation
 # conditions. The --scope flag overrides auto-classification when set.

@@ -120,8 +120,8 @@ Get active behaviors for the current context.
 Capture a correction and extract a reusable behavior.
 
 **Parameters:**
-- `wrong` (string, required): What the agent did that needs correction
 - `right` (string, required): What should have been done instead
+- `wrong` (string, optional): What the agent did that needs correction (stored as provenance only, not injected into behavior content)
 - `file` (string, optional): Relevant file path for context
 - `task` (string, optional): Current task type for context
 - `auto_merge` (boolean, optional): Enable automatic merging of duplicate behaviors (default: false)
@@ -776,7 +776,7 @@ A: No. The MCP server only reads behaviors and writes corrections to `.floop/`. 
 
 A: If the AI tool supports it, it can call `floop_learn` automatically. Otherwise, you can manually run:
 ```bash
-floop learn --wrong "what agent did" --right "what it should do" --file path/to/file
+floop learn --right "what it should do" --file path/to/file
 ```
 
 ---
@@ -796,7 +796,7 @@ A: Simply remove the floop entry from your AI tool's MCP configuration and resta
 ## Next Steps
 
 - **Explore Behaviors**: `floop list` to see what's been learned
-- **Manually Learn**: `floop learn --wrong "wrong" --right "right"` to add corrections
+- **Manually Learn**: `floop learn --right "what to do"` to add corrections
 - **Curate**: Use `floop forget`, `floop merge`, `floop deprecate` to manage behaviors
 - **Prompt Generation**: `floop prompt` to generate AI-readable behavior summaries
 

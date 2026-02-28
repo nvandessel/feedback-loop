@@ -47,7 +47,7 @@ type BehaviorSummary struct {
 
 // FloopLearnInput defines the input for floop_learn tool.
 type FloopLearnInput struct {
-	Wrong     string   `json:"wrong" jsonschema:"What the agent did that needs correction,required"`
+	Wrong     string   `json:"wrong,omitempty" jsonschema:"What the agent did (optional, stored as provenance only)"`
 	Right     string   `json:"right" jsonschema:"What should have been done instead,required"`
 	File      string   `json:"file,omitempty" jsonschema:"Relevant file path for context"`
 	Task      string   `json:"task,omitempty" jsonschema:"Current task type for context"`
