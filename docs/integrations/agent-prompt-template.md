@@ -72,7 +72,7 @@ If floop tools return errors about missing or uninitialized state, run
 
 ## Static Template (Read-Only)
 
-For tools without MCP support (Aider, OpenAI Codex CLI, or any tool where you prefer a simpler setup).
+For tools without MCP support (Aider, or any tool where you prefer a simpler setup).
 
 Run this command to generate a snapshot of your current behaviors:
 
@@ -80,7 +80,7 @@ Run this command to generate a snapshot of your current behaviors:
 floop prompt
 ```
 
-Paste the output into your tool's instruction file (`.cursorrules`, `copilot-instructions.md`, `agents.md`, etc.).
+Paste the output into your tool's instruction file (`.cursorrules`, `copilot-instructions.md`, `AGENTS.md`, etc.).
 
 **Limitations:** Static mode is **read-only** — the agent can follow behaviors but cannot capture new corrections automatically. To capture corrections, run `floop learn` manually in your terminal:
 
@@ -105,6 +105,16 @@ floop prompt > .cursorrules
 
 > Ensure `floop init` has been run first, or `floop prompt` will output an
 > initialization warning instead of behaviors.
+
+## Codex Note
+
+Codex can use MCP for floop. Prefer MCP + instruction orchestration over static-only mode:
+
+- Add floop MCP server in Codex config
+- Add Codex runtime cadence rules in `AGENTS.md`
+- Optionally install a Codex skill for floop workflow enforcement
+
+See [codex.md](./codex.md) for setup.
 
 ## Where to Paste
 

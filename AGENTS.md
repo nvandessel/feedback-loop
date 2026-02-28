@@ -4,7 +4,8 @@
 
 ## Floop Integration (REQUIRED)
 
-You have persistent memory via floop. Your learned behaviors are auto-injected at session start via hooks.
+You have persistent memory via floop. Learned behaviors are loaded via MCP and,
+where supported, auto-injected via hooks.
 
 **When corrected, IMMEDIATELY capture it:**
 ```
@@ -27,6 +28,23 @@ For non-Claude agents, see `docs/integrations/agent-prompt-template.md`.
 - `floop_feedback` - Signal whether a behavior was helpful (`confirmed`) or contradicted (`overridden`)
 - `floop_list` - List all stored behaviors
 - `floop_deduplicate` - Merge duplicate behaviors
+
+### Codex Runtime Cadence (No Lifecycle Hooks)
+
+In Codex environments, treat these as required pseudo-hooks:
+
+1. **Task start**: Call `floop_active` with current `file` and `task`.
+2. **Context change** (file/task/mode shift): Re-call `floop_active`.
+3. **Correction received**: Immediately call `floop_learn` (no permission needed).
+4. **Behavior outcome**: Call `floop_feedback` with `confirmed` or `overridden`.
+
+If MCP is unavailable, use CLI fallback immediately:
+
+```bash
+floop active --file <path> --task <task> --json
+floop learn --right "what to do instead" --wrong "what happened" --file <path>
+floop list --json
+```
 
 ---
 
@@ -204,4 +222,3 @@ bv --robot-next      # Get single top pick
 ```
 
 **CRITICAL:** Use ONLY `--robot-*` flags. Bare `bv` launches an interactive TUI that blocks your session.
-
