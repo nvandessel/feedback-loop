@@ -156,5 +156,9 @@ func (t *TieredIndex) promote(ctx context.Context) error {
 
 	t.hnsw = h
 	t.promoted = true
+	// Clear brute-force vectors to free memory after promotion.
+	t.bf.mu.Lock()
+	t.bf.vectors = make(map[string][]float32)
+	t.bf.mu.Unlock()
 	return nil
 }
