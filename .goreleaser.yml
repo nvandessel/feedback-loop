@@ -81,12 +81,30 @@ release:
   footer: |
     ## Installation
 
-    Download the appropriate archive for your platform, extract it, and move the `floop` binary to your PATH.
+    ### Homebrew (macOS/Linux)
+    ```
+    brew install nvandessel/tap/floop
+    ```
+
+    ### Go
+    ```
+    go install github.com/nvandessel/floop/cmd/floop@latest
+    ```
+
+    ### Manual
+    Download the appropriate archive for your platform below, extract it, and move the `floop` binary to your PATH.
 
     **Full changelog**: https://github.com/nvandessel/floop/compare/{{ .PreviousTag }}...{{ .Tag }}
 
+homebrew_casks:
+  - repository:
+      owner: nvandessel
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/nvandessel/floop
+    description: "Behavior learning for AI agents"
+    license: Apache-2.0
+
 # Disable features we're not using yet
 dockers: []
-brews: []
-scoops: []
 nfpms: []

@@ -1,22 +1,51 @@
 # Release Process
 
-This document describes the automated release process for feedback-loop using GoReleaser.
+This document describes the automated release process for floop using GoReleaser.
 
 ## Overview
 
-The release pipeline is fully automated:
-1. Code merges to `main` trigger an automatic patch release
-2. The auto-release checks skip conditions (bot actor, `[skip release]`, `skip-release` label)
-3. If not skipped, it calls the version-bump workflow to create a tag and publish
-4. GoReleaser builds binaries and publishes to GitHub Releases with auto-generated notes
+The release pipeline is fully automated with semantic version bumping:
+1. Code merges to `main` trigger automatic version detection from commit messages
+2. Commits are parsed for conventional commit prefixes: `feat:` → minor, `fix:`/`perf:` → patch, breaking changes → major
+3. Chore-only merges (docs, ci, test, refactor, etc.) skip the release entirely
+4. GoReleaser builds binaries, publishes to GitHub Releases, and updates the Homebrew tap
 
-For minor or major releases, maintainers trigger the version-bump workflow manually.
+For manual overrides, maintainers can trigger the version-bump workflow directly.
+
+## Installation
+
+### Homebrew (macOS/Linux)
+
+```bash
+brew install nvandessel/tap/floop
+```
+
+### Go
+
+```bash
+go install github.com/nvandessel/floop/cmd/floop@latest
+```
+
+### Manual
+
+Download binaries from [GitHub Releases](https://github.com/nvandessel/floop/releases), extract, and add to your PATH.
 
 ## Auto-Release
 
 Every push to `main` that changes code files triggers `auto-release.yml`. Documentation-only changes (`.md`, `docs/`, `.beads/`, `.floop/`, `LICENSE`) and workflow changes (`.github/`) are ignored via `paths-ignore`.
 
 Before releasing, auto-release waits for the CI workflow to complete on the same commit. If CI fails, the release is skipped. If no CI run is found (e.g., the commit only touched paths ignored by CI), the release proceeds.
+
+### Semantic Version Bumping
+
+Since the repo uses squash-merge, PR titles become commit messages. The `pr-title.yml` workflow enforces conventional commit format on PR titles. Auto-release parses commits since the last tag to determine the bump type:
+
+| Commit Type | Bump | Example |
+|-------------|------|---------|
+| `feat!:` or `BREAKING CHANGE:` in body | **major** | `feat!: remove legacy API` |
+| `feat:` | **minor** | `feat: add --tags flag` |
+| `fix:`, `perf:` | **patch** | `fix: handle empty input` |
+| `chore:`, `ci:`, `test:`, `docs:`, `build:`, `style:`, `refactor:` | **skip** | `chore: update deps` |
 
 ### Skip Mechanisms
 
@@ -34,9 +63,9 @@ When you want to merge several PRs before cutting a release:
 2. Merge the PRs
 3. On the last PR, remove the label (or omit the skip marker) — the auto-release triggers
 
-## Manual Release (Minor/Major)
+## Manual Release Override
 
-Release notes for minor and major releases automatically span back to the last tag of the same level — a minor release includes all commits since the previous `vX.Y.0`, and a major release since the previous `vX.0.0`. This means auto-patches between minor/major releases don't cause empty changelogs.
+Minor and major releases are now handled automatically by commit message parsing. Manual triggers are still available as an override. Release notes for minor and major releases automatically span back to the last tag of the same level — a minor release includes all commits since the previous `vX.Y.0`, and a major release since the previous `vX.0.0`. This means auto-patches between minor/major releases don't cause empty changelogs.
 
 ### 1. Prepare for Release
 
@@ -144,7 +173,7 @@ Test the release process locally before pushing:
 
 ```bash
 # Install GoReleaser (if not already installed)
-go install github.com/goreleaser/goreleaser/v2@v2.8.0
+go install github.com/goreleaser/goreleaser/v2@v2.14.1
 
 # Validate configuration
 goreleaser check
@@ -252,14 +281,23 @@ gh pr create --base main --title "fix: critical bug" --body "Emergency hotfix fo
 
 ## CI/CD Workflows
 
+### pr-title.yml
+
+**Trigger:** Pull request opened, edited, or synchronized
+**Purpose:** Enforce conventional commit format on PR titles (since squash-merge uses PR title as commit message)
+
+**Steps:**
+1. Validate PR title against allowed conventional commit types using `amannn/action-semantic-pull-request`
+
 ### auto-release.yml
 
 **Trigger:** Push to `main` (code changes only, docs excluded)
-**Purpose:** Automatically release patches when code merges
+**Purpose:** Automatically release with semantic version bumping from commit messages
 
 **Jobs:**
 1. `check-skip` — Evaluate skip conditions (bot actor, commit message, PR label), then wait for CI to pass
-2. `release` — If not skipped and CI passed, call `version-bump.yml` with `bump: patch`
+2. `determine-bump` — Parse commits since last tag for bump type (major/minor/patch/none)
+3. `release` — If bump is needed, call `version-bump.yml` with the determined bump type
 
 ### version-bump.yml
 
@@ -296,17 +334,30 @@ gh pr create --base main --title "fix: critical bug" --body "Emergency hotfix fo
 
 | File | Purpose |
 |------|---------|
-| `.goreleaser.yml` | GoReleaser configuration (builds, archives, changelog) |
-| `.github/workflows/auto-release.yml` | Auto-patch on merge to main |
+| `.goreleaser.yml` | GoReleaser configuration (builds, archives, changelog, Homebrew cask) |
+| `.github/workflows/pr-title.yml` | Conventional commit enforcement on PR titles |
+| `.github/workflows/auto-release.yml` | Semantic version bump on merge to main |
 | `.github/workflows/version-bump.yml` | Version tagging and release workflow |
 | `.github/workflows/test-release.yml` | PR validation workflow |
 | `Makefile` | Local build with version injection |
+
+## Homebrew Distribution
+
+Each release automatically pushes a Homebrew cask to `nvandessel/homebrew-tap` via GoReleaser's `homebrew_casks` configuration.
+
+**How it works:**
+1. GoReleaser builds archives for all platforms
+2. The `homebrew_casks` section creates/updates a cask file in the tap repo
+3. Users install with `brew install nvandessel/tap/floop`
+
+**Requirements:**
+- `HOMEBREW_TAP_GITHUB_TOKEN` secret on the floop repo (PAT with repo scope to push to `homebrew-tap`)
+- The `nvandessel/homebrew-tap` repository must exist
 
 ## Future Enhancements
 
 Not currently implemented but can be added later:
 
-- **Homebrew tap** — Automatic formula updates
 - **Docker images** — Multi-arch container publishing
 - **Scoop manifest** — Windows package manager
 - **AUR package** — Arch Linux user repository

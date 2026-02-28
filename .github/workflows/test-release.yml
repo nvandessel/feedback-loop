@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 env:
-  GORELEASER_VERSION: v2.8.0
+  GORELEASER_VERSION: v2.14.1
 
 jobs:
   test-release:
