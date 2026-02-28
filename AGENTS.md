@@ -4,7 +4,8 @@
 
 ## Floop Integration (REQUIRED)
 
-You have persistent memory via floop. Your learned behaviors are auto-injected at session start via hooks.
+You have persistent memory via floop. Learned behaviors are loaded via MCP and,
+where supported, auto-injected via hooks.
 
 **When corrected, IMMEDIATELY capture it:**
 ```
@@ -28,6 +29,23 @@ For non-Claude agents, see `docs/integrations/agent-prompt-template.md`.
 - `floop_list` - List all stored behaviors
 - `floop_deduplicate` - Merge duplicate behaviors
 
+### Codex Runtime Cadence (No Lifecycle Hooks)
+
+In Codex environments, treat these as required pseudo-hooks:
+
+1. **Task start**: Call `floop_active` with current `file` and `task`.
+2. **Context change** (file/task/mode shift): Re-call `floop_active`.
+3. **Correction received**: Immediately call `floop_learn` (no permission needed).
+4. **Behavior outcome**: Call `floop_feedback` with `confirmed` or `overridden`.
+
+If MCP is unavailable, use CLI fallback immediately:
+
+```bash
+floop active --file <path> --task <task> --json
+floop learn --right "what to do instead" --wrong "what happened" --file <path>
+floop list --json
+```
+
 ---
 
 ## Project Overview
@@ -42,7 +60,7 @@ For non-Claude agents, see `docs/integrations/agent-prompt-template.md`.
 
 ## Quick Reference
 
-### Issue Tracking (Beads)
+### Issue Tracking (Beads — Dolt backend)
 ```bash
 bv --robot-triage             # Get ranked recommendations
 bd ready              # Find available work (no blockers)
@@ -50,7 +68,10 @@ bd show <id>          # View issue details
 bd update <id> --status in_progress  # Claim work
 bd close <id> --reason "..."         # Complete work
 bd create "Title" --type task --priority 2 --description "..."
-bd sync               # Sync changes
+bd history <id>       # Version history (Dolt)
+bd diff <from> <to>   # Diff between Dolt commits
+bd dolt commit        # Commit pending Dolt changes
+bd dolt push          # Push Dolt commits to remote
 ```
 
 ### Feedback Loop (Dogfooding) ⭐
@@ -95,7 +116,7 @@ go fmt ./...                # Format code
    - `go fmt ./...` — Format code
    - If `cmd/floop/` changed: verify `docs/CLI_REFERENCE.md` is current
 2. Close the issue: `bd close <id> --reason "..."`
-3. Sync beads: `bd sync`
+3. Commit Dolt changes: `bd dolt commit`
 4. Commit changes on a feature branch
 5. Push and create a PR — **never commit directly to main**
 6. Wait for review before merging
@@ -106,7 +127,7 @@ go fmt ./...                # Format code
 - **`internal/`** — All application packages. Run `ls internal/` for current list.
 - **`docs/`** — Documentation (`GO_GUIDELINES.md`, `FLOOP_USAGE.md`, `integrations/`)
 - **`.floop/`** — Learned behaviors (JSONL + manifest tracked; DB + audit.jsonl gitignored)
-- **`.beads/`** — Issue tracking (version controlled)
+- **`.beads/`** — Issue tracking (Dolt backend, server at `~/.dolt-data/beads`)
 
 ## Code Patterns
 
@@ -174,7 +195,7 @@ Check `bd ready` for current tasks.
 1. **File issues for remaining work** - Create issues for anything that needs follow-up
 2. **Run quality gates** (if code changed) - Tests, linters, builds
 3. **Update issue status** - Close finished work, update in-progress items
-4. **Sync beads** - `bd sync`
+4. **Commit Dolt changes** - `bd dolt commit`
 5. **Commit and push on a branch** - Never commit directly to main:
    ```bash
    git checkout -b chore/session-cleanup  # or use existing feature branch
@@ -204,4 +225,3 @@ bv --robot-next      # Get single top pick
 ```
 
 **CRITICAL:** Use ONLY `--robot-*` flags. Bare `bv` launches an interactive TUI that blocks your session.
-

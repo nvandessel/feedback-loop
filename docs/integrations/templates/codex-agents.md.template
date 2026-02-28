@@ -1,0 +1,42 @@
+### floop + Codex Orchestration (No Lifecycle Hooks)
+
+Codex has floop MCP tools available, but does not provide Claude-style lifecycle
+hooks. You MUST emulate lifecycle behavior by explicitly calling floop tools at
+the right moments.
+
+#### Required Cadence
+
+1. Task start:
+   - Call `floop_active` with `file` and `task` before substantive changes.
+2. Context shift:
+   - Re-call `floop_active` whenever file focus, task type, or implementation
+     mode changes.
+3. User correction:
+   - Immediately call `floop_learn` with:
+     - `right` (required)
+     - `wrong` (optional but recommended)
+     - `file`, `task`, and `tags` when available
+   - Do not wait for user permission.
+4. Behavior outcome:
+   - If behavior helps, call `floop_feedback` with `signal: "confirmed"`.
+   - If intentionally deviating, call `floop_feedback` with
+     `signal: "overridden"`.
+
+#### Reliability Rules
+
+- If MCP calls fail, switch to CLI fallback immediately.
+- Keep working while recording learnings; do not defer correction capture.
+- Prefer narrow, file/task-aware behavior retrieval over broad prompt dumps.
+
+#### CLI Fallback
+
+```bash
+# Active behaviors
+floop active --file <path> --task <task> --json
+
+# Learn correction
+floop learn --right "what to do instead" --wrong "what happened" --file <path>
+
+# Review behaviors
+floop list --json
+```
