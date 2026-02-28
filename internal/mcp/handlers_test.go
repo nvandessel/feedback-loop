@@ -572,7 +572,6 @@ func TestHandleFloopDeduplicate_RateLimited(t *testing.T) {
 func TestBehaviorContentToMap(t *testing.T) {
 	content := models.BehaviorContent{
 		Canonical: "Use X instead of Y",
-		Expanded:  "Use X instead of Y",
 		Structured: map[string]interface{}{
 			"prefer": "X",
 		},
@@ -584,8 +583,8 @@ func TestBehaviorContentToMap(t *testing.T) {
 		t.Errorf("canonical = %v, want %v", m["canonical"], content.Canonical)
 	}
 
-	if m["expanded"] != content.Expanded {
-		t.Errorf("expanded = %v, want %v", m["expanded"], content.Expanded)
+	if _, hasExpanded := m["expanded"]; hasExpanded {
+		t.Error("expanded key should not be present in map")
 	}
 
 	structured, ok := m["structured"].(map[string]interface{})

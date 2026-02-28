@@ -50,27 +50,19 @@ type PromptSection struct {
 
 // Compiler transforms active behaviors into prompt-ready format
 type Compiler struct {
-	format      Format
-	useExpanded bool // Use expanded content when available
+	format Format
 }
 
 // NewCompiler creates a new behavior compiler
 func NewCompiler() *Compiler {
 	return &Compiler{
-		format:      FormatMarkdown,
-		useExpanded: false, // Default to canonical (token-efficient)
+		format: FormatMarkdown,
 	}
 }
 
 // WithFormat sets the output format
 func (c *Compiler) WithFormat(format Format) *Compiler {
 	c.format = format
-	return c
-}
-
-// WithExpanded uses expanded content when available
-func (c *Compiler) WithExpanded(useExpanded bool) *Compiler {
-	c.useExpanded = useExpanded
 	return c
 }
 
@@ -188,11 +180,7 @@ func (c *Compiler) kindTitle(kind models.BehaviorKind) string {
 
 // formatBehavior formats a single behavior for the prompt
 func (c *Compiler) formatBehavior(b models.Behavior) string {
-	// Choose content based on settings
 	content := b.Content.Canonical
-	if c.useExpanded && b.Content.Expanded != "" {
-		content = b.Content.Expanded
-	}
 
 	switch c.format {
 	case FormatXML:

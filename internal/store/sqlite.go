@@ -201,7 +201,6 @@ func (s *SQLiteGraphStore) addBehavior(ctx context.Context, node Node) (string, 
 	}
 
 	canonical := utils.GetString(behaviorContent, "canonical", "")
-	expanded := utils.GetString(behaviorContent, "expanded", "")
 	summary := utils.GetString(behaviorContent, "summary", "")
 	structuredRaw, _ := behaviorContent["structured"]
 	tagsRaw, _ := behaviorContent["tags"]
@@ -329,14 +328,14 @@ func (s *SQLiteGraphStore) addBehavior(ctx context.Context, node Node) (string, 
 	_, err = s.db.ExecContext(ctx, `
 		INSERT OR REPLACE INTO behaviors (
 			id, name, kind, behavior_type,
-			content_canonical, content_expanded, content_summary, content_structured, content_tags,
+			content_canonical, content_summary, content_structured, content_tags,
 			provenance_source_type, provenance_correction_id, provenance_created_at,
 			requires, overrides, conflicts,
 			confidence, priority, scope, metadata_extra,
 			created_at, updated_at, content_hash
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, node.ID, name, kind, behaviorType,
-		canonical, nullString(expanded), nullString(summary), nullBytes(structuredJSON), nullBytes(tagsJSON),
+		canonical, nullString(summary), nullBytes(structuredJSON), nullBytes(tagsJSON),
 		nullString(sourceType), nullString(correctionID), nullString(createdAtStr),
 		nullBytes(requiresJSON), nullBytes(overridesJSON), nullBytes(conflictsJSON),
 		confidence, int(priority), scope, nullBytes(extraMetadataJSON),
@@ -469,7 +468,7 @@ func (s *SQLiteGraphStore) getNodeUnlocked(ctx context.Context, id string) (*Nod
 	var (
 		name, kind                                    string
 		behaviorType                                  sql.NullString
-		canonical, expanded, summary                  sql.NullString
+		canonical, summary                            sql.NullString
 		structuredJSON, tagsJSON                      sql.NullString
 		sourceType, correctionID, provenanceCreatedAt sql.NullString
 		requiresJSON, overridesJSON, conflictsJSON    sql.NullString
@@ -483,7 +482,7 @@ func (s *SQLiteGraphStore) getNodeUnlocked(ctx context.Context, id string) (*Nod
 	err := s.db.QueryRowContext(ctx, `
 		SELECT
 			name, kind, behavior_type,
-			content_canonical, content_expanded, content_summary, content_structured, content_tags,
+			content_canonical, content_summary, content_structured, content_tags,
 			provenance_source_type, provenance_correction_id, provenance_created_at,
 			requires, overrides, conflicts,
 			confidence, priority, scope, metadata_extra,
@@ -491,7 +490,7 @@ func (s *SQLiteGraphStore) getNodeUnlocked(ctx context.Context, id string) (*Nod
 		FROM behaviors WHERE id = ?
 	`, id).Scan(
 		&name, &kind, &behaviorType,
-		&canonical, &expanded, &summary, &structuredJSON, &tagsJSON,
+		&canonical, &summary, &structuredJSON, &tagsJSON,
 		&sourceType, &correctionID, &provenanceCreatedAt,
 		&requiresJSON, &overridesJSON, &conflictsJSON,
 		&confidence, &priority, &scope, &metadataExtraJSON,
@@ -550,9 +549,6 @@ func (s *SQLiteGraphStore) getNodeUnlocked(ctx context.Context, id string) (*Nod
 
 	behaviorContent := make(map[string]interface{})
 	behaviorContent["canonical"] = canonical.String
-	if expanded.Valid {
-		behaviorContent["expanded"] = expanded.String
-	}
 	if summary.Valid {
 		behaviorContent["summary"] = summary.String
 	}

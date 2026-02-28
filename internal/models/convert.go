@@ -34,9 +34,6 @@ func NodeToBehavior(node store.Node) Behavior {
 		if canonical, ok := content["canonical"].(string); ok {
 			b.Content.Canonical = canonical
 		}
-		if expanded, ok := content["expanded"].(string); ok {
-			b.Content.Expanded = expanded
-		}
 		if summary, ok := content["summary"].(string); ok {
 			b.Content.Summary = summary
 		}

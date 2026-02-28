@@ -97,8 +97,7 @@ Get active behaviors for the current context.
         "name": "use-cobra-for-cli",
         "kind": "directive",
         "content": {
-          "canonical": "Use spf13/cobra for CLI command structure",
-          "expanded": "When building CLI commands in Go, use the Cobra framework following the pattern: create newXxxCmd() functions that return *cobra.Command..."
+          "canonical": "Use spf13/cobra for CLI command structure"
         },
         "confidence": 0.95,
         "when": {

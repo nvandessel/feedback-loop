@@ -247,12 +247,6 @@ func (s *Server) handleBehaviorExpandResource(ctx context.Context, req *sdk.Read
 	sb.WriteString(behavior.Content.Canonical)
 	sb.WriteString("\n")
 
-	if behavior.Content.Expanded != "" {
-		sb.WriteString("\n### Expanded\n\n")
-		sb.WriteString(behavior.Content.Expanded)
-		sb.WriteString("\n")
-	}
-
 	if len(behavior.When) > 0 {
 		sb.WriteString("\n## Activation Context\n\n")
 		for k, v := range behavior.When {
@@ -842,9 +836,6 @@ func (s *Server) handleFloopList(ctx context.Context, req *sdk.CallToolRequest, 
 func behaviorContentToMap(content models.BehaviorContent) map[string]interface{} {
 	m := make(map[string]interface{})
 	m["canonical"] = content.Canonical
-	if content.Expanded != "" {
-		m["expanded"] = content.Expanded
-	}
 	if content.Structured != nil && len(content.Structured) > 0 {
 		m["structured"] = content.Structured
 	}

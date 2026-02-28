@@ -602,11 +602,6 @@ func TestBehaviorExtractor_BuildContent(t *testing.T) {
 			if _, ok := content.Structured["avoid"]; ok {
 				t.Error("Structured[avoid] should not be set — wrong is stored as provenance only")
 			}
-
-			// Expanded should equal canonical (no avoid text)
-			if content.Expanded != tt.wantPrefer {
-				t.Errorf("Expanded = %q, want %q", content.Expanded, tt.wantPrefer)
-			}
 		})
 	}
 }

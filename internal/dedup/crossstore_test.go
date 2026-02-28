@@ -68,7 +68,6 @@ func TestNodeToBehavior(t *testing.T) {
 				},
 				"content": map[string]interface{}{
 					"canonical": "use pathlib",
-					"expanded":  "Use pathlib.Path for file operations",
 					"summary":   "pathlib usage",
 				},
 			},
@@ -91,9 +90,6 @@ func TestNodeToBehavior(t *testing.T) {
 		}
 		if b.Content.Canonical != "use pathlib" {
 			t.Errorf("Content.Canonical = %q, want use pathlib", b.Content.Canonical)
-		}
-		if b.Content.Expanded != "Use pathlib.Path for file operations" {
-			t.Errorf("Content.Expanded = %q", b.Content.Expanded)
 		}
 		if b.Content.Summary != "pathlib usage" {
 			t.Errorf("Content.Summary = %q", b.Content.Summary)

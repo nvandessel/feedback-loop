@@ -20,7 +20,7 @@ type BehaviorExtractor interface {
 	// The extracted behavior includes:
 	// - Inferred 'when' conditions based on correction context
 	// - Behavior kind (directive, constraint, preference, procedure)
-	// - Structured content with avoid/prefer patterns
+	// - Structured content with prefer patterns
 	// - Provenance linking back to the source correction
 	Extract(correction models.Correction) (*models.Behavior, error)
 }
@@ -224,7 +224,6 @@ func (e *behaviorExtractor) buildContent(correction models.Correction) models.Be
 
 	// Add prefer pattern (canonical content only — "wrong" is stored as provenance on the Correction)
 	content.Structured["prefer"] = sanitizedCorrected
-	content.Expanded = sanitizedCorrected
 
 	return content
 }

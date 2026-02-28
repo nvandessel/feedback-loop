@@ -101,7 +101,6 @@ Priority: 0
 
 Content:
   Canonical: Always log errors or propagate them to the caller
-  Expanded: Always log errors or propagate them to the caller
 ```
 
 One correction → one reusable behavior, stored in the graph.

@@ -10,7 +10,7 @@ import (
 )
 
 // SchemaVersion is the current schema version.
-const SchemaVersion = 7
+const SchemaVersion = 8
 
 // schemaV1 is the initial schema for the SQLite store.
 const schemaV1 = `
@@ -296,6 +296,11 @@ func migrateSchema(ctx context.Context, db *sql.DB, currentVersion int) error {
 	if currentVersion < 7 {
 		if err := migrateV6ToV7(ctx, db); err != nil {
 			return fmt.Errorf("migrate v6 to v7: %w", err)
+		}
+	}
+	if currentVersion < 8 {
+		if err := migrateV7ToV8(ctx, db); err != nil {
+			return fmt.Errorf("migrate v7 to v8: %w", err)
 		}
 	}
 	return nil
@@ -640,6 +645,33 @@ func migrateV6ToV7(ctx context.Context, db *sql.DB) error {
 	_, err = tx.ExecContext(ctx,
 		`INSERT INTO schema_version (version, applied_at) VALUES (?, datetime('now'))`,
 		7)
+	if err != nil {
+		return fmt.Errorf("record schema version: %w", err)
+	}
+
+	return tx.Commit()
+}
+
+// migrateV7ToV8 removes the expanded content field.
+// The Expanded field was made identical to Canonical in V7 and is now dead weight.
+// SQLite cannot reliably DROP COLUMN, so the column stays in the DDL but is
+// NULLed out and never read or written again.
+func migrateV7ToV8(ctx context.Context, db *sql.DB) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// NULL out content_expanded (column kept for SQLite compat)
+	_, err = tx.ExecContext(ctx,
+		`UPDATE behaviors SET content_expanded = NULL WHERE content_expanded IS NOT NULL`)
+	if err != nil {
+		return fmt.Errorf("null content_expanded: %w", err)
+	}
+
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO schema_version (version, applied_at) VALUES (?, datetime('now'))`, 8)
 	if err != nil {
 		return fmt.Errorf("record schema version: %w", err)
 	}

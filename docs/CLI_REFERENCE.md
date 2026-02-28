@@ -363,7 +363,6 @@ Compiles active behaviors into a format suitable for injection into agent system
 | `--max-tokens` | int | `0` | Maximum tokens (0 = unlimited, deprecated: use `--token-budget`) |
 | `--token-budget` | int | `0` | Token budget for behavior injection (enables intelligent tiering) |
 | `--tiered` | bool | `false` | Use tiered injection (full/summary/omit) instead of simple truncation |
-| `--expanded` | bool | `false` | Use expanded content when available |
 
 **Examples:**
 
