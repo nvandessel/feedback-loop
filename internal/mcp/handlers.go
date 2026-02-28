@@ -673,7 +673,9 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 					if err != nil {
 						fmt.Fprintf(os.Stderr, "warning: failed to embed behavior %s: %v\n", bid, err)
 					} else if s.vectorIndex != nil {
-						_ = s.vectorIndex.Add(context.Background(), bid, vec)
+						if err := s.vectorIndex.Add(context.Background(), bid, vec); err != nil {
+							fmt.Fprintf(os.Stderr, "warning: failed to add behavior %s to vector index: %v\n", bid, err)
+						}
 					}
 				}
 			})
@@ -1022,7 +1024,9 @@ func (s *Server) handleFloopDeduplicate(ctx context.Context, req *sdk.CallToolRe
 							if err != nil {
 								fmt.Fprintf(os.Stderr, "warning: failed to embed merged behavior %s: %v\n", bid, err)
 							} else if s.vectorIndex != nil {
-								_ = s.vectorIndex.Add(context.Background(), bid, vec)
+								if err := s.vectorIndex.Add(context.Background(), bid, vec); err != nil {
+									fmt.Fprintf(os.Stderr, "warning: failed to add merged behavior %s to vector index: %v\n", bid, err)
+								}
 							}
 						}
 					})
