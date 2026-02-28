@@ -29,9 +29,6 @@ type BehaviorContent struct {
 	// Canonical is the minimal representation, optimized for token efficiency
 	Canonical string `json:"canonical" yaml:"canonical"`
 
-	// Expanded is the full prose version with examples and rationale
-	Expanded string `json:"expanded,omitempty" yaml:"expanded,omitempty"`
-
 	// Summary is an ultra-compressed single-line reminder (~60 chars)
 	// Used for tiered injection when token budget is constrained
 	Summary string `json:"summary,omitempty" yaml:"summary,omitempty"`
@@ -40,7 +37,7 @@ type BehaviorContent struct {
 	Tags []string `json:"tags,omitempty" yaml:"tags,omitempty"`
 
 	// Structured holds key-value data when the behavior has clear structure
-	// e.g., {"prefer": "pathlib.Path", "avoid": "os.path"}
+	// e.g., {"prefer": "pathlib.Path"}
 	Structured map[string]interface{} `json:"structured,omitempty" yaml:"structured,omitempty"`
 }
 

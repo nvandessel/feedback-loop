@@ -247,12 +247,6 @@ func (s *Server) handleBehaviorExpandResource(ctx context.Context, req *sdk.Read
 	sb.WriteString(behavior.Content.Canonical)
 	sb.WriteString("\n")
 
-	if behavior.Content.Expanded != "" {
-		sb.WriteString("\n### Expanded\n\n")
-		sb.WriteString(behavior.Content.Expanded)
-		sb.WriteString("\n")
-	}
-
 	if len(behavior.When) > 0 {
 		sb.WriteString("\n## Activation Context\n\n")
 		for k, v := range behavior.When {
@@ -572,9 +566,6 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 	}
 
 	// Validate required parameters
-	if args.Wrong == "" {
-		return nil, FloopLearnOutput{}, fmt.Errorf("'wrong' parameter is required")
-	}
 	if args.Right == "" {
 		return nil, FloopLearnOutput{}, fmt.Errorf("'right' parameter is required")
 	}
@@ -582,7 +573,9 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 	// Sanitize inputs at the handler level as defense-in-depth.
 	// The extraction layer also sanitizes, but this protects against
 	// any code path that bypasses the learning loop.
-	args.Wrong = sanitize.SanitizeBehaviorContent(args.Wrong)
+	if args.Wrong != "" {
+		args.Wrong = sanitize.SanitizeBehaviorContent(args.Wrong)
+	}
 	args.Right = sanitize.SanitizeBehaviorContent(args.Right)
 	if args.Task != "" {
 		args.Task = sanitize.SanitizeBehaviorContent(args.Task)
@@ -848,9 +841,6 @@ func (s *Server) handleFloopList(ctx context.Context, req *sdk.CallToolRequest, 
 func behaviorContentToMap(content models.BehaviorContent) map[string]interface{} {
 	m := make(map[string]interface{})
 	m["canonical"] = content.Canonical
-	if content.Expanded != "" {
-		m["expanded"] = content.Expanded
-	}
 	if content.Structured != nil && len(content.Structured) > 0 {
 		m["structured"] = content.Structured
 	}

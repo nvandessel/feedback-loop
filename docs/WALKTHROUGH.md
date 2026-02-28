@@ -21,7 +21,7 @@ Nothing learned yet — floop is a blank slate:
 $ floop list
 No behaviors learned yet (local scope).
 
-Use 'floop learn --wrong "X" --right "Y"' to capture corrections.
+Use 'floop learn --right "Y"' to capture corrections.
 
 $ floop active
 Context:
@@ -52,8 +52,8 @@ The agent captures the correction. Via **MCP** (recommended — your AI tool cal
 
 ```
 floop_learn(
-    wrong="Silently swallowed errors without logging or propagating",
-    right="Always log errors or propagate them to the caller"
+    right="Always log errors or propagate them to the caller",
+    wrong="Silently swallowed errors without logging or propagating"
 )
 ```
 
@@ -61,8 +61,8 @@ Or equivalently via **CLI**:
 
 ```bash
 $ floop learn \
-    --wrong "Silently swallowed errors without logging or propagating" \
-    --right "Always log errors or propagate them to the caller"
+    --right "Always log errors or propagate them to the caller" \
+    --wrong "Silently swallowed errors without logging or propagating"
 ```
 
 Either way, floop responds:
@@ -101,9 +101,6 @@ Priority: 0
 
 Content:
   Canonical: Always log errors or propagate them to the caller
-  Expanded: When working on this type of task, avoid: Silently swallowed
-    errors without logging or propagating. Instead: Always log errors or
-    propagate them to the caller
 ```
 
 One correction → one reusable behavior, stored in the graph.

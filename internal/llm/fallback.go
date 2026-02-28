@@ -51,13 +51,10 @@ func (c *FallbackClient) MergeBehaviors(ctx context.Context, behaviors []*models
 		sourceIDs[i] = b.ID
 	}
 
-	var canonicalParts, expandedParts []string
+	var canonicalParts []string
 	for _, b := range behaviors {
 		if b.Content.Canonical != "" {
 			canonicalParts = append(canonicalParts, b.Content.Canonical)
-		}
-		if b.Content.Expanded != "" {
-			expandedParts = append(expandedParts, b.Content.Expanded)
 		}
 	}
 
@@ -83,7 +80,6 @@ func (c *FallbackClient) MergeBehaviors(ctx context.Context, behaviors []*models
 		When: mergedWhen,
 		Content: models.BehaviorContent{
 			Canonical: strings.Join(canonicalParts, "\n\n"),
-			Expanded:  strings.Join(expandedParts, "\n\n"),
 		},
 		Provenance: models.Provenance{SourceType: models.SourceTypeLearned, CreatedAt: time.Now()},
 		Confidence: maxConfidence,

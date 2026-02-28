@@ -274,7 +274,6 @@ func TestIntegration_SimilarCorrections_HighSimilarity(t *testing.T) {
 			Kind: models.BehaviorKindDirective,
 			Content: models.BehaviorContent{
 				Canonical: "use uv for all Python package management tasks",
-				Expanded:  "Always prefer uv over pip for installing, updating, and managing Python packages",
 			},
 			Confidence: 0.9,
 		},

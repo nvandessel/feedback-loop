@@ -551,7 +551,6 @@ func TestNodeToBehavior(t *testing.T) {
 			},
 			"content": map[string]interface{}{
 				"canonical": "Test canonical content",
-				"expanded":  "Test expanded content",
 			},
 		},
 		Metadata: map[string]interface{}{

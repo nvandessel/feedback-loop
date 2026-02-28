@@ -78,13 +78,6 @@ func TestLearnCmdSanitizesInputs(t *testing.T) {
 			wantFile:  "internal/store/sqlite.go",
 		},
 		{
-			name:            "wrong becomes empty after sanitization",
-			wrong:           "<b></b>",
-			right:           "do something useful",
-			wantErr:         true,
-			wantErrContains: "empty after sanitization",
-		},
-		{
 			name:            "right becomes empty after sanitization",
 			wrong:           "did something wrong",
 			right:           "<b></b>",
@@ -117,10 +110,12 @@ func TestLearnCmdSanitizesInputs(t *testing.T) {
 			// Build learn command args
 			args := []string{
 				"learn",
-				"--wrong", tt.wrong,
 				"--right", tt.right,
 				"--root", tmpDir,
 				"--json",
+			}
+			if tt.wrong != "" {
+				args = append(args, "--wrong", tt.wrong)
 			}
 			if tt.file != "" {
 				args = append(args, "--file", tt.file)
@@ -163,9 +158,11 @@ func TestLearnCmdSanitizesInputs(t *testing.T) {
 				t.Fatalf("failed to parse correction JSON: %v", err)
 			}
 
-			// Check that agent_action (wrong) was sanitized
-			if got := correction["agent_action"].(string); got != tt.wantWrong {
-				t.Errorf("agent_action = %q, want %q", got, tt.wantWrong)
+			// Check that agent_action (wrong) was sanitized (only when provided)
+			if tt.wantWrong != "" {
+				if got := correction["agent_action"].(string); got != tt.wantWrong {
+					t.Errorf("agent_action = %q, want %q", got, tt.wantWrong)
+				}
 			}
 
 			// Check that corrected_action (right) was sanitized
@@ -321,6 +318,55 @@ func TestLearnCmdTagsFlag(t *testing.T) {
 			t.Errorf("ExtraTags = %v, want empty", correction.ExtraTags)
 		}
 	})
+}
+
+func TestLearnCmdWithoutWrong(t *testing.T) {
+	tmpDir := t.TempDir()
+	isolateHome(t, tmpDir)
+
+	// Initialize .floop directory
+	rootCmd := newTestRootCmd()
+	rootCmd.AddCommand(newInitCmd())
+	rootCmd.SetArgs([]string{"init", "--root", tmpDir})
+	rootCmd.SetOut(&bytes.Buffer{})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Run learn without --wrong
+	rootCmd2 := newTestRootCmd()
+	rootCmd2.AddCommand(newLearnCmd())
+	rootCmd2.SetArgs([]string{
+		"learn",
+		"--right", "use uv for python packages",
+		"--root", tmpDir,
+		"--json",
+	})
+	var outBuf bytes.Buffer
+	rootCmd2.SetOut(&outBuf)
+
+	if err := rootCmd2.Execute(); err != nil {
+		t.Fatalf("learn without --wrong should succeed: %v", err)
+	}
+
+	// Verify correction was written
+	correctionsPath := filepath.Join(tmpDir, ".floop", "corrections.jsonl")
+	data, err := os.ReadFile(correctionsPath)
+	if err != nil {
+		t.Fatalf("failed to read corrections: %v", err)
+	}
+
+	var correction models.Correction
+	if err := json.Unmarshal(data, &correction); err != nil {
+		t.Fatalf("failed to parse correction: %v", err)
+	}
+
+	if correction.AgentAction != "" {
+		t.Errorf("AgentAction = %q, want empty", correction.AgentAction)
+	}
+	if correction.CorrectedAction != "use uv for python packages" {
+		t.Errorf("CorrectedAction = %q, want %q", correction.CorrectedAction, "use uv for python packages")
+	}
 }
 
 func TestReprocessCmdSanitizesCorrections(t *testing.T) {

@@ -20,7 +20,7 @@ type BehaviorExtractor interface {
 	// The extracted behavior includes:
 	// - Inferred 'when' conditions based on correction context
 	// - Behavior kind (directive, constraint, preference, procedure)
-	// - Structured content with avoid/prefer patterns
+	// - Structured content with prefer patterns
 	// - Provenance linking back to the source correction
 	Extract(correction models.Correction) (*models.Behavior, error)
 }
@@ -215,7 +215,6 @@ func (e *behaviorExtractor) inferKind(correction models.Correction) models.Behav
 func (e *behaviorExtractor) buildContent(correction models.Correction) models.BehaviorContent {
 	// Sanitize user-supplied inputs before building content
 	sanitizedCorrected := sanitize.SanitizeBehaviorContent(correction.CorrectedAction)
-	sanitizedAgent := sanitize.SanitizeBehaviorContent(correction.AgentAction)
 
 	content := models.BehaviorContent{
 		Canonical:  sanitizedCorrected,
@@ -223,24 +222,8 @@ func (e *behaviorExtractor) buildContent(correction models.Correction) models.Be
 		Structured: make(map[string]interface{}),
 	}
 
-	// Add avoid/prefer patterns
-	if sanitizedAgent != "" {
-		content.Structured["avoid"] = sanitizedAgent
-	}
+	// Add prefer pattern (canonical content only — "wrong" is stored as provenance on the Correction)
 	content.Structured["prefer"] = sanitizedCorrected
-
-	// Build expanded version with context
-	var expanded strings.Builder
-	if sanitizedAgent != "" {
-		expanded.WriteString("When working on this type of task, ")
-		expanded.WriteString("avoid: ")
-		expanded.WriteString(sanitizedAgent)
-		expanded.WriteString("\n\n")
-	}
-	expanded.WriteString("Instead: ")
-	expanded.WriteString(sanitizedCorrected)
-
-	content.Expanded = expanded.String()
 
 	return content
 }

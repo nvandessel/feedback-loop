@@ -4,12 +4,13 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 )
 
 // SchemaVersion is the current schema version.
-const SchemaVersion = 6
+const SchemaVersion = 8
 
 // schemaV1 is the initial schema for the SQLite store.
 const schemaV1 = `
@@ -292,6 +293,16 @@ func migrateSchema(ctx context.Context, db *sql.DB, currentVersion int) error {
 			return fmt.Errorf("migrate v5 to v6: %w", err)
 		}
 	}
+	if currentVersion < 7 {
+		if err := migrateV6ToV7(ctx, db); err != nil {
+			return fmt.Errorf("migrate v6 to v7: %w", err)
+		}
+	}
+	if currentVersion < 8 {
+		if err := migrateV7ToV8(ctx, db); err != nil {
+			return fmt.Errorf("migrate v7 to v8: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -550,6 +561,117 @@ func migrateV5ToV6(ctx context.Context, db *sql.DB) error {
 	_, err = tx.ExecContext(ctx,
 		`INSERT INTO schema_version (version, applied_at) VALUES (?, datetime('now'))`,
 		6)
+	if err != nil {
+		return fmt.Errorf("record schema version: %w", err)
+	}
+
+	return tx.Commit()
+}
+
+// migrateV6ToV7 removes "avoid" from behavior content.
+// Research (arxiv 2602.11988) found that including "what not to do" can prime
+// LLMs to produce those patterns. The "wrong" action is now stored only as
+// provenance on the Correction audit record, not in behavior content.
+//
+// Changes per behavior:
+//   - content_structured: delete "avoid" key from JSON
+//   - content_expanded: set to content_canonical (no more "avoid:..." text)
+//   - mark as dirty so JSONL re-syncs
+func migrateV6ToV7(ctx context.Context, db *sql.DB) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Query all behaviors that have structured content
+	rows, err := tx.QueryContext(ctx,
+		`SELECT id, content_structured FROM behaviors WHERE content_structured IS NOT NULL AND content_structured != ''`)
+	if err != nil {
+		return fmt.Errorf("query behaviors: %w", err)
+	}
+
+	type update struct {
+		id         string
+		structured string
+	}
+	var updates []update
+
+	for rows.Next() {
+		var id, structuredJSON string
+		if err := rows.Scan(&id, &structuredJSON); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan behavior: %w", err)
+		}
+
+		var structured map[string]interface{}
+		if err := json.Unmarshal([]byte(structuredJSON), &structured); err != nil {
+			continue // skip malformed JSON
+		}
+
+		if _, hasAvoid := structured["avoid"]; !hasAvoid {
+			continue // nothing to migrate
+		}
+
+		delete(structured, "avoid")
+		newJSON, err := json.Marshal(structured)
+		if err != nil {
+			continue
+		}
+
+		updates = append(updates, update{id: id, structured: string(newJSON)})
+	}
+	rows.Close()
+
+	// Apply updates: strip avoid, set expanded = canonical, mark dirty
+	for _, u := range updates {
+		_, err = tx.ExecContext(ctx,
+			`UPDATE behaviors SET content_structured = ?, content_expanded = content_canonical WHERE id = ?`,
+			u.structured, u.id)
+		if err != nil {
+			return fmt.Errorf("update behavior %s: %w", u.id, err)
+		}
+	}
+
+	// Also set expanded = canonical for all behaviors (even those without avoid),
+	// since the expanded format has changed from "avoid: X\n\nInstead: Y" to just canonical.
+	_, err = tx.ExecContext(ctx,
+		`UPDATE behaviors SET content_expanded = content_canonical WHERE content_expanded IS NOT NULL AND content_expanded != content_canonical`)
+	if err != nil {
+		return fmt.Errorf("normalize expanded content: %w", err)
+	}
+
+	// Record schema version
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO schema_version (version, applied_at) VALUES (?, datetime('now'))`,
+		7)
+	if err != nil {
+		return fmt.Errorf("record schema version: %w", err)
+	}
+
+	return tx.Commit()
+}
+
+// migrateV7ToV8 removes the expanded content field.
+// The Expanded field was made identical to Canonical in V7 and is now dead weight.
+// SQLite cannot reliably DROP COLUMN, so the column stays in the DDL but is
+// NULLed out and never read or written again.
+func migrateV7ToV8(ctx context.Context, db *sql.DB) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// NULL out content_expanded (column kept for SQLite compat)
+	_, err = tx.ExecContext(ctx,
+		`UPDATE behaviors SET content_expanded = NULL WHERE content_expanded IS NOT NULL`)
+	if err != nil {
+		return fmt.Errorf("null content_expanded: %w", err)
+	}
+
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO schema_version (version, applied_at) VALUES (?, datetime('now'))`, 8)
 	if err != nil {
 		return fmt.Errorf("record schema version: %w", err)
 	}

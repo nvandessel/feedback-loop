@@ -28,7 +28,11 @@ This command is called by agents when they receive a correction.
 It records the correction, extracts a candidate behavior, and determines
 whether the behavior can be auto-accepted or requires human review.
 
-Example:
+The --wrong flag is optional. When omitted, the behavior is created from
+the --right content alone (the "wrong" action is stored as provenance only).
+
+Examples:
+  floop learn --right "use pathlib.Path instead"
   floop learn --wrong "used os.path" --right "use pathlib.Path instead"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			wrong, _ := cmd.Flags().GetString("wrong")
@@ -37,15 +41,14 @@ Example:
 			task, _ := cmd.Flags().GetString("task")
 			root, _ := cmd.Flags().GetString("root")
 			// Validate required parameters
-			if wrong == "" {
-				return fmt.Errorf("--wrong is required and cannot be empty")
-			}
 			if right == "" {
 				return fmt.Errorf("--right is required and cannot be empty")
 			}
 
 			// Sanitize inputs to prevent stored prompt injection
-			wrong = sanitize.SanitizeBehaviorContent(wrong)
+			if wrong != "" {
+				wrong = sanitize.SanitizeBehaviorContent(wrong)
+			}
 			right = sanitize.SanitizeBehaviorContent(right)
 			if task != "" {
 				task = sanitize.SanitizeBehaviorContent(task)
@@ -55,9 +58,6 @@ Example:
 			}
 
 			// Validate that inputs are not empty after sanitization
-			if wrong == "" {
-				return fmt.Errorf("--wrong is empty after sanitization: input contained only unsafe content")
-			}
 			if right == "" {
 				return fmt.Errorf("--right is empty after sanitization: input contained only unsafe content")
 			}
@@ -169,7 +169,9 @@ Example:
 				})
 			} else {
 				fmt.Println("Correction captured and processed:")
-				fmt.Printf("  Wrong: %s\n", correction.AgentAction)
+				if correction.AgentAction != "" {
+					fmt.Printf("  Wrong: %s\n", correction.AgentAction)
+				}
 				fmt.Printf("  Right: %s\n", correction.CorrectedAction)
 				if correction.Context.FilePath != "" {
 					fmt.Printf("  File:  %s\n", correction.Context.FilePath)
@@ -197,14 +199,13 @@ Example:
 		},
 	}
 
-	cmd.Flags().String("wrong", "", "What the agent did (required)")
+	cmd.Flags().String("wrong", "", "What the agent did (optional, stored as provenance only)")
 	cmd.Flags().String("right", "", "What should have been done (required)")
 	cmd.Flags().String("file", "", "Current file path")
 	cmd.Flags().String("task", "", "Current task type")
 	cmd.Flags().String("scope", "", "Override auto-classification: local (project) or global (user)")
 	cmd.Flags().Bool("auto-merge", true, "Automatically merge similar behaviors (matches MCP behavior)")
 	cmd.Flags().StringSlice("tags", nil, "Additional tags to apply, merged with inferred tags (max 5)")
-	cmd.MarkFlagRequired("wrong")
 	cmd.MarkFlagRequired("right")
 
 	return cmd

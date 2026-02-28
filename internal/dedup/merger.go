@@ -143,7 +143,6 @@ func (m *BehaviorMerger) llmMerge(ctx context.Context, behaviors []*models.Behav
 
 	// Sanitize LLM-generated content to prevent stored prompt injection
 	merged.Content.Canonical = sanitize.SanitizeBehaviorContent(merged.Content.Canonical)
-	merged.Content.Expanded = sanitize.SanitizeBehaviorContent(merged.Content.Expanded)
 	merged.Content.Summary = sanitize.SanitizeBehaviorContent(merged.Content.Summary)
 	merged.Name = sanitize.SanitizeBehaviorName(merged.Name)
 	for i, tag := range merged.Content.Tags {
@@ -182,7 +181,6 @@ func (m *BehaviorMerger) ruleMerge(behaviors []*models.Behavior) *models.Behavio
 		When: mergeWhenConditions(behaviors),
 		Content: models.BehaviorContent{
 			Canonical: mergeCanonicalContent(behaviors),
-			Expanded:  mergeExpandedContent(behaviors),
 		},
 		Provenance: createMergeProvenance(behaviors),
 		Confidence: averageConfidence(behaviors),
@@ -191,7 +189,6 @@ func (m *BehaviorMerger) ruleMerge(behaviors []*models.Behavior) *models.Behavio
 
 	// Sanitize merged content to prevent stored prompt injection
 	merged.Content.Canonical = sanitize.SanitizeBehaviorContent(merged.Content.Canonical)
-	merged.Content.Expanded = sanitize.SanitizeBehaviorContent(merged.Content.Expanded)
 	merged.Content.Summary = sanitize.SanitizeBehaviorContent(merged.Content.Summary)
 	merged.Name = sanitize.SanitizeBehaviorName(merged.Name)
 	for i, tag := range merged.Content.Tags {
@@ -390,22 +387,6 @@ func mergeCanonicalContent(behaviors []*models.Behavior) string {
 	}
 
 	return strings.Join(parts, "; ")
-}
-
-// mergeExpandedContent combines expanded content from all behaviors.
-func mergeExpandedContent(behaviors []*models.Behavior) string {
-	var parts []string
-	seen := make(map[string]bool)
-
-	for _, b := range behaviors {
-		content := strings.TrimSpace(b.Content.Expanded)
-		if content != "" && !seen[content] {
-			parts = append(parts, content)
-			seen[content] = true
-		}
-	}
-
-	return strings.Join(parts, "\n\n")
 }
 
 // createMergeProvenance creates provenance tracking for a merged behavior.

@@ -130,24 +130,27 @@ func TestHandleFloopLearn_RequiredParams(t *testing.T) {
 	ctx := context.Background()
 	req := &sdk.CallToolRequest{}
 
-	// Test missing 'wrong' parameter
+	// Test missing 'right' parameter — should fail
 	args := FloopLearnInput{
-		Right: "Do it this way",
+		Wrong: "Did it wrong",
 	}
 
 	_, _, err := server.handleFloopLearn(ctx, req, args)
 	if err == nil {
-		t.Error("Expected error for missing 'wrong' parameter")
-	}
-
-	// Test missing 'right' parameter
-	args = FloopLearnInput{
-		Wrong: "Did it wrong",
-	}
-
-	_, _, err = server.handleFloopLearn(ctx, req, args)
-	if err == nil {
 		t.Error("Expected error for missing 'right' parameter")
+	}
+
+	// Test missing 'wrong' parameter — should succeed (wrong is optional)
+	args = FloopLearnInput{
+		Right: "Do it this way",
+	}
+
+	_, output, err := server.handleFloopLearn(ctx, req, args)
+	if err != nil {
+		t.Fatalf("Expected success when 'wrong' is omitted, got error: %v", err)
+	}
+	if output.BehaviorID == "" {
+		t.Error("BehaviorID should not be empty when learning with only 'right'")
 	}
 }
 
@@ -569,10 +572,8 @@ func TestHandleFloopDeduplicate_RateLimited(t *testing.T) {
 func TestBehaviorContentToMap(t *testing.T) {
 	content := models.BehaviorContent{
 		Canonical: "Use X instead of Y",
-		Expanded:  "When doing Z, always use X instead of Y because...",
 		Structured: map[string]interface{}{
 			"prefer": "X",
-			"avoid":  "Y",
 		},
 	}
 
@@ -582,8 +583,8 @@ func TestBehaviorContentToMap(t *testing.T) {
 		t.Errorf("canonical = %v, want %v", m["canonical"], content.Canonical)
 	}
 
-	if m["expanded"] != content.Expanded {
-		t.Errorf("expanded = %v, want %v", m["expanded"], content.Expanded)
+	if _, hasExpanded := m["expanded"]; hasExpanded {
+		t.Error("expanded key should not be present in map")
 	}
 
 	structured, ok := m["structured"].(map[string]interface{})
@@ -591,8 +592,8 @@ func TestBehaviorContentToMap(t *testing.T) {
 		t.Fatal("structured is not map[string]interface{}")
 	}
 
-	if len(structured) != 2 {
-		t.Errorf("len(structured) = %d, want 2", len(structured))
+	if len(structured) != 1 {
+		t.Errorf("len(structured) = %d, want 1", len(structured))
 	}
 }
 

@@ -33,7 +33,7 @@ cd your-project
 floop init
 
 # Teach it something
-floop learn --wrong "Used fmt.Println for errors" --right "Use log.Fatal or return error"
+floop learn --right "Use log.Fatal or return error"
 
 # See what it learned
 floop list

@@ -75,15 +75,15 @@ floop init --global --no-embeddings
 Capture a correction and extract a behavior.
 
 ```
-floop learn --wrong <text> --right <text> [flags]
+floop learn --right <text> [--wrong <text>] [flags]
 ```
 
 Called by agents when they receive a correction. Records the correction, extracts a candidate behavior, and determines whether the behavior can be auto-accepted or requires human review.
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--wrong` | string | *(required)* | What the agent did |
 | `--right` | string | *(required)* | What should have been done |
+| `--wrong` | string | `""` | What the agent did (optional, stored as provenance only) |
 | `--file` | string | `""` | Current file path |
 | `--task` | string | `""` | Current task type |
 | `--scope` | string | `""` | Override auto-classification: `local` (project) or `global` (user) |
@@ -97,17 +97,20 @@ Called by agents when they receive a correction. Records the correction, extract
 **Examples:**
 
 ```bash
-# Capture a correction
+# Capture a behavior (right only)
+floop learn --right "use pathlib.Path instead"
+
+# With optional wrong context
 floop learn --wrong "used os.path" --right "use pathlib.Path instead"
 
 # With file context, saved globally
-floop learn --wrong "used print" --right "use logging module" --file main.py --scope global
+floop learn --right "use logging module" --file main.py --scope global
 
 # With explicit tags for pack filtering
-floop learn --wrong "used pip install" --right "use uv for Python packages" --tags frond,workflow
+floop learn --right "use uv for Python packages" --tags frond,workflow
 
 # Machine-readable output
-floop learn --wrong "hardcoded config" --right "use environment variables" --json
+floop learn --right "use environment variables" --json
 ```
 
 **See also:** [detect-correction](#detect-correction), [reprocess](#reprocess), [list](#list), [tags](#tags)
@@ -362,7 +365,6 @@ Compiles active behaviors into a format suitable for injection into agent system
 | `--max-tokens` | int | `0` | Maximum tokens (0 = unlimited, deprecated: use `--token-budget`) |
 | `--token-budget` | int | `0` | Token budget for behavior injection (enables intelligent tiering) |
 | `--tiered` | bool | `false` | Use tiered injection (full/summary/omit) instead of simple truncation |
-| `--expanded` | bool | `false` | Use expanded content when available |
 
 **Examples:**
 

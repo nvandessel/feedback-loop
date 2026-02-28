@@ -167,26 +167,6 @@ func TestCompiler_Compile_Plain(t *testing.T) {
 	}
 }
 
-func TestCompiler_Compile_WithExpanded(t *testing.T) {
-	compiler := NewCompiler().WithExpanded(true)
-	behaviors := []models.Behavior{
-		{
-			ID:   "b1",
-			Kind: models.BehaviorKindDirective,
-			Content: models.BehaviorContent{
-				Canonical: "Use Go 1.25",
-				Expanded:  "Always use Go version 1.25 or later for new projects because it includes important performance improvements.",
-			},
-		},
-	}
-
-	result := compiler.Compile(behaviors)
-
-	if !strings.Contains(result.Text, "important performance improvements") {
-		t.Error("expected expanded content when WithExpanded is true")
-	}
-}
-
 func TestCompiler_Compile_SortsByPriority(t *testing.T) {
 	compiler := NewCompiler()
 	behaviors := []models.Behavior{

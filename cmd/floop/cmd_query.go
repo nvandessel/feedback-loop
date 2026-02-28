@@ -76,9 +76,6 @@ func newShowCmd() *cobra.Command {
 
 				fmt.Println("Content:")
 				fmt.Printf("  Canonical: %s\n", found.Content.Canonical)
-				if found.Content.Expanded != "" {
-					fmt.Printf("  Expanded: %s\n", found.Content.Expanded)
-				}
 				if len(found.Content.Structured) > 0 {
 					fmt.Printf("  Structured: %v\n", found.Content.Structured)
 				}
@@ -270,7 +267,6 @@ Examples:
 			maxTokens, _ := cmd.Flags().GetInt("max-tokens")
 			tokenBudget, _ := cmd.Flags().GetInt("token-budget")
 			tiered, _ := cmd.Flags().GetBool("tiered")
-			expanded, _ := cmd.Flags().GetBool("expanded")
 			jsonOut, _ := cmd.Flags().GetBool("json")
 
 			// Support both --max-tokens and --token-budget for backwards compatibility
@@ -324,8 +320,7 @@ Examples:
 			}
 
 			compiler := assembly.NewCompiler().
-				WithFormat(outputFormat).
-				WithExpanded(expanded)
+				WithFormat(outputFormat)
 
 			// Use tiered injection if requested
 			if tiered && maxTokens > 0 {
@@ -423,7 +418,6 @@ Examples:
 	cmd.Flags().Int("max-tokens", 0, "Maximum tokens (0 = unlimited, deprecated: use --token-budget)")
 	cmd.Flags().Int("token-budget", 0, "Token budget for behavior injection (enables intelligent tiering)")
 	cmd.Flags().Bool("tiered", false, "Use tiered injection (full/summary/omit) instead of simple truncation")
-	cmd.Flags().Bool("expanded", false, "Use expanded content when available")
 
 	return cmd
 }

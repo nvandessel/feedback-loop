@@ -335,6 +335,103 @@ func TestMigrateV4ToV5(t *testing.T) {
 	}
 }
 
+func TestMigrateV7ToV8(t *testing.T) {
+	// Scenario: DB at schema v7, content_expanded has data.
+	// After migration, content_expanded should be NULL for all rows.
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Create a full schema at v7 by running InitSchema with SchemaVersion temporarily at 7.
+	// Instead, create tables manually and set version to 7.
+	if _, err := db.ExecContext(ctx, preSchemaVersionDDL); err != nil {
+		t.Fatalf("create tables: %v", err)
+	}
+	// Add missing columns for v2+
+	for _, col := range []string{
+		"ALTER TABLE behaviors ADD COLUMN behavior_type TEXT",
+		"ALTER TABLE behaviors ADD COLUMN metadata_extra TEXT",
+		"ALTER TABLE behaviors ADD COLUMN content_hash TEXT",
+	} {
+		if _, err := db.ExecContext(ctx, col); err != nil {
+			t.Fatalf("add column: %v", err)
+		}
+	}
+	// Add v3 edge columns
+	for _, col := range []string{
+		"ALTER TABLE edges ADD COLUMN weight REAL DEFAULT 1.0",
+		"ALTER TABLE edges ADD COLUMN created_at TEXT",
+		"ALTER TABLE edges ADD COLUMN last_activated TEXT",
+	} {
+		if _, err := db.ExecContext(ctx, col); err != nil {
+			t.Fatalf("add edge column: %v", err)
+		}
+	}
+	// Add v6 embedding columns
+	for _, col := range []string{
+		"ALTER TABLE behaviors ADD COLUMN embedding BLOB",
+		"ALTER TABLE behaviors ADD COLUMN embedding_model TEXT",
+	} {
+		if _, err := db.ExecContext(ctx, col); err != nil {
+			t.Fatalf("add embedding column: %v", err)
+		}
+	}
+
+	// Create schema_version and set to 7
+	if _, err := db.ExecContext(ctx, `CREATE TABLE schema_version (
+		version INTEGER PRIMARY KEY,
+		applied_at TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("create schema_version: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO schema_version (version, applied_at) VALUES (7, datetime('now'))`); err != nil {
+		t.Fatalf("insert version: %v", err)
+	}
+
+	// Insert a behavior with content_expanded set
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO behaviors (id, name, kind, content_canonical, content_expanded, created_at, updated_at)
+		VALUES ('test-1', 'test', 'behavior', 'canonical text', 'expanded text', '2024-01-01', '2024-01-01')
+	`); err != nil {
+		t.Fatalf("insert behavior: %v", err)
+	}
+
+	// Verify content_expanded has data
+	var expanded sql.NullString
+	if err := db.QueryRowContext(ctx, `SELECT content_expanded FROM behaviors WHERE id = 'test-1'`).Scan(&expanded); err != nil {
+		t.Fatalf("query expanded: %v", err)
+	}
+	if !expanded.Valid || expanded.String != "expanded text" {
+		t.Fatalf("expected expanded to be 'expanded text', got %v", expanded)
+	}
+
+	// Run InitSchema — this should detect v7 and migrate to v8
+	if err := InitSchema(ctx, db); err != nil {
+		t.Fatalf("InitSchema failed: %v", err)
+	}
+
+	// Verify content_expanded is now NULL
+	if err := db.QueryRowContext(ctx, `SELECT content_expanded FROM behaviors WHERE id = 'test-1'`).Scan(&expanded); err != nil {
+		t.Fatalf("query expanded after migration: %v", err)
+	}
+	if expanded.Valid {
+		t.Errorf("expected content_expanded to be NULL after V8 migration, got %q", expanded.String)
+	}
+
+	// Verify schema version was updated to 8
+	var version int
+	if err := db.QueryRowContext(ctx, `SELECT MAX(version) FROM schema_version`).Scan(&version); err != nil {
+		t.Fatalf("get schema version: %v", err)
+	}
+	if version != SchemaVersion {
+		t.Errorf("schema version = %d, want %d", version, SchemaVersion)
+	}
+}
+
 // getColumns returns a map of column names for the given table.
 func getColumns(t *testing.T, db *sql.DB, table string) map[string]bool {
 	t.Helper()
