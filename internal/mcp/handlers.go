@@ -316,7 +316,7 @@ func (s *Server) handleFloopActive(ctx context.Context, req *sdk.CallToolRequest
 		err   error
 	)
 	if s.embedder != nil && s.embedder.Available() {
-		nodes, err = vectorRetrieve(ctx, s.embedder, s.store, actCtx, vectorRetrieveTopK)
+		nodes, err = vectorRetrieve(ctx, s.embedder, s.vectorIndex, s.store, actCtx, vectorRetrieveTopK)
 		if err != nil {
 			nodes = nil // distinguish error from empty results
 			fmt.Fprintf(os.Stderr, "warning: vector retrieval failed, falling back to full scan: %v\n", err)
@@ -682,8 +682,13 @@ func (s *Server) handleFloopLearn(ctx context.Context, req *sdk.CallToolRequest,
 		if text != "" {
 			s.runBackground("embed-new-behavior", func() {
 				if es, ok := s.store.(store.EmbeddingStore); ok {
-					if err := s.embedder.EmbedAndStore(context.Background(), es, bid, text); err != nil {
+					vec, err := s.embedder.EmbedAndStore(context.Background(), es, bid, text)
+					if err != nil {
 						fmt.Fprintf(os.Stderr, "warning: failed to embed behavior %s: %v\n", bid, err)
+					} else if s.vectorIndex != nil {
+						if err := s.vectorIndex.Add(context.Background(), bid, vec); err != nil {
+							fmt.Fprintf(os.Stderr, "warning: failed to add behavior %s to vector index: %v\n", bid, err)
+						}
 					}
 				}
 			})
@@ -1025,8 +1030,13 @@ func (s *Server) handleFloopDeduplicate(ctx context.Context, req *sdk.CallToolRe
 				if text != "" {
 					s.runBackground("embed-merged-behavior", func() {
 						if es, ok := s.store.(store.EmbeddingStore); ok {
-							if err := s.embedder.EmbedAndStore(context.Background(), es, bid, text); err != nil {
+							vec, err := s.embedder.EmbedAndStore(context.Background(), es, bid, text)
+							if err != nil {
 								fmt.Fprintf(os.Stderr, "warning: failed to embed merged behavior %s: %v\n", bid, err)
+							} else if s.vectorIndex != nil {
+								if err := s.vectorIndex.Add(context.Background(), bid, vec); err != nil {
+									fmt.Fprintf(os.Stderr, "warning: failed to add merged behavior %s to vector index: %v\n", bid, err)
+								}
 							}
 						}
 					})

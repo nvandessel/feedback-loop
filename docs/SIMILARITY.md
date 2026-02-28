@@ -20,9 +20,9 @@ When an LLM client implements the `EmbeddingComparer` interface, floop generates
 - Vectors are L2-normalized before comparison
 - Returns 0.0 for zero-magnitude or mismatched-length vectors
 
-The **local provider** (`llm.provider = local`) is designed to support offline embedding via GGUF models loaded through yzma. It is currently a stub — the interface exists but embedding generation is not yet functional. When it is ready, it will be the fastest tier in the chain.
+The **local provider** (`llm.provider = local`) runs offline embedding via GGUF models loaded through yzma (purego bindings to llama.cpp). It uses nomic-embed-text-v1.5 (Q4_K_M) to generate 768-dimension embeddings locally with no API keys or network access required. This is typically the fastest tier in the chain.
 
-Providers that support embeddings: `openai`, `ollama`, `local` (stub).
+Providers that support embeddings: `openai`, `ollama`, `local`.
 
 ## LLM Comparison
 
@@ -109,7 +109,7 @@ llm:
   comparison_model: claude-sonnet-4-5-20250929
   fallback_to_rules: true      # Fall back to Jaccard when LLM fails
 
-  # Local provider (stub — not yet functional)
+  # Local provider (offline embeddings via llama.cpp)
   local_lib_path: /path/to/yzma/libs
   local_model_path: /path/to/model.gguf
   local_embedding_model_path: /path/to/embedding-model.gguf

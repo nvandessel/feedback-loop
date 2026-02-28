@@ -225,8 +225,8 @@ func TestCoreBehaviors_Structure(t *testing.T) {
 			if prov["source_type"] != "imported" {
 				t.Errorf("source_type = %v, want imported", prov["source_type"])
 			}
-			if prov["package"] != "floop-core" {
-				t.Errorf("package = %v, want floop-core", prov["package"])
+			if prov["package"] != "floop/core" {
+				t.Errorf("package = %v, want floop/core", prov["package"])
 			}
 			if prov["package_version"] != SeedVersion {
 				t.Errorf("package_version = %v, want %s", prov["package_version"], SeedVersion)
@@ -236,8 +236,8 @@ func TestCoreBehaviors_Structure(t *testing.T) {
 }
 
 func TestSeedVersion(t *testing.T) {
-	if SeedVersion != "0.3.0" {
-		t.Errorf("SeedVersion = %q, want %q", SeedVersion, "0.3.0")
+	if SeedVersion != "0.4.0" {
+		t.Errorf("SeedVersion = %q, want %q", SeedVersion, "0.4.0")
 	}
 }
 
@@ -269,8 +269,8 @@ func TestCoreBehaviors_Provenance(t *testing.T) {
 			if !ok {
 				t.Fatalf("seed %s: metadata.provenance is not a map", seed.ID)
 			}
-			if prov["package"] != "floop-core" {
-				t.Errorf("package = %v, want floop-core", prov["package"])
+			if prov["package"] != "floop/core" {
+				t.Errorf("package = %v, want floop/core", prov["package"])
 			}
 			if prov["package_version"] != SeedVersion {
 				t.Errorf("package_version = %v, want %s", prov["package_version"], SeedVersion)
@@ -320,7 +320,7 @@ func TestSeedGlobalStore_VersionUpgradeMultiple(t *testing.T) {
 			"priority":   90,
 			"provenance": map[string]interface{}{
 				"source_type":     "imported",
-				"package":         "floop-core",
+				"package":         "floop/core",
 				"package_version": "0.1.0",
 			},
 		}

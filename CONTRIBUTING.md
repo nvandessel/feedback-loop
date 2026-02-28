@@ -13,7 +13,7 @@ Thank you for your interest in contributing to floop! This guide will help you g
 ```bash
 # Clone the repository
 git clone https://github.com/nvandessel/floop.git
-cd feedback-loop
+cd floop
 
 # Build
 make build

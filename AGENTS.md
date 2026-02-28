@@ -1,4 +1,4 @@
-# Feedback Loop - Agent Instructions
+# Floop - Agent Instructions
 
 > **For floop contributors.** If you're a user, see [docs/integrations/](docs/integrations/) for setup guides.
 
@@ -32,7 +32,7 @@ For non-Claude agents, see `docs/integrations/agent-prompt-template.md`.
 
 ## Project Overview
 
-**feedback-loop** (`floop`) is a CLI tool that enables AI agents to learn from corrections and maintain consistent behavior across sessions.
+**floop** is a CLI tool that enables AI agents to learn from corrections and maintain consistent behavior across sessions.
 
 **Tech stack:** Go 1.25+, Cobra CLI, YAML, Beads (issue tracking)
 
