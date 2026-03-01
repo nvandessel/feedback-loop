@@ -38,12 +38,14 @@ type EdgeWeightUpdate struct {
 type EdgeKind string
 
 const (
-	EdgeKindRequires    EdgeKind = "requires"
-	EdgeKindOverrides   EdgeKind = "overrides"
-	EdgeKindConflicts   EdgeKind = "conflicts"
-	EdgeKindSimilarTo   EdgeKind = "similar-to"
-	EdgeKindLearnedFrom EdgeKind = "learned-from"
-	EdgeKindCoActivated EdgeKind = "co-activated"
+	EdgeKindRequires     EdgeKind = "requires"
+	EdgeKindOverrides    EdgeKind = "overrides"
+	EdgeKindConflicts    EdgeKind = "conflicts"
+	EdgeKindSimilarTo    EdgeKind = "similar-to"
+	EdgeKindLearnedFrom  EdgeKind = "learned-from"
+	EdgeKindCoActivated  EdgeKind = "co-activated"
+	EdgeKindDeprecatedTo EdgeKind = "deprecated-to"
+	EdgeKindMergedInto   EdgeKind = "merged-into"
 )
 
 // ValidUserEdgeKinds defines the allowed edge kinds for user-facing commands.

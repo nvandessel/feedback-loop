@@ -66,7 +66,7 @@ Use 'floop restore' to undo this action.`,
 			}
 
 			// Verify it's an active behavior
-			if node.Kind != "behavior" {
+			if node.Kind != store.NodeKindBehavior {
 				if jsonOut {
 					json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 						"error":        "not an active behavior",
@@ -196,7 +196,7 @@ Use --replacement to link to a newer behavior.`,
 			}
 
 			// Verify it's an active behavior
-			if node.Kind != "behavior" {
+			if node.Kind != store.NodeKindBehavior {
 				if jsonOut {
 					json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 						"error":        "not an active behavior",
@@ -248,7 +248,7 @@ Use --replacement to link to a newer behavior.`,
 				edge := store.Edge{
 					Source:    id,
 					Target:    replacement,
-					Kind:      "deprecated-to",
+					Kind:      store.EdgeKindDeprecatedTo,
 					Weight:    1.0,
 					CreatedAt: now,
 					Metadata: map[string]interface{}{
@@ -387,7 +387,7 @@ This undoes 'floop forget' or 'floop deprecate'.`,
 
 			// Remove deprecated-to edges if this was deprecated
 			if previousKind == store.NodeKindDeprecated {
-				edges, err := graphStore.GetEdges(ctx, id, store.DirectionOutbound, "deprecated-to")
+				edges, err := graphStore.GetEdges(ctx, id, store.DirectionOutbound, store.EdgeKindDeprecatedTo)
 				if err == nil {
 					for _, e := range edges {
 						_ = graphStore.RemoveEdge(ctx, e.Source, e.Target, e.Kind)
@@ -481,10 +481,10 @@ This action cannot be undone with restore.`,
 			}
 
 			// Verify both are active behaviors
-			if sourceNode.Kind != "behavior" {
+			if sourceNode.Kind != store.NodeKindBehavior {
 				return fmt.Errorf("source is not an active behavior (kind: %s)", sourceNode.Kind)
 			}
-			if targetNode.Kind != "behavior" {
+			if targetNode.Kind != store.NodeKindBehavior {
 				return fmt.Errorf("target is not an active behavior (kind: %s)", targetNode.Kind)
 			}
 
@@ -572,7 +572,7 @@ This action cannot be undone with restore.`,
 			edge := store.Edge{
 				Source:    sourceID,
 				Target:    targetID,
-				Kind:      "merged-into",
+				Kind:      store.EdgeKindMergedInto,
 				Weight:    1.0,
 				CreatedAt: now,
 				Metadata: map[string]interface{}{
@@ -587,7 +587,7 @@ This action cannot be undone with restore.`,
 			inboundEdges, err := graphStore.GetEdges(ctx, sourceID, store.DirectionInbound, "")
 			if err == nil {
 				for _, e := range inboundEdges {
-					if e.Kind != "merged-into" { // Don't redirect the edge we just added
+					if e.Kind != store.EdgeKindMergedInto { // Don't redirect the edge we just added
 						// Remove old edge
 						_ = graphStore.RemoveEdge(ctx, e.Source, e.Target, e.Kind)
 						// Defensive fallback for legacy edges missing Weight/CreatedAt
