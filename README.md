@@ -13,7 +13,7 @@ floop captures corrections you make to AI agents, extracts reusable behaviors, a
 
 ## Why floop?
 
-AI coding agents forget everything between sessions. You correct the same mistakes repeatedly — "use structured logging," "don't commit to main," "always run tests first." floop captures those corrections once and activates them automatically in the right context, so your agent stops repeating mistakes.
+Every correction you give an AI agent is a lesson that dies at the end of the session. floop makes it stick. A correction becomes a behavior, behaviors connect into a graph, and the graph activates the right ones when context matches — file type, task, project. The neuroscience term is spreading activation. The practical result is that your agent gets better over time instead of starting from zero every morning.
 
 ## Features
 
