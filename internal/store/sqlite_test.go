@@ -631,26 +631,14 @@ func TestSQLiteGraphStore_Traverse_ConcurrentWriter(t *testing.T) {
 	// when the writer's Lock request is queued between
 	// Traverse's RLock and traverseRecursive's GetEdges RLock.
 	for i := 0; i < 100; i++ {
-		resultCh := make(chan []Node, 1)
-		errCh := make(chan error, 1)
-		go func() {
-			results, err := store.Traverse(ctx, "a", []EdgeKind{EdgeKindRequires}, DirectionOutbound, 2)
-			if err != nil {
-				errCh <- err
-				return
-			}
-			resultCh <- results
-		}()
-
-		select {
-		case results := <-resultCh:
-			if len(results) != 3 {
-				t.Errorf("iteration %d: Traverse() = %d nodes, want 3", i, len(results))
-			}
-		case err := <-errCh:
+		iterCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		results, err := store.Traverse(iterCtx, "a", []EdgeKind{EdgeKindRequires}, DirectionOutbound, 2)
+		cancel()
+		if err != nil {
 			t.Fatalf("iteration %d: Traverse() error = %v", i, err)
-		case <-time.After(5 * time.Second):
-			t.Fatalf("iteration %d: Traverse() deadlocked (timed out after 5s)", i)
+		}
+		if len(results) != 3 {
+			t.Errorf("iteration %d: Traverse() = %d nodes, want 3", i, len(results))
 		}
 	}
 }
