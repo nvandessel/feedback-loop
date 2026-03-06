@@ -835,6 +835,79 @@ func TestEngine_ConflictEdgesDoNotDilutePositiveSpread(t *testing.T) {
 	}
 }
 
+func TestEngine_SuppressiveEdgeKinds(t *testing.T) {
+	// Overrides, deprecated-to, and merged-into edges should suppress
+	// activation (like conflicts), NOT spread it positively.
+	// Bug: propagateStep only special-cased conflicts; these three kinds
+	// fell into the else branch and spread positive activation.
+	now := time.Now()
+
+	suppressiveKinds := []struct {
+		kind store.EdgeKind
+		name string
+	}{
+		{store.EdgeKindOverrides, "overrides"},
+		{store.EdgeKindDeprecatedTo, "deprecated-to"},
+		{store.EdgeKindMergedInto, "merged-into"},
+	}
+
+	for _, sk := range suppressiveKinds {
+		t.Run(sk.name+" suppresses neighbor activation", func(t *testing.T) {
+			// Seed -> A (requires), A -> B (suppressive edge kind)
+			// B should NOT gain activation from A via the suppressive edge.
+			s := store.NewInMemoryGraphStore()
+			addNode(t, s, "Seed")
+			addNode(t, s, "A")
+			addNode(t, s, "B")
+
+			addEdge(t, s, "Seed", "A", store.EdgeKindRequires, 1.0, timePtr(now))
+			addEdge(t, s, "A", "B", sk.kind, 1.0, timePtr(now))
+
+			cfg := DefaultConfig()
+			cfg.Inhibition = nil // Isolate edge behavior
+			eng := NewEngine(s, cfg)
+			seeds := []Seed{{BehaviorID: "Seed", Activation: 1.0, Source: "test"}}
+
+			results, err := eng.Activate(context.Background(), seeds)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			// Now create a baseline with a normal "requires" edge for comparison.
+			sBaseline := store.NewInMemoryGraphStore()
+			addNode(t, sBaseline, "Seed")
+			addNode(t, sBaseline, "A")
+			addNode(t, sBaseline, "B")
+
+			addEdge(t, sBaseline, "Seed", "A", store.EdgeKindRequires, 1.0, timePtr(now))
+			addEdge(t, sBaseline, "A", "B", store.EdgeKindRequires, 1.0, timePtr(now))
+
+			engBaseline := NewEngine(sBaseline, cfg)
+			baselineResults, err := engBaseline.Activate(context.Background(), seeds)
+			if err != nil {
+				t.Fatalf("unexpected error in baseline: %v", err)
+			}
+
+			rB := findResult(results, "B")
+			rBBaseline := findResult(baselineResults, "B")
+			if rBBaseline == nil {
+				t.Fatal("expected B in baseline results")
+			}
+
+			// The suppressive edge should produce strictly lower activation
+			// for B than the normal requires edge.
+			suppressiveAct := 0.0
+			if rB != nil {
+				suppressiveAct = rB.Activation
+			}
+			if suppressiveAct >= rBBaseline.Activation {
+				t.Errorf("%s edge should suppress B's activation: %s=%f, requires=%f",
+					sk.name, sk.name, suppressiveAct, rBBaseline.Activation)
+			}
+		})
+	}
+}
+
 // --- ActivateWithSteps tests ---
 
 func TestActivateWithSteps_LinearChain(t *testing.T) {
