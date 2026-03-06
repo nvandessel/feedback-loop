@@ -154,14 +154,25 @@ func (e *Engine) propagateStep(ctx context.Context, activation, newActivation ma
 			effectiveWeight := ranking.EdgeDecay(edge.Weight, edgeLastActivated(edge), e.config.TemporalDecayRate)
 
 			switch edge.Kind {
-			case store.EdgeKindConflicts, store.EdgeKindOverrides,
-				store.EdgeKindDeprecatedTo, store.EdgeKindMergedInto:
-				// Suppressive edges inhibit: subtract energy from neighbor.
+			case store.EdgeKindConflicts:
+				// Conflicts are symmetric — suppress in both directions.
 				energy := nodeAct * e.config.SpreadFactor * effectiveWeight / float64(suppressiveCount)
 				energy *= e.config.DecayFactor
 				newActivation[neighbor] -= energy
 				if newActivation[neighbor] < 0 {
 					newActivation[neighbor] = 0
+				}
+			case store.EdgeKindOverrides, store.EdgeKindDeprecatedTo, store.EdgeKindMergedInto:
+				// Directional suppression: only suppress when traversing outbound
+				// (source → target). Reverse traversal is a no-op — seeding the
+				// superseded node should not suppress its replacement.
+				if edge.Source == nodeID {
+					energy := nodeAct * e.config.SpreadFactor * effectiveWeight / float64(suppressiveCount)
+					energy *= e.config.DecayFactor
+					newActivation[neighbor] -= energy
+					if newActivation[neighbor] < 0 {
+						newActivation[neighbor] = 0
+					}
 				}
 			default:
 				// Normal edges spread: use max to prevent runaway activation.
