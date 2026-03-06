@@ -960,8 +960,9 @@ func TestEngine_AffinityEdgesDoNotInflateOutDegree(t *testing.T) {
 	}
 
 	// With affinity: A shares tags with 10 other behaviors, creating ~10
-	// virtual affinity edges. If outDegree includes virtual edges, A's real
-	// edge to B would be divided by ~12 instead of 2, severely diluting B.
+	// virtual affinity edges. A has 2 real edges visible via DirectionBoth
+	// (Seed→A incoming, A→B outgoing). Without the fix, virtual edges inflate
+	// outDegree to ~12, so B gets 1/12 of A's energy instead of 1/2.
 	sAff := store.NewInMemoryGraphStore()
 	addNode(t, sAff, "Seed")
 	addNode(t, sAff, "A")

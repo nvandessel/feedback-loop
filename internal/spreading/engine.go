@@ -138,8 +138,8 @@ func (e *Engine) propagateStep(ctx context.Context, activation, newActivation ma
 		// Count real vs virtual edges explicitly so that persisted
 		// edgeKindFeatureAffinity edges are categorised correctly (floop-g30).
 		var realOutDegree, virtualOutDegree float64
-		for _, e := range edges {
-			if e.Kind == edgeKindFeatureAffinity {
+		for _, edge := range edges {
+			if edge.Kind == edgeKindFeatureAffinity {
 				virtualOutDegree++
 			} else {
 				realOutDegree++
@@ -158,7 +158,8 @@ func (e *Engine) propagateStep(ctx context.Context, activation, newActivation ma
 				outDegree = virtualOutDegree
 			}
 			if outDegree == 0 {
-				outDegree = 1
+				// Unreachable: counts are derived from the same slice we're iterating.
+				panic(fmt.Sprintf("spreading: outDegree=0 for edge kind %q (nodeID=%s)", edge.Kind, nodeID))
 			}
 
 			energy := nodeAct * e.config.SpreadFactor * effectiveWeight / outDegree
