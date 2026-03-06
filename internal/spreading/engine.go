@@ -149,7 +149,7 @@ func (e *Engine) propagateStep(ctx context.Context, activation, newActivation ma
 			// Use separate outDegree for real vs virtual edges so that
 			// virtual affinity edges don't dilute real edge normalization.
 			outDegree := realOutDegree
-			if edge.Kind == "feature-affinity" {
+			if edge.Kind == edgeKindFeatureAffinity {
 				outDegree = virtualOutDegree
 			}
 			if outDegree == 0 {
