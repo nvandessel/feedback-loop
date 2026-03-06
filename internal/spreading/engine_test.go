@@ -820,16 +820,18 @@ func TestEngine_ConflictEdgesDoNotDilutePositiveSpread(t *testing.T) {
 	}
 
 	// A's activation should be the same whether or not conflict edges exist.
-	baselineA := findResult(baselineResults, "A")
-	testA := findResult(testResults, "A")
-	if baselineA == nil || testA == nil {
-		t.Fatal("expected A in both baseline and test results")
-	}
-
 	tolerance := 0.001
-	if math.Abs(baselineA.Activation-testA.Activation) > tolerance {
-		t.Errorf("conflict edges diluted positive spread: baseline A=%f, with conflicts A=%f",
-			baselineA.Activation, testA.Activation)
+	for _, id := range []string{"A", "B", "C"} {
+		baselineNode := findResult(baselineResults, id)
+		testNode := findResult(testResults, id)
+		if baselineNode == nil || testNode == nil {
+			t.Fatalf("expected %s in both baseline and test results", id)
+		}
+
+		if math.Abs(baselineNode.Activation-testNode.Activation) > tolerance {
+			t.Errorf("conflict edges diluted positive spread for %s: baseline=%f, with conflicts=%f",
+				id, baselineNode.Activation, testNode.Activation)
+		}
 	}
 }
 
