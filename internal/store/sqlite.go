@@ -2,6 +2,7 @@
 package store
 
 import (
+	"bufio"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -1098,14 +1099,26 @@ func (s *SQLiteGraphStore) readNodesFromJSONL() ([]Node, error) {
 	defer f.Close()
 
 	var nodes []Node
-	decoder := json.NewDecoder(f)
-	for decoder.More() {
+	scanner := bufio.NewScanner(f)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
+
+	lineNum := 0
+	for scanner.Scan() {
+		lineNum++
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
 		var node Node
-		if err := decoder.Decode(&node); err != nil {
-			// Skip malformed lines
+		if err := json.Unmarshal([]byte(line), &node); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to parse nodes.jsonl line %d: %v\n", lineNum, err)
 			continue
 		}
 		nodes = append(nodes, node)
+	}
+	if err := scanner.Err(); err != nil {
+		return nodes, fmt.Errorf("error reading nodes file: %w", err)
 	}
 	return nodes, nil
 }
