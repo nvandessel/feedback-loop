@@ -135,12 +135,32 @@ func (e *Engine) propagateStep(ctx context.Context, activation, newActivation ma
 			continue
 		}
 
-		outDegree := float64(len(edges))
+		// Count real vs virtual edges explicitly so that persisted
+		// edgeKindFeatureAffinity edges are categorised correctly (floop-g30).
+		var realOutDegree, virtualOutDegree float64
+		for _, edge := range edges {
+			if edge.Kind == edgeKindFeatureAffinity {
+				virtualOutDegree++
+			} else {
+				realOutDegree++
+			}
+		}
 
 		for _, edge := range edges {
 			neighbor := neighborID(nodeID, edge)
 
 			effectiveWeight := ranking.EdgeDecay(edge.Weight, edgeLastActivated(edge), e.config.TemporalDecayRate)
+
+			// Use separate outDegree for real vs virtual edges so that
+			// virtual affinity edges don't dilute real edge normalization.
+			outDegree := realOutDegree
+			if edge.Kind == edgeKindFeatureAffinity {
+				outDegree = virtualOutDegree
+			}
+			if outDegree == 0 {
+				// Unreachable: counts are derived from the same slice we're iterating.
+				panic(fmt.Sprintf("spreading: outDegree=0 for edge kind %q (nodeID=%s)", edge.Kind, nodeID))
+			}
 
 			energy := nodeAct * e.config.SpreadFactor * effectiveWeight / outDegree
 			energy *= e.config.DecayFactor
