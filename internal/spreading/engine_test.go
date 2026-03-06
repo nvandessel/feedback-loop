@@ -1063,4 +1063,9 @@ func TestEngine_AffinityEdgesDoNotInflateOutDegree(t *testing.T) {
 			"baseline B=%f, with affinity B=%f (ratio=%.2f, want >= 0.80)",
 			rBBase.Activation, rBAff.Activation, ratio)
 	}
+	if ratio > 1.5 {
+		t.Errorf("virtual affinity edges amplified real edge energy unexpectedly: "+
+			"baseline B=%f, with affinity B=%f (ratio=%.2f, want <= 1.50)",
+			rBBase.Activation, rBAff.Activation, ratio)
+	}
 }

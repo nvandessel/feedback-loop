@@ -124,10 +124,6 @@ func (e *Engine) propagateStep(ctx context.Context, activation, newActivation ma
 			return fmt.Errorf("spreading activation: get edges for %s: %w", nodeID, err)
 		}
 
-		// Compute real outDegree before appending virtual edges so that
-		// virtual affinity edges don't dilute real edge energy (floop-g30).
-		realOutDegree := float64(len(edges))
-
 		// Append virtual affinity edges from shared tags.
 		if affinityEnabled && allTags != nil {
 			if nodeTags, ok := allTags[nodeID]; ok && len(nodeTags) > 0 {
@@ -139,7 +135,16 @@ func (e *Engine) propagateStep(ctx context.Context, activation, newActivation ma
 			continue
 		}
 
-		virtualOutDegree := float64(len(edges)) - realOutDegree
+		// Count real vs virtual edges explicitly so that persisted
+		// edgeKindFeatureAffinity edges are categorised correctly (floop-g30).
+		var realOutDegree, virtualOutDegree float64
+		for _, e := range edges {
+			if e.Kind == edgeKindFeatureAffinity {
+				virtualOutDegree++
+			} else {
+				realOutDegree++
+			}
+		}
 
 		// Count positive and conflict edges separately so conflict edges
 		// don't dilute energy flowing through positive edges.
