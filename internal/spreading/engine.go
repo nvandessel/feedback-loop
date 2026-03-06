@@ -135,24 +135,16 @@ func (e *Engine) propagateStep(ctx context.Context, activation, newActivation ma
 			continue
 		}
 
-		// Count real vs virtual edges explicitly so that persisted
-		// edgeKindFeatureAffinity edges are categorised correctly (floop-g30).
-		var realOutDegree, virtualOutDegree float64
-		for _, e := range edges {
-			if e.Kind == edgeKindFeatureAffinity {
-				virtualOutDegree++
-			} else {
-				realOutDegree++
-			}
-		}
-
-		// Count positive and conflict edges separately so conflict edges
-		// don't dilute energy flowing through positive edges.
+		// Count edges by category: virtual affinity, conflict, and positive (real non-conflict).
+		// Each category uses its own denominator for energy normalization (floop-g30).
+		var virtualOutDegree float64
 		var positiveCount, conflictCount int
 		for _, edge := range edges {
-			if edge.Kind == store.EdgeKindConflicts {
+			if edge.Kind == edgeKindFeatureAffinity {
+				virtualOutDegree++
+			} else if edge.Kind == store.EdgeKindConflicts {
 				conflictCount++
-			} else if edge.Kind != edgeKindFeatureAffinity {
+			} else {
 				positiveCount++
 			}
 		}
@@ -178,7 +170,8 @@ func (e *Engine) propagateStep(ctx context.Context, activation, newActivation ma
 					outDegree = virtualOutDegree
 				}
 				if outDegree == 0 {
-					outDegree = 1
+					// Unreachable: counts are derived from the same slice we're iterating.
+					panic(fmt.Sprintf("spreading: outDegree=0 for edge kind %q (nodeID=%s)", edge.Kind, nodeID))
 				}
 				// Normal edges spread: use max to prevent runaway activation.
 				energy := nodeAct * e.config.SpreadFactor * effectiveWeight / outDegree
