@@ -135,13 +135,15 @@ func (e *Engine) propagateStep(ctx context.Context, activation, newActivation ma
 			continue
 		}
 
-		// Count positive and conflict edges separately so conflict edges
+		// Count positive and suppressive edges separately so suppressive edges
 		// don't dilute energy flowing through positive edges.
-		var positiveCount, conflictCount int
+		var positiveCount, suppressiveCount int
 		for _, edge := range edges {
-			if edge.Kind == store.EdgeKindConflicts {
-				conflictCount++
-			} else {
+			switch edge.Kind {
+			case store.EdgeKindConflicts, store.EdgeKindOverrides,
+				store.EdgeKindDeprecatedTo, store.EdgeKindMergedInto:
+				suppressiveCount++
+			default:
 				positiveCount++
 			}
 		}
@@ -151,15 +153,28 @@ func (e *Engine) propagateStep(ctx context.Context, activation, newActivation ma
 
 			effectiveWeight := ranking.EdgeDecay(edge.Weight, edgeLastActivated(edge), e.config.TemporalDecayRate)
 
-			if edge.Kind == store.EdgeKindConflicts {
-				// Conflict edges inhibit: subtract energy from neighbor.
-				energy := nodeAct * e.config.SpreadFactor * effectiveWeight / float64(conflictCount)
+			switch edge.Kind {
+			case store.EdgeKindConflicts:
+				// Conflicts are symmetric — suppress in both directions.
+				energy := nodeAct * e.config.SpreadFactor * effectiveWeight / float64(suppressiveCount)
 				energy *= e.config.DecayFactor
 				newActivation[neighbor] -= energy
 				if newActivation[neighbor] < 0 {
 					newActivation[neighbor] = 0
 				}
-			} else {
+			case store.EdgeKindOverrides, store.EdgeKindDeprecatedTo, store.EdgeKindMergedInto:
+				// Directional suppression: only suppress when traversing outbound
+				// (source → target). Reverse traversal is a no-op — seeding the
+				// superseded node should not suppress its replacement.
+				if edge.Source == nodeID {
+					energy := nodeAct * e.config.SpreadFactor * effectiveWeight / float64(suppressiveCount)
+					energy *= e.config.DecayFactor
+					newActivation[neighbor] -= energy
+					if newActivation[neighbor] < 0 {
+						newActivation[neighbor] = 0
+					}
+				}
+			default:
 				// Normal edges spread: use max to prevent runaway activation.
 				energy := nodeAct * e.config.SpreadFactor * effectiveWeight / float64(positiveCount)
 				energy *= e.config.DecayFactor
