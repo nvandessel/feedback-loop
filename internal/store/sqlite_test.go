@@ -187,6 +187,170 @@ func TestSQLiteGraphStore_UpdateNode(t *testing.T) {
 	}
 }
 
+func TestSQLiteGraphStore_AddBehavior_AtomicInsert(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := NewSQLiteGraphStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewSQLiteGraphStore() error = %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+	node := Node{
+		ID:   "atomic-test-1",
+		Kind: NodeKindBehavior,
+		Content: map[string]interface{}{
+			"name": "Atomic Test",
+			"kind": "directive",
+			"content": map[string]interface{}{
+				"canonical": "Atomic test canonical",
+			},
+			"when": map[string]interface{}{
+				"file_type": "go",
+				"language":  "golang",
+			},
+		},
+		Metadata: map[string]interface{}{
+			"confidence": 0.9,
+			"priority":   1.0,
+			"stats": map[string]interface{}{
+				"times_activated": 5.0,
+				"times_followed":  3.0,
+				"last_activated":  "2026-01-01T00:00:00Z",
+			},
+		},
+	}
+
+	// Add the node
+	_, err = store.AddNode(ctx, node)
+	if err != nil {
+		t.Fatalf("AddNode() error = %v", err)
+	}
+
+	// Verify all 3 tables are populated atomically
+	// 1. Check behaviors table
+	var behaviorCount int
+	err = store.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM behaviors WHERE id = ?`, "atomic-test-1").Scan(&behaviorCount)
+	if err != nil {
+		t.Fatalf("query behaviors: %v", err)
+	}
+	if behaviorCount != 1 {
+		t.Errorf("behaviors table: got %d rows, want 1", behaviorCount)
+	}
+
+	// 2. Check behavior_when table
+	var whenCount int
+	err = store.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM behavior_when WHERE behavior_id = ?`, "atomic-test-1").Scan(&whenCount)
+	if err != nil {
+		t.Fatalf("query behavior_when: %v", err)
+	}
+	if whenCount != 2 {
+		t.Errorf("behavior_when table: got %d rows, want 2", whenCount)
+	}
+
+	// 3. Check behavior_stats table
+	var statsCount int
+	err = store.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM behavior_stats WHERE behavior_id = ?`, "atomic-test-1").Scan(&statsCount)
+	if err != nil {
+		t.Fatalf("query behavior_stats: %v", err)
+	}
+	if statsCount != 1 {
+		t.Errorf("behavior_stats table: got %d rows, want 1", statsCount)
+	}
+
+	// 4. Verify stats values
+	var timesActivated int
+	err = store.db.QueryRowContext(ctx,
+		`SELECT times_activated FROM behavior_stats WHERE behavior_id = ?`, "atomic-test-1").Scan(&timesActivated)
+	if err != nil {
+		t.Fatalf("query stats values: %v", err)
+	}
+	if timesActivated != 5 {
+		t.Errorf("times_activated: got %d, want 5", timesActivated)
+	}
+}
+
+func TestSQLiteGraphStore_UpdateNode_AtomicWhenReplace(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := NewSQLiteGraphStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewSQLiteGraphStore() error = %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Add initial node with when conditions
+	node := Node{
+		ID:   "atomic-update-1",
+		Kind: NodeKindBehavior,
+		Content: map[string]interface{}{
+			"name": "Update Test",
+			"kind": "directive",
+			"content": map[string]interface{}{
+				"canonical": "Update test canonical",
+			},
+			"when": map[string]interface{}{
+				"file_type": "go",
+				"language":  "golang",
+			},
+		},
+		Metadata: map[string]interface{}{
+			"stats": map[string]interface{}{
+				"times_activated": 1.0,
+			},
+		},
+	}
+	mustAddNode(t, store, ctx, node)
+
+	// Update with different when conditions
+	node.Content["when"] = map[string]interface{}{
+		"file_type": "python",
+	}
+	err = store.UpdateNode(ctx, node)
+	if err != nil {
+		t.Fatalf("UpdateNode() error = %v", err)
+	}
+
+	// Verify old when conditions are gone and new ones are present
+	var whenCount int
+	err = store.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM behavior_when WHERE behavior_id = ?`, "atomic-update-1").Scan(&whenCount)
+	if err != nil {
+		t.Fatalf("query behavior_when: %v", err)
+	}
+	if whenCount != 1 {
+		t.Errorf("behavior_when after update: got %d rows, want 1 (old conditions should be replaced)", whenCount)
+	}
+
+	// Verify the correct when condition exists
+	var field, value string
+	err = store.db.QueryRowContext(ctx,
+		`SELECT field, value FROM behavior_when WHERE behavior_id = ?`, "atomic-update-1").Scan(&field, &value)
+	if err != nil {
+		t.Fatalf("query when condition: %v", err)
+	}
+	if field != "file_type" || value != "python" {
+		t.Errorf("when condition: got field=%q value=%q, want file_type=python", field, value)
+	}
+
+	// Verify behavior and stats still exist
+	var behaviorCount, statsCount int
+	store.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM behaviors WHERE id = ?`, "atomic-update-1").Scan(&behaviorCount)
+	store.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM behavior_stats WHERE behavior_id = ?`, "atomic-update-1").Scan(&statsCount)
+	if behaviorCount != 1 {
+		t.Errorf("behaviors table after update: got %d, want 1", behaviorCount)
+	}
+	if statsCount != 1 {
+		t.Errorf("behavior_stats table after update: got %d, want 1", statsCount)
+	}
+}
+
 func TestSQLiteGraphStore_UpdateNodeNotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 	store, err := NewSQLiteGraphStore(tmpDir)
@@ -586,6 +750,137 @@ func TestSQLiteGraphStore_WhenConditions(t *testing.T) {
 	}
 	if when["language"] != "go" {
 		t.Errorf("when.language = %v, want go", when["language"])
+	}
+}
+
+func TestSQLiteGraphStore_AddBehaviorAtomic(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := NewSQLiteGraphStore(tmpDir)
+	if err != nil {
+		t.Fatalf("NewSQLiteGraphStore() error = %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Add a behavior with when conditions and stats — all 3 tables should be populated atomically
+	node := Node{
+		ID:   "atomic-test",
+		Kind: NodeKindBehavior,
+		Content: map[string]interface{}{
+			"name": "Atomic Test",
+			"kind": "directive",
+			"content": map[string]interface{}{
+				"canonical": "Atomic test content",
+			},
+			"when": map[string]interface{}{
+				"task":     "testing",
+				"language": "go",
+			},
+		},
+		Metadata: map[string]interface{}{
+			"confidence": 0.9,
+			"stats": map[string]interface{}{
+				"times_activated": 5.0,
+				"times_followed":  3.0,
+			},
+		},
+	}
+
+	mustAddNode(t, store, ctx, node)
+
+	// Verify all 3 tables are populated
+	var behaviorCount int
+	err = store.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM behaviors WHERE id = ?`, "atomic-test").Scan(&behaviorCount)
+	if err != nil {
+		t.Fatalf("query behaviors: %v", err)
+	}
+	if behaviorCount != 1 {
+		t.Errorf("behaviors count = %d, want 1", behaviorCount)
+	}
+
+	var whenCount int
+	err = store.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM behavior_when WHERE behavior_id = ?`, "atomic-test").Scan(&whenCount)
+	if err != nil {
+		t.Fatalf("query behavior_when: %v", err)
+	}
+	if whenCount != 2 {
+		t.Errorf("behavior_when count = %d, want 2", whenCount)
+	}
+
+	var statsCount int
+	err = store.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM behavior_stats WHERE behavior_id = ?`, "atomic-test").Scan(&statsCount)
+	if err != nil {
+		t.Fatalf("query behavior_stats: %v", err)
+	}
+	if statsCount != 1 {
+		t.Errorf("behavior_stats count = %d, want 1", statsCount)
+	}
+
+	// Verify stats values were stored correctly
+	var timesActivated, timesFollowed int
+	err = store.db.QueryRowContext(ctx,
+		`SELECT times_activated, times_followed FROM behavior_stats WHERE behavior_id = ?`,
+		"atomic-test").Scan(&timesActivated, &timesFollowed)
+	if err != nil {
+		t.Fatalf("query stats values: %v", err)
+	}
+	if timesActivated != 5 {
+		t.Errorf("times_activated = %d, want 5", timesActivated)
+	}
+	if timesFollowed != 3 {
+		t.Errorf("times_followed = %d, want 3", timesFollowed)
+	}
+
+	// Test rollback: a cancelled context should not leave partial data
+	cancelCtx, cancel := context.WithCancel(ctx)
+	cancel() // Cancel immediately
+
+	_, err = store.AddNode(cancelCtx, Node{
+		ID:   "cancelled-test",
+		Kind: NodeKindBehavior,
+		Content: map[string]interface{}{
+			"name": "Cancelled",
+			"kind": "directive",
+			"content": map[string]interface{}{
+				"canonical": "Should not persist",
+			},
+			"when": map[string]interface{}{
+				"task": "testing",
+			},
+		},
+	})
+	if err == nil {
+		t.Error("AddNode with cancelled context should fail")
+	}
+
+	// Verify no partial data was left behind
+	var cancelledBehavior int
+	if err := store.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM behaviors WHERE id = ?`, "cancelled-test").Scan(&cancelledBehavior); err != nil {
+		t.Fatalf("query cancelled behaviors: %v", err)
+	}
+	if cancelledBehavior != 0 {
+		t.Errorf("cancelled behavior should not exist, got count = %d", cancelledBehavior)
+	}
+	var cancelledWhen int
+	if err := store.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM behavior_when WHERE behavior_id = ?`, "cancelled-test").Scan(&cancelledWhen); err != nil {
+		t.Fatalf("query cancelled when conditions: %v", err)
+	}
+	if cancelledWhen != 0 {
+		t.Errorf("cancelled when conditions should not exist, got count = %d", cancelledWhen)
+	}
+	var cancelledStats int
+	if err := store.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM behavior_stats WHERE behavior_id = ?`, "cancelled-test").Scan(&cancelledStats); err != nil {
+		t.Fatalf("query cancelled stats: %v", err)
+	}
+	if cancelledStats != 0 {
+		t.Errorf("cancelled stats should not exist, got count = %d", cancelledStats)
 	}
 }
 
