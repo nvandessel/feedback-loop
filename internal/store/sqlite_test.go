@@ -420,6 +420,24 @@ func TestSQLiteGraphStore_UpdateNode_NonBehavior(t *testing.T) {
 		t.Errorf("kind after update = %v, want %v", got.Kind, NodeKindContextSnapshot)
 	}
 
+	// Verify the updated content was actually persisted.
+	// For non-behavior nodes, the original Content map is stored as JSON in
+	// content_structured and returned under content["content"]["structured"].
+	contentMap, ok := got.Content["content"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("content[\"content\"] is not a map, got %T: %v", got.Content["content"], got.Content["content"])
+	}
+	structured, ok := contentMap["structured"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("content[\"content\"][\"structured\"] is not a map, got %T: %v", contentMap["structured"], contentMap["structured"])
+	}
+	if structured["summary"] != "Updated snapshot summary" {
+		t.Errorf("UpdateNode() did not persist content, got summary = %v, want %q", structured["summary"], "Updated snapshot summary")
+	}
+	if structured["name"] != "Snapshot Original" {
+		t.Errorf("UpdateNode() lost unchanged content fields, got name = %v, want %q", structured["name"], "Snapshot Original")
+	}
+
 	// Verify the node was atomically replaced (INSERT OR REPLACE) -
 	// there should still be exactly one row for this ID.
 	var count int
