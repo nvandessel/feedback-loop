@@ -854,13 +854,16 @@ func TestEngine_DirectionalSuppressiveEdges(t *testing.T) {
 
 	for _, ek := range edgeKinds {
 		t.Run(ek.name+" outbound suppresses target", func(t *testing.T) {
-			// Seed -> A (requires), A -> B (suppressive)
-			// Seeding A should suppress B.
+			// Seed -> A (requires), Seed -> B (requires, w=0.2), A -> B (suppressive)
+			// B has an independent positive activation path via Seed -> B.
+			// The suppressive A -> B edge should reduce B's activation below
+			// the baseline where A -> B is a normal requires edge instead.
 			s := store.NewInMemoryGraphStore()
 			addNode(t, s, "Seed")
 			addNode(t, s, "A")
 			addNode(t, s, "B")
 			addEdge(t, s, "Seed", "A", store.EdgeKindRequires, 1.0, timePtr(now))
+			addEdge(t, s, "Seed", "B", store.EdgeKindRequires, 0.2, timePtr(now))
 			addEdge(t, s, "A", "B", ek.kind, 1.0, timePtr(now))
 
 			eng := NewEngine(s, cfg)
@@ -869,12 +872,13 @@ func TestEngine_DirectionalSuppressiveEdges(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			// Compare against a baseline with a requires edge.
+			// Baseline: same graph but A -> B is a normal requires edge.
 			sBase := store.NewInMemoryGraphStore()
 			addNode(t, sBase, "Seed")
 			addNode(t, sBase, "A")
 			addNode(t, sBase, "B")
 			addEdge(t, sBase, "Seed", "A", store.EdgeKindRequires, 1.0, timePtr(now))
+			addEdge(t, sBase, "Seed", "B", store.EdgeKindRequires, 0.2, timePtr(now))
 			addEdge(t, sBase, "A", "B", store.EdgeKindRequires, 1.0, timePtr(now))
 
 			engBase := NewEngine(sBase, cfg)
@@ -885,17 +889,16 @@ func TestEngine_DirectionalSuppressiveEdges(t *testing.T) {
 
 			rB := findResult(results, "B")
 			rBBase := findResult(baseResults, "B")
+			if rB == nil {
+				t.Fatal("expected B in suppressive results (has positive path via Seed)")
+			}
 			if rBBase == nil {
 				t.Fatal("expected B in baseline results")
 			}
 
-			suppressAct := 0.0
-			if rB != nil {
-				suppressAct = rB.Activation
-			}
-			if suppressAct >= rBBase.Activation {
-				t.Errorf("%s edge should reduce B's activation: suppressive=%f, normal=%f",
-					ek.name, suppressAct, rBBase.Activation)
+			if rB.Activation >= rBBase.Activation {
+				t.Errorf("%s edge should reduce B's activation: suppressive=%f, baseline=%f",
+					ek.name, rB.Activation, rBBase.Activation)
 			}
 		})
 

@@ -153,7 +153,7 @@ PR #191 review (greptile-199): adding a directional edge to a node that
 already has conflict edges cannot silently halve the conflict suppression
 energy, or vice versa.
 
-### Why three denominators?
+### Why four denominators?
 
 | Category | Denominator | Edges counted |
 |---|---|---|
@@ -163,9 +163,8 @@ energy, or vice versa.
 | Virtual affinity | `virtualOutDegree` | Feature-affinity edges (tag-derived) |
 
 Each category normalizes against its own count, so the four pools of energy
-are orthogonal. This is a semantic change introduced in PR #199
-(`fix-191-suppression`) that supersedes the simpler two-pool model from
-PR #188/189.
+are orthogonal. This is a semantic change introduced in PR #199 (issue #191) that
+supersedes the simpler two-pool model from PR #188/189.
 
 ## Embedding-Based Retrieval
 
