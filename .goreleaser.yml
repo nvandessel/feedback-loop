@@ -104,6 +104,12 @@ homebrew_casks:
     homepage: https://github.com/nvandessel/floop
     description: "Behavior learning for AI agents"
     license: Apache-2.0
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/floop"]
+          end
 
 # Disable features we're not using yet
 dockers: []
