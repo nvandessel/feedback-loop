@@ -112,8 +112,13 @@ func NewHNSWIndex(cfg HNSWConfig) (*HNSWIndex, error) {
 		// load this is acceptable.
 		dims := sg.Dims()
 		if dims > 0 {
+			// Temporarily set EfSearch to graph size to ensure exact
+			// search returns all nodes, not just the approximate top-k.
+			origEf := sg.EfSearch
+			sg.EfSearch = sg.Len()
 			probe := make([]float32, dims)
 			nodes := sg.Search(probe, sg.Len())
+			sg.EfSearch = origEf
 			for _, n := range nodes {
 				vecs[n.Key] = n.Value
 			}
