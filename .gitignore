@@ -34,3 +34,6 @@ node_modules/
 .runtime/
 .claude/
 .logs/
+
+# Gas Town (added by gt)
+__pycache__/
