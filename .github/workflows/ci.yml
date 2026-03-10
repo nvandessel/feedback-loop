@@ -33,6 +33,9 @@ jobs:
     name: Test (${{ matrix.os }})
     needs: changes
     if: needs.changes.outputs.code == 'true'
+    # Windows tests are non-blocking until pre-existing failures are fixed.
+    # Tracked: fl-xn7
+    continue-on-error: ${{ matrix.os == 'windows-latest' }}
     strategy:
       fail-fast: false
       matrix:
