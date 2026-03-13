@@ -185,24 +185,21 @@ func NewServer(cfg *Config) (*Server, error) {
 
 	// Initialize vector index for fast ANN retrieval.
 	if s.embedder != nil && s.embedder.Available() {
-		indexDir := filepath.Join(cfg.Root, ".floop")
-		tieredCfg := vectorindex.TieredConfig{
-			HNSW: vectorindex.HNSWConfig{Dir: indexDir},
-		}
-		idx, err := vectorindex.NewTieredIndex(tieredCfg)
-		if err != nil {
-			s.logger.Warn("failed to create vector index", "error", err)
-		} else {
-			// Populate index from SQLite embeddings (cold start)
-			allEmb, err := graphStore.GetAllEmbeddings(context.Background())
-			if err != nil {
-				s.logger.Warn("failed to load embeddings for index", "error", err)
-			} else {
-				for _, emb := range allEmb {
-					_ = idx.Add(context.Background(), emb.BehaviorID, emb.Embedding)
-				}
+		// Clean up legacy HNSW index file.
+		hnswPath := filepath.Join(cfg.Root, ".floop", "hnsw.bin")
+		if _, err := os.Stat(hnswPath); err == nil {
+			s.logger.Warn("removing legacy HNSW index (replaced by LanceDB)", "path", hnswPath)
+			if err := os.Remove(hnswPath); err != nil {
+				s.logger.Warn("failed to remove legacy HNSW index", "path", hnswPath, "error", err)
 			}
-			s.vectorIndex = idx
+		}
+
+		vectorDir := filepath.Join(cfg.Root, ".floop", "vectors")
+		if err := os.MkdirAll(vectorDir, 0o755); err != nil {
+			s.logger.Warn("failed to create vector directory, falling back to brute-force", "error", err)
+			s.vectorIndex = vectorindex.NewBruteForceIndex()
+		} else {
+			s.vectorIndex = s.initVectorIndex(graphStore, vectorDir)
 		}
 	}
 
@@ -242,6 +239,56 @@ func NewServer(cfg *Config) (*Server, error) {
 	}
 
 	return s, nil
+}
+
+// initVectorIndex creates the vector index (LanceDB or BruteForce fallback)
+// and populates it from stored embeddings.
+func (s *Server) initVectorIndex(graphStore *store.MultiGraphStore, vectorDir string) vectorindex.VectorIndex {
+	allEmb, loadErr := graphStore.GetAllEmbeddings(context.Background())
+	if loadErr != nil {
+		s.logger.Warn("failed to load embeddings for index", "error", loadErr)
+	}
+
+	dims := 768 // default: nomic-embed-text-v1.5 output dimensions
+	if len(allEmb) > 0 {
+		dims = len(allEmb[0].Embedding)
+	}
+
+	idx, err := vectorindex.NewLanceDBIndex(vectorindex.LanceDBConfig{
+		Dir:  vectorDir,
+		Dims: dims,
+	})
+	if err != nil {
+		s.logger.Warn("LanceDB init failed, falling back to brute-force", "error", err)
+		bfIdx := vectorindex.NewBruteForceIndex()
+		if loadErr == nil {
+			var addErrs int
+			for _, emb := range allEmb {
+				if err := bfIdx.Add(context.Background(), emb.BehaviorID, emb.Embedding); err != nil {
+					addErrs++
+				}
+			}
+			if addErrs > 0 {
+				s.logger.Warn("some embeddings failed to load into brute-force index", "errors", addErrs, "total", len(allEmb))
+			}
+		}
+		return bfIdx
+	}
+
+	// Only populate from SQLite if the LanceDB table is empty (first run or after wipe).
+	// LanceDB persists across restarts, so re-upserting would just create tombstone churn.
+	if loadErr == nil && idx.Len() == 0 {
+		var addErrs int
+		for _, emb := range allEmb {
+			if err := idx.Add(context.Background(), emb.BehaviorID, emb.Embedding); err != nil {
+				addErrs++
+			}
+		}
+		if addErrs > 0 {
+			s.logger.Warn("some embeddings failed to load into vector index", "errors", addErrs, "total", len(allEmb))
+		}
+	}
+	return idx
 }
 
 // refreshPageRank recomputes the PageRank cache from the current graph state.

@@ -9,7 +9,11 @@ build:
 	go build -ldflags="$(LDFLAGS)" -o ./floop ./cmd/floop
 
 test:
+ifeq ($(CGO_ENABLED),0)
+	go test ./...
+else
 	go test -race ./...
+endif
 
 test-coverage:
 	go test -race -coverprofile=coverage.out ./...
