@@ -185,19 +185,43 @@ func NewServer(cfg *Config) (*Server, error) {
 
 	// Initialize vector index for fast ANN retrieval.
 	if s.embedder != nil && s.embedder.Available() {
-		indexDir := filepath.Join(cfg.Root, ".floop")
-		tieredCfg := vectorindex.TieredConfig{
-			HNSW: vectorindex.HNSWConfig{Dir: indexDir},
+		// Clean up legacy HNSW index file.
+		hnswPath := filepath.Join(cfg.Root, ".floop", "hnsw.bin")
+		if _, err := os.Stat(hnswPath); err == nil {
+			s.logger.Info("removing legacy HNSW index (replaced by LanceDB)", "path", hnswPath)
+			os.Remove(hnswPath)
 		}
-		idx, err := vectorindex.NewTieredIndex(tieredCfg)
+
+		vectorDir := filepath.Join(cfg.Root, ".floop", "vectors")
+		os.MkdirAll(vectorDir, 0o755)
+
+		// Load embeddings to determine dimensions and populate index.
+		allEmb, loadErr := graphStore.GetAllEmbeddings(context.Background())
+		if loadErr != nil {
+			s.logger.Warn("failed to load embeddings for index", "error", loadErr)
+		}
+
+		dims := 384 // default for common small models
+		if len(allEmb) > 0 {
+			dims = len(allEmb[0].Embedding)
+		}
+
+		idx, err := vectorindex.NewLanceDBIndex(vectorindex.LanceDBConfig{
+			Dir:  vectorDir,
+			Dims: dims,
+		})
 		if err != nil {
-			s.logger.Warn("failed to create vector index", "error", err)
+			// Fall back to BruteForceIndex (no-CGO or init failure).
+			s.logger.Warn("LanceDB init failed, falling back to brute-force", "error", err)
+			bfIdx := vectorindex.NewBruteForceIndex()
+			if loadErr == nil {
+				for _, emb := range allEmb {
+					_ = bfIdx.Add(context.Background(), emb.BehaviorID, emb.Embedding)
+				}
+			}
+			s.vectorIndex = bfIdx
 		} else {
-			// Populate index from SQLite embeddings (cold start)
-			allEmb, err := graphStore.GetAllEmbeddings(context.Background())
-			if err != nil {
-				s.logger.Warn("failed to load embeddings for index", "error", err)
-			} else {
+			if loadErr == nil {
 				for _, emb := range allEmb {
 					_ = idx.Add(context.Background(), emb.BehaviorID, emb.Embedding)
 				}
