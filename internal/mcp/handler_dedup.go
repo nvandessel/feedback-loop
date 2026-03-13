@@ -81,7 +81,7 @@ func (s *Server) handleFloopDeduplicate(ctx context.Context, req *sdk.CallToolRe
 		// Remove deleted behaviors' vectors from the index.
 		if s.vectorIndex != nil && len(report.DeletedIDs) > 0 {
 			for _, deletedID := range report.DeletedIDs {
-				if err := s.vectorIndex.Remove(context.Background(), deletedID); err != nil {
+				if err := s.vectorIndex.Remove(ctx, deletedID); err != nil {
 					s.logger.Warn("failed to remove deleted behavior from vector index", "behavior_id", deletedID, "error", err)
 				}
 			}

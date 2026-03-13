@@ -197,10 +197,8 @@ func NewServer(cfg *Config) (*Server, error) {
 		vectorDir := filepath.Join(cfg.Root, ".floop", "vectors")
 		if err := os.MkdirAll(vectorDir, 0o755); err != nil {
 			s.logger.Warn("failed to create vector directory, falling back to brute-force", "error", err)
-			s.vectorIndex = vectorindex.NewBruteForceIndex()
-		} else {
-			s.vectorIndex = s.initVectorIndex(graphStore, vectorDir)
 		}
+		s.vectorIndex = s.initVectorIndex(graphStore, vectorDir)
 	}
 
 	// Auto-seed meta-behaviors into global store (non-fatal)
