@@ -63,32 +63,36 @@ func NewLanceDBIndex(cfg LanceDBConfig) (*LanceDBIndex, error) {
 		}
 		// Validate that the on-disk schema matches the configured dimensions.
 		// A mismatch means the embedding model changed; the user must delete .floop/vectors/.
-		if schema, serr := table.Schema(ctx); serr == nil {
-			vectorFieldFound := false
-			for _, field := range schema.Fields() {
-				if field.Name == "vector" {
-					vectorFieldFound = true
-					if fsl, ok := field.Type.(*arrow.FixedSizeListType); ok {
-						if int(fsl.Len()) != cfg.Dims {
-							table.Close()
-							db.Close()
-							return nil, fmt.Errorf(
-								"vector dimension mismatch: table has %d but config expects %d "+
-									"(embedding model changed? delete .floop/vectors/ to rebuild)",
-								fsl.Len(), cfg.Dims,
-							)
-						}
+		schema, serr := table.Schema(ctx)
+		if serr != nil {
+			table.Close()
+			db.Close()
+			return nil, fmt.Errorf("read table schema: %w", serr)
+		}
+		vectorFieldFound := false
+		for _, field := range schema.Fields() {
+			if field.Name == "vector" {
+				vectorFieldFound = true
+				if fsl, ok := field.Type.(*arrow.FixedSizeListType); ok {
+					if int(fsl.Len()) != cfg.Dims {
+						table.Close()
+						db.Close()
+						return nil, fmt.Errorf(
+							"vector dimension mismatch: table has %d but config expects %d "+
+								"(embedding model changed? delete .floop/vectors/ to rebuild)",
+							fsl.Len(), cfg.Dims,
+						)
 					}
 				}
 			}
-			if !vectorFieldFound {
-				table.Close()
-				db.Close()
-				return nil, fmt.Errorf(
-					"existing table is missing the 'vector' field; " +
-						"delete .floop/vectors/ to rebuild",
-				)
-			}
+		}
+		if !vectorFieldFound {
+			table.Close()
+			db.Close()
+			return nil, fmt.Errorf(
+				"existing table is missing the 'vector' field; " +
+					"delete .floop/vectors/ to rebuild",
+			)
 		}
 	} else {
 		schema, serr := lancedb.NewSchemaBuilder().
@@ -157,7 +161,9 @@ func (l *LanceDBIndex) Add(ctx context.Context, behaviorID string, vector []floa
 	// Optimize/Compact — tombstones are cleaned up on the next full rewrite
 	// (e.g., index rebuild). This is acceptable for the expected write volume.
 	escaped := strings.ReplaceAll(behaviorID, "'", "''")
-	_ = l.table.Delete(ctx, fmt.Sprintf("id = '%s'", escaped))
+	if err := l.table.Delete(ctx, fmt.Sprintf("id = '%s'", escaped)); err != nil {
+		return fmt.Errorf("delete existing entry: %w", err)
+	}
 
 	rec, err := l.buildRecord(behaviorID, cp)
 	if err != nil {
