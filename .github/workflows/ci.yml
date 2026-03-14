@@ -110,6 +110,8 @@ jobs:
       - name: Download Go modules
         run: go mod download
       - name: Download LanceDB native libraries
-        run: bash "$(go env GOMODCACHE)/github.com/lancedb/lancedb-go@v0.1.2/scripts/download-artifacts.sh" v0.1.2
+        run: |
+          LANCE_VERSION=$(go list -m -f '{{.Version}}' github.com/lancedb/lancedb-go)
+          bash "$(go env GOMODCACHE)/github.com/lancedb/lancedb-go@${LANCE_VERSION}/scripts/download-artifacts.sh" "${LANCE_VERSION}"
       - name: Run CGO tests
         run: go test -race -count=1 ./...
