@@ -721,9 +721,9 @@ If anything goes wrong:
 ### Out of Scope (Future Work)
 
 - **Code indexing** — factual memory (what code IS) is a separate feature that rides the same LanceDB infrastructure. Phase 2 work.
-- **Multi-agent memory sharing** — agents sharing memories across sessions. Requires trust/access model.
-- **Real-time consolidation** — v0-v1 are batch/post-session. Streaming consolidation is v3+.
-- **Custom model training infrastructure** — v2 distillation uses existing yzma. Custom training pipelines are separate tooling.
+- **Multi-user memory sharing** — multiple humans sharing a floop instance. Requires trust boundaries, access control, and conflict resolution. Multi-*agent* sharing is already the architecture (single global store, any agent reads/writes via MCP or CLI).
+- **Real-time consolidation** — v0-v1 are batch/post-session. Streaming consolidation is v3+. See `docs/superpowers/specs/2026-03-14-future-vision.md`.
+- **Custom model training infrastructure** — v2 distillation uses existing yzma. Custom training pipelines are separate tooling. See `docs/superpowers/specs/2026-03-14-future-vision.md`.
 
 ## Resolved Questions
 
