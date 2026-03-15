@@ -357,8 +357,11 @@ func TestRenderHTML_ScriptBreakoutEscaped(t *testing.T) {
 		t.Fatal("could not find graphData in HTML")
 	}
 	// Check the section after graphData injection up to the closing </script>
-	dataSection := htmlStr[dataIdx : dataIdx+len(htmlStr[dataIdx:])]
+	dataSection := htmlStr[dataIdx:]
 	endIdx := strings.Index(dataSection, ";\n")
+	if endIdx < 0 {
+		endIdx = strings.Index(dataSection, ";\r\n")
+	}
 	if endIdx > 0 {
 		dataSection = dataSection[:endIdx]
 	}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 )
 
@@ -185,7 +186,7 @@ func TestReleaseVersion(t *testing.T) {
 
 func TestGitHubCachePath(t *testing.T) {
 	got := GitHubCachePath("/cache", "owner", "repo", "v1.0.0", "pack.fpack")
-	want := "/cache/owner/repo/v1.0.0/pack.fpack"
+	want := filepath.FromSlash("/cache/owner/repo/v1.0.0/pack.fpack")
 	if got != want {
 		t.Errorf("GitHubCachePath() = %q, want %q", got, want)
 	}

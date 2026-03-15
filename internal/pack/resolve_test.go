@@ -153,9 +153,10 @@ func TestResolveSource_Canonical(t *testing.T) {
 			wantCanonical: "https://example.com/pack.fpack",
 		},
 		{
-			name:          "local canonical is absolute",
-			source:        "/tmp/test.fpack",
-			wantCanonical: "/tmp/test.fpack",
+			name:   "local canonical is absolute",
+			source: "/tmp/test.fpack",
+			// On Windows filepath.Abs("/tmp/test.fpack") prepends the drive letter,
+			// so derive the expected value at runtime.
 		},
 	}
 
@@ -165,8 +166,14 @@ func TestResolveSource_Canonical(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ResolveSource() error = %v", err)
 			}
-			if got.Canonical != tt.wantCanonical {
-				t.Errorf("Canonical = %q, want %q", got.Canonical, tt.wantCanonical)
+			wantCanonical := tt.wantCanonical
+			if wantCanonical == "" {
+				// Derive expected canonical for local paths at runtime
+				// (handles Windows drive-letter prefixes).
+				wantCanonical, _ = filepath.Abs(filepath.FromSlash(tt.source))
+			}
+			if got.Canonical != wantCanonical {
+				t.Errorf("Canonical = %q, want %q", got.Canonical, wantCanonical)
 			}
 		})
 	}

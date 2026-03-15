@@ -1,6 +1,7 @@
 package sanitize
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -374,8 +375,9 @@ func TestSanitizeFilePath(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := SanitizeFilePath(tt.input)
-			if got != tt.want {
-				t.Errorf("SanitizeFilePath()\ngot:  %q\nwant: %q", got, tt.want)
+			want := filepath.FromSlash(tt.want)
+			if got != want {
+				t.Errorf("SanitizeFilePath()\ngot:  %q\nwant: %q", got, want)
 			}
 		})
 	}

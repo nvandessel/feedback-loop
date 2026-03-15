@@ -3,12 +3,16 @@ package main
 import (
 	"bytes"
 	"io"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 )
 
 func TestGraphServeImpliesHTMLFormat(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("server cleanup race on Windows")
+	}
 	tmpDir := t.TempDir()
 	isolateHome(t, tmpDir)
 
