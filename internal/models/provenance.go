@@ -31,7 +31,7 @@ type Provenance struct {
 
 	// Consolidation lineage
 	ConsolidatedBy string    `json:"consolidated_by,omitempty" yaml:"consolidated_by,omitempty"`
-	ConsolidatedAt time.Time `json:"consolidated_at,omitempty" yaml:"consolidated_at,omitempty"`
+	ConsolidatedAt *time.Time `json:"consolidated_at,omitempty" yaml:"consolidated_at,omitempty"`
 	SourceEvents   []string  `json:"source_events,omitempty" yaml:"source_events,omitempty"`
 	// Confidence is the consolidator's confidence at extraction time (snapshot).
 	// Distinct from Behavior.Confidence which evolves via activation/confirmation.

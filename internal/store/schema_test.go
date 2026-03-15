@@ -498,6 +498,20 @@ func TestMigrateV8ToV9(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Insert behaviors with specific behavior_type for backfill testing
+	_, err = db.ExecContext(ctx,
+		`INSERT INTO behaviors (id, name, kind, content_canonical, scope, behavior_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"b-proc", "procedure behavior", "behavior", "test", "global", "procedure", "2024-01-01", "2024-01-01")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.ExecContext(ctx,
+		`INSERT INTO behaviors (id, name, kind, content_canonical, scope, behavior_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"b-episodic", "episodic behavior", "behavior", "test", "global", "episodic", "2024-01-01", "2024-01-01")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// Run migration with a project ID
 	if err := migrateV8ToV9(ctx, db, "test/project"); err != nil {
 		t.Fatal(err)
@@ -528,6 +542,17 @@ func TestMigrateV8ToV9(t *testing.T) {
 	db.QueryRowContext(ctx, `SELECT memory_type FROM behaviors WHERE id = ?`, "b-local").Scan(&memType)
 	if memType != "semantic" {
 		t.Errorf("memory_type = %q, want %q", memType, "semantic")
+	}
+
+	// Verify memory_type backfill for procedure and episodic behaviors
+	var procMemType, episodicMemType string
+	db.QueryRowContext(ctx, `SELECT memory_type FROM behaviors WHERE id = ?`, "b-proc").Scan(&procMemType)
+	if procMemType != "procedural" {
+		t.Errorf("procedure memory_type = %q, want %q", procMemType, "procedural")
+	}
+	db.QueryRowContext(ctx, `SELECT memory_type FROM behaviors WHERE id = ?`, "b-episodic").Scan(&episodicMemType)
+	if episodicMemType != "episodic" {
+		t.Errorf("episodic memory_type = %q, want %q", episodicMemType, "episodic")
 	}
 
 	// Verify new columns exist

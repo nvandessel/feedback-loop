@@ -34,6 +34,9 @@ func ResolveProjectID(startDir string) (string, error) {
 			}
 			return cfg.Project.ID, nil
 		}
+		if !os.IsNotExist(err) {
+			return "", fmt.Errorf("read %s: %w", configPath, err)
+		}
 
 		parent := filepath.Dir(dir)
 		if parent == dir {
