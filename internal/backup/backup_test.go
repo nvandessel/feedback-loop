@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -326,6 +327,9 @@ func TestRestore_PathValidation(t *testing.T) {
 }
 
 func TestBackup_FilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file permissions not applicable on Windows")
+	}
 	srcStore := createTestStore(t)
 	defer srcStore.Close()
 	addTestData(t, srcStore)
@@ -394,7 +398,7 @@ func TestRestore_OversizedFile(t *testing.T) {
 }
 
 func TestGenerateBackupPath(t *testing.T) {
-	dir := "/tmp/backups"
+	dir := filepath.Join(t.TempDir(), "backups")
 	path := GenerateBackupPath(dir)
 
 	if filepath.Dir(path) != dir {
@@ -406,7 +410,7 @@ func TestGenerateBackupPath(t *testing.T) {
 }
 
 func TestGenerateBackupPathV1(t *testing.T) {
-	dir := "/tmp/backups"
+	dir := filepath.Join(t.TempDir(), "backups")
 	path := GenerateBackupPathV1(dir)
 
 	if filepath.Dir(path) != dir {

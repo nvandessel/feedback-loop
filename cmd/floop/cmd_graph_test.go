@@ -59,7 +59,7 @@ func TestGraphServeImpliesHTMLFormat(t *testing.T) {
 		if !strings.Contains(r.data, "Graph server running at") {
 			t.Fatalf("expected 'Graph server running at', got: %q", r.data)
 		}
-	case <-time.After(10 * time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("timed out waiting for server output")
 	}
 

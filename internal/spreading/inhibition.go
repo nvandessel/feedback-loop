@@ -63,7 +63,10 @@ func ApplyInhibition(activations map[string]float64, config InhibitionConfig) ma
 		nodes = append(nodes, nodeAct{id: id, act: act})
 	}
 	sort.Slice(nodes, func(i, j int) bool {
-		return nodes[i].act > nodes[j].act
+		if nodes[i].act != nodes[j].act {
+			return nodes[i].act > nodes[j].act
+		}
+		return nodes[i].id < nodes[j].id
 	})
 
 	// Step 2: Identify winners (top-M).
