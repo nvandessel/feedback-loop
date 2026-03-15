@@ -96,6 +96,57 @@ At startup, the MCP server loads all stored embeddings into a **LanceDBIndex** f
 
 At typical scales (~200 behaviors), search completes in microseconds. LanceDB scales efficiently to much larger stores without manual configuration. The brute-force fallback is used automatically when CGO is unavailable (e.g. cross-compiled binaries).
 
+## Building from Source
+
+Pre-built release binaries use BruteForce vector search (no CGO dependency). For LanceDB persistence, build from source with CGO enabled.
+
+### Prerequisites
+
+- Go 1.26+
+- C/C++ compiler (gcc/g++ on Linux, clang/clang++ on macOS)
+- LanceDB native libraries (see download step below)
+
+### Steps
+
+Run all commands from the **project root** directory:
+
+```bash
+# Download LanceDB native libraries for your platform
+go mod download || { echo "Failed to download Go modules"; exit 1; }
+LANCE_VERSION=$(go list -m -f '{{.Version}}' github.com/lancedb/lancedb-go) || { echo "lancedb-go not in go.mod"; exit 1; }
+
+# Download native binaries from GitHub release (requires gh CLI)
+gh release download "${LANCE_VERSION}" --repo lancedb/lancedb-go --pattern 'lancedb-go-native-binaries.tar.gz'
+tar -xzf lancedb-go-native-binaries.tar.gz && rm -f lancedb-go-native-binaries.tar.gz
+# This creates lib/ and include/ in the current directory
+
+# Build with CGO (Linux)
+make build-cgo
+```
+
+The `build-cgo` Makefile target uses Linux-specific linker flags. On macOS, override `CGO_LDFLAGS`:
+
+```bash
+# darwin_arm64 for Apple Silicon, darwin_amd64 for Intel Macs
+CGO_LDFLAGS="-L$(pwd)/lib/$(go env GOOS)_$(go env GOARCH) -llancedb_go -framework Security -framework CoreFoundation -lc++" make build-cgo
+```
+
+### Verify LanceDB is linked
+
+**Linux** (static linking — LanceDB should NOT appear as a shared library):
+```bash
+ldd ./floop | grep lancedb
+# No output = statically linked (correct)
+# "liblancedb_go.so => not found" = linked dynamically but missing (rebuild needed)
+```
+
+**macOS** (dynamic linking):
+```bash
+otool -L ./floop | grep lancedb
+# On macOS, LanceDB links dynamically against a .dylib.
+# The library must be present at the path shown in the output.
+```
+
 ## Troubleshooting
 
 ### Embeddings not working
