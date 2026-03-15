@@ -177,8 +177,8 @@ func TestLearnCmdSanitizesInputs(t *testing.T) {
 			}
 
 			if tt.wantFile != "" {
-				if got := ctx["file_path"].(string); got != tt.wantFile {
-					t.Errorf("context.file_path = %q, want %q", got, tt.wantFile)
+				if got := ctx["file_path"].(string); got != filepath.FromSlash(tt.wantFile) {
+					t.Errorf("context.file_path = %q, want %q", got, filepath.FromSlash(tt.wantFile))
 				}
 			}
 
@@ -605,8 +605,8 @@ func TestReprocessCmdSanitizesCorrections(t *testing.T) {
 			}
 
 			if tt.wantFile != "" {
-				if got, _ := corrCtx["file_path"].(string); got != tt.wantFile {
-					t.Errorf("rewritten context.file_path = %q, want %q", got, tt.wantFile)
+				if got, _ := corrCtx["file_path"].(string); got != filepath.FromSlash(tt.wantFile) {
+					t.Errorf("rewritten context.file_path = %q, want %q", got, filepath.FromSlash(tt.wantFile))
 				}
 			}
 			if tt.wantTask != "" {

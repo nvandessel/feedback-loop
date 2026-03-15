@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -245,6 +246,9 @@ func TestNewDecisionLogger_CreatesDir(t *testing.T) {
 }
 
 func TestDecisionLogger_FilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file permissions not applicable on Windows")
+	}
 	dir := t.TempDir()
 	dl := NewDecisionLogger(dir, "debug")
 	defer dl.Close()

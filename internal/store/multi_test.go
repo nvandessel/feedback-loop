@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -38,6 +39,11 @@ func TestNewMultiGraphStore(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", globalRoot)
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", globalRoot)
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	store, err := NewMultiGraphStore(localRoot)
 	if err != nil {
@@ -58,6 +64,11 @@ func TestMultiGraphStore_AddNode_DefaultsToGlobal(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", globalRoot)
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", globalRoot)
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	store, err := NewMultiGraphStore(localRoot)
 	if err != nil {
@@ -111,6 +122,11 @@ func TestMultiGraphStore_AddNodeToScope_Local(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", globalRoot)
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", globalRoot)
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	store, err := NewMultiGraphStore(localRoot)
 	if err != nil {
@@ -164,6 +180,11 @@ func TestMultiGraphStore_AddNodeToScope_Global(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", globalRoot)
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", globalRoot)
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	store, err := NewMultiGraphStore(localRoot)
 	if err != nil {
@@ -217,6 +238,11 @@ func TestMultiGraphStore_AddNodeToScope_RejectsInvalidScope(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", globalRoot)
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", globalRoot)
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	store, err := NewMultiGraphStore(localRoot)
 	if err != nil {
@@ -252,6 +278,11 @@ func TestMultiGraphStore_GetNode_PreferLocal(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", globalRoot)
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", globalRoot)
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	store, err := NewMultiGraphStore(localRoot)
 	if err != nil {
@@ -312,6 +343,11 @@ func TestMultiGraphStore_QueryNodes_LocalWins(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", globalRoot)
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", globalRoot)
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	store, err := NewMultiGraphStore(localRoot)
 	if err != nil {
@@ -372,6 +408,11 @@ func TestMultiGraphStore_UpdateNode_FindsCorrectStore(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", globalRoot)
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", globalRoot)
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	store, err := NewMultiGraphStore(localRoot)
 	if err != nil {
@@ -428,6 +469,11 @@ func TestMultiGraphStore_DeleteNode(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", globalRoot)
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", globalRoot)
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	store, err := NewMultiGraphStore(localRoot)
 	if err != nil {
@@ -467,6 +513,11 @@ func TestMultiGraphStore_Sync_BothStores(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", globalRoot)
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", globalRoot)
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	store, err := NewMultiGraphStore(localRoot)
 	if err != nil {
@@ -500,6 +551,11 @@ func TestMultiGraphStore_AddEdge(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", globalRoot)
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", globalRoot)
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	store, err := NewMultiGraphStore(localRoot)
 	if err != nil {
@@ -632,6 +688,11 @@ func TestMultiGraphStore_GlobalStore(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", globalRoot)
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", globalRoot)
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	ms, err := NewMultiGraphStore(localRoot)
 	if err != nil {
@@ -678,6 +739,11 @@ func TestMultiGraphStore_ValidateBehaviorGraph(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", globalRoot)
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", globalRoot)
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	store, err := NewMultiGraphStore(localRoot)
 	if err != nil {
@@ -741,6 +807,11 @@ func TestMultiGraphStore_ValidateBehaviorGraph_Valid(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", globalRoot)
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", globalRoot)
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	store, err := NewMultiGraphStore(localRoot)
 	if err != nil {
@@ -800,6 +871,11 @@ func TestMultiGraphStore_AddEdge_CrossStoreRoutesToGlobal(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", globalRoot)
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", globalRoot)
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	store, err := NewMultiGraphStore(localRoot)
 	if err != nil {
@@ -872,6 +948,11 @@ func TestMultiGraphStore_AddEdge_SameStoreStaysLocal(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", globalRoot)
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", globalRoot)
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	store, err := NewMultiGraphStore(localRoot)
 	if err != nil {
@@ -942,6 +1023,11 @@ func TestMultiGraphStore_ValidateBehaviorGraph_CrossStoreEdgeInGlobal(t *testing
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", globalRoot)
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", globalRoot)
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	store, err := NewMultiGraphStore(localRoot)
 	if err != nil {
@@ -1007,6 +1093,11 @@ func TestMultiGraphStore_ValidateBehaviorGraph_TrulyDanglingStillCaught(t *testi
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", globalRoot)
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", globalRoot)
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	store, err := NewMultiGraphStore(localRoot)
 	if err != nil {

@@ -116,7 +116,8 @@ func matchValue(actual interface{}, required interface{}) bool {
 		}
 		// Support glob patterns
 		if strings.Contains(req, "*") {
-			matched, _ := filepath.Match(req, actualStr)
+			// Normalize path separators for cross-platform glob matching
+			matched, _ := filepath.Match(filepath.FromSlash(req), filepath.FromSlash(actualStr))
 			return matched
 		}
 		return actualStr == req

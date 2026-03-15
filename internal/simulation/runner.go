@@ -3,6 +3,7 @@ package simulation
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/nvandessel/floop/internal/models"
@@ -30,6 +31,9 @@ func NewRunner(t *testing.T) *Runner {
 	t.Helper()
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", tmpDir)
+	}
 
 	s, err := store.NewSQLiteGraphStore(tmpDir)
 	if err != nil {

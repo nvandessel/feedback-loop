@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -648,6 +649,9 @@ func TestSaveTo_RoundTrip(t *testing.T) {
 }
 
 func TestSaveTo_AtomicWrite(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file permissions not applicable on Windows")
+	}
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yaml")
 

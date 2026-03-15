@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -33,6 +34,9 @@ func isolateHome(t *testing.T, tmpDir string) {
 		t.Fatalf("Failed to create temp home: %v", err)
 	}
 	t.Setenv("HOME", tmpHome)
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", tmpHome)
+	}
 }
 
 func TestSplitLines(t *testing.T) {

@@ -1,6 +1,8 @@
 package sanitize
 
 import (
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -371,11 +373,25 @@ func TestSanitizeFilePath(t *testing.T) {
 		},
 	}
 
+	// Windows drive-letter test only runs on Windows where filepath.VolumeName parses "C:".
+	if runtime.GOOS == "windows" {
+		tests = append(tests, struct {
+			name  string
+			input string
+			want  string
+		}{
+			name:  "Windows drive-letter absolute path stripped",
+			input: `C:\Windows\System32\evil.dll`,
+			want:  `Windows\System32\evil.dll`,
+		})
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := SanitizeFilePath(tt.input)
-			if got != tt.want {
-				t.Errorf("SanitizeFilePath()\ngot:  %q\nwant: %q", got, tt.want)
+			want := filepath.FromSlash(tt.want)
+			if got != want {
+				t.Errorf("SanitizeFilePath()\ngot:  %q\nwant: %q", got, want)
 			}
 		})
 	}

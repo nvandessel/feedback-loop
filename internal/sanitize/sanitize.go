@@ -148,11 +148,20 @@ func SanitizeFilePath(input string) string {
 	s := stripControlChars(input)
 	// Clean the path to resolve . and .. and double separators.
 	s = filepath.Clean(s)
-	// Strip absolute path prefix.
-	s = strings.TrimPrefix(s, "/")
-	// Strip leading path traversal components.
-	for strings.HasPrefix(s, "../") {
-		s = strings.TrimPrefix(s, "../")
+	// Strip absolute path prefix (Unix, Windows drive-letter, and UNC paths).
+	if vol := filepath.VolumeName(s); vol != "" {
+		s = strings.TrimPrefix(s, vol)
+	}
+	s = strings.TrimPrefix(s, "/")                        // Unix absolute prefix
+	s = strings.TrimPrefix(s, string(filepath.Separator)) // Windows backslash (no-op on Unix)
+	// Strip leading path traversal components (handle both "/" and OS separator).
+	parentPrefix := ".." + string(filepath.Separator)
+	for strings.HasPrefix(s, "../") || strings.HasPrefix(s, parentPrefix) {
+		if strings.HasPrefix(s, "../") {
+			s = strings.TrimPrefix(s, "../")
+		} else {
+			s = strings.TrimPrefix(s, parentPrefix)
+		}
 	}
 	if s == ".." {
 		return ""

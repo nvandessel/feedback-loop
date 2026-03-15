@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -188,13 +189,17 @@ func TestSessionStateDir(t *testing.T) {
 		t.Fatalf("failed to create temp home: %v", err)
 	}
 	t.Setenv("HOME", tmpHome)
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", tmpHome)
+	}
 
-	dir := sessionStateDir("test-session-123")
+	dir := filepath.Clean(sessionStateDir("test-session-123"))
 	if !strings.Contains(dir, "floop-session-test-session-123") {
 		t.Errorf("unexpected session dir: %s", dir)
 	}
 	// Session state should be under ~/.floop/sessions/, not os.TempDir()
-	if !strings.HasPrefix(dir, filepath.Join(tmpHome, ".floop", "sessions")) {
+	wantPrefix := filepath.Clean(filepath.Join(tmpHome, ".floop", "sessions"))
+	if !strings.HasPrefix(dir, wantPrefix) {
 		t.Errorf("session dir should be under ~/.floop/sessions/, got: %s", dir)
 	}
 }
