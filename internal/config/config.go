@@ -33,6 +33,12 @@ type FloopConfig struct {
 
 	// Packs tracks installed skill packs.
 	Packs PacksConfig `json:"packs" yaml:"packs"`
+
+	// Consolidation contains settings for memory consolidation.
+	Consolidation ConsolidationConfig `json:"consolidation" yaml:"consolidation"`
+
+	// Events contains settings for the raw event buffer.
+	Events EventsConfig `json:"events" yaml:"events"`
 }
 
 // TokenBudgetConfig configures token budget limits for behavior injection.
@@ -178,6 +184,23 @@ type DeduplicationConfig struct {
 	SimilarityThreshold float64 `json:"similarity_threshold" yaml:"similarity_threshold"`
 }
 
+// ConsolidationConfig configures memory consolidation behavior.
+type ConsolidationConfig struct {
+	// AutoConsolidate enables automatic consolidation after session end.
+	AutoConsolidate bool `json:"auto_consolidate" yaml:"auto_consolidate"`
+
+	// Executor specifies which consolidation engine to use.
+	// Values: "heuristic" (v0), "llm" (v1), "local" (v2).
+	Executor string `json:"executor" yaml:"executor"`
+}
+
+// EventsConfig configures the raw event buffer.
+type EventsConfig struct {
+	// RetentionDays is the number of days to retain raw events.
+	// Default: 90.
+	RetentionDays int `json:"retention_days" yaml:"retention_days"`
+}
+
 // Default returns a FloopConfig with sensible defaults.
 func Default() *FloopConfig {
 	return &FloopConfig{
@@ -207,6 +230,13 @@ func Default() *FloopConfig {
 			Retention: RetentionConfig{
 				MaxCount: constants.MaxBackupRotation,
 			},
+		},
+		Consolidation: ConsolidationConfig{
+			AutoConsolidate: false,
+			Executor:        "heuristic",
+		},
+		Events: EventsConfig{
+			RetentionDays: 90,
 		},
 	}
 }
@@ -295,6 +325,17 @@ func (c *FloopConfig) Validate() error {
 		if _, err := parseSizeSimple(c.Backup.Retention.MaxTotalSize); err != nil {
 			return fmt.Errorf("backup.retention.max_total_size: %w", err)
 		}
+	}
+
+	// Consolidation validation
+	validExecutors := map[string]bool{"": true, "heuristic": true, "llm": true, "local": true}
+	if !validExecutors[c.Consolidation.Executor] {
+		return fmt.Errorf("invalid consolidation executor: %s (valid: heuristic, llm, local, or empty)", c.Consolidation.Executor)
+	}
+
+	// Events validation
+	if c.Events.RetentionDays < 0 {
+		return fmt.Errorf("events.retention_days must be non-negative, got %d", c.Events.RetentionDays)
 	}
 
 	return nil
