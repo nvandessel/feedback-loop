@@ -33,9 +33,6 @@ jobs:
     name: Test (${{ matrix.os }})
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    # Windows tests are non-blocking until pre-existing failures are fixed.
-    # Tracked: fl-xn7
-    continue-on-error: ${{ matrix.os == 'windows-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -87,9 +84,6 @@ jobs:
     name: Build (${{ matrix.os }})
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    # Windows builds are non-blocking until pre-existing failures are fixed.
-    # Tracked: fl-xn7
-    continue-on-error: ${{ matrix.os == 'windows-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -121,6 +115,8 @@ jobs:
             lib_dir: linux_amd64
           - os: macos-latest
             lib_dir: darwin_arm64
+          # Windows: no native binaries in upstream release + size_t bug
+          # https://github.com/lancedb/lancedb-go/issues/17
     runs-on: ${{ matrix.os }}
     env:
       CGO_ENABLED: "1"
@@ -143,6 +139,7 @@ jobs:
             include/
           key: lancedb-native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.sum') }}
       - name: Download LanceDB native libraries
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
