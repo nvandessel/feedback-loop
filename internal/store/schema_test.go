@@ -432,6 +432,196 @@ func TestMigrateV7ToV8(t *testing.T) {
 	}
 }
 
+func TestMigrateV8ToV9(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Create a V8 database manually
+	if _, err := db.ExecContext(ctx, preSchemaVersionDDL); err != nil {
+		t.Fatal(err)
+	}
+	// Add schema_version
+	if _, err := db.ExecContext(ctx, `CREATE TABLE schema_version (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	// Add all columns up to V8
+	v2Cols := []string{
+		"ALTER TABLE behaviors ADD COLUMN behavior_type TEXT",
+		"ALTER TABLE behaviors ADD COLUMN metadata_extra TEXT",
+		"ALTER TABLE behaviors ADD COLUMN content_hash TEXT",
+	}
+	for _, col := range v2Cols {
+		db.ExecContext(ctx, col)
+	}
+	v3Cols := []string{
+		"ALTER TABLE edges ADD COLUMN weight REAL DEFAULT 1.0",
+		"ALTER TABLE edges ADD COLUMN created_at TEXT",
+		"ALTER TABLE edges ADD COLUMN last_activated TEXT",
+	}
+	for _, col := range v3Cols {
+		db.ExecContext(ctx, col)
+	}
+	v6Cols := []string{
+		"ALTER TABLE behaviors ADD COLUMN embedding BLOB",
+		"ALTER TABLE behaviors ADD COLUMN embedding_model TEXT",
+	}
+	for _, col := range v6Cols {
+		db.ExecContext(ctx, col)
+	}
+	// Record version 8
+	db.ExecContext(ctx, `INSERT INTO schema_version (version, applied_at) VALUES (8, datetime('now'))`)
+
+	// Insert behaviors with old scope values
+	_, err = db.ExecContext(ctx,
+		`INSERT INTO behaviors (id, name, kind, content_canonical, scope, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		"b-local", "local behavior", "directive", "test", "local", "2024-01-01", "2024-01-01")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.ExecContext(ctx,
+		`INSERT INTO behaviors (id, name, kind, content_canonical, scope, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		"b-global", "global behavior", "directive", "test", "global", "2024-01-01", "2024-01-01")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Run migration with a project ID
+	if err := migrateV8ToV9(ctx, db, "test/project"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify scope values transformed
+	var localScope, globalScope string
+	db.QueryRowContext(ctx, `SELECT scope FROM behaviors WHERE id = ?`, "b-local").Scan(&localScope)
+	db.QueryRowContext(ctx, `SELECT scope FROM behaviors WHERE id = ?`, "b-global").Scan(&globalScope)
+
+	if localScope != "project:test/project" {
+		t.Errorf("local scope = %q, want %q", localScope, "project:test/project")
+	}
+	if globalScope != "universal" {
+		t.Errorf("global scope = %q, want %q", globalScope, "universal")
+	}
+
+	// Verify events table exists
+	var tableName string
+	err = db.QueryRowContext(ctx,
+		`SELECT name FROM sqlite_master WHERE type='table' AND name='events'`).Scan(&tableName)
+	if err != nil {
+		t.Errorf("events table not created: %v", err)
+	}
+
+	// Verify memory_type column exists with default
+	var memType string
+	db.QueryRowContext(ctx, `SELECT memory_type FROM behaviors WHERE id = ?`, "b-local").Scan(&memType)
+	if memType != "semantic" {
+		t.Errorf("memory_type = %q, want %q", memType, "semantic")
+	}
+
+	// Verify new columns exist
+	cols := getColumns(t, db, "behaviors")
+	if !cols["episode_data"] {
+		t.Error("episode_data column not added")
+	}
+	if !cols["workflow_data"] {
+		t.Error("workflow_data column not added")
+	}
+
+	// Verify schema version was recorded
+	var version int
+	if err := db.QueryRowContext(ctx, `SELECT MAX(version) FROM schema_version`).Scan(&version); err != nil {
+		t.Fatalf("get schema version: %v", err)
+	}
+	if version != 9 {
+		t.Errorf("schema version = %d, want 9", version)
+	}
+}
+
+func TestMigrateV8ToV9_NoProjectID(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Same setup as above but abbreviated
+	db.ExecContext(ctx, preSchemaVersionDDL)
+	db.ExecContext(ctx, `CREATE TABLE schema_version (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`)
+	db.ExecContext(ctx, "ALTER TABLE behaviors ADD COLUMN behavior_type TEXT")
+	db.ExecContext(ctx, "ALTER TABLE behaviors ADD COLUMN metadata_extra TEXT")
+	db.ExecContext(ctx, "ALTER TABLE behaviors ADD COLUMN content_hash TEXT")
+	db.ExecContext(ctx, "ALTER TABLE edges ADD COLUMN weight REAL DEFAULT 1.0")
+	db.ExecContext(ctx, "ALTER TABLE edges ADD COLUMN created_at TEXT")
+	db.ExecContext(ctx, "ALTER TABLE edges ADD COLUMN last_activated TEXT")
+	db.ExecContext(ctx, "ALTER TABLE behaviors ADD COLUMN embedding BLOB")
+	db.ExecContext(ctx, "ALTER TABLE behaviors ADD COLUMN embedding_model TEXT")
+	db.ExecContext(ctx, `INSERT INTO schema_version (version, applied_at) VALUES (8, datetime('now'))`)
+
+	// Insert a local-scoped behavior
+	db.ExecContext(ctx,
+		`INSERT INTO behaviors (id, name, kind, content_canonical, scope, created_at, updated_at) VALUES ('b1', 'test', 'directive', 'test', 'local', '2024-01-01', '2024-01-01')`)
+
+	// Run migration with empty project ID
+	if err := migrateV8ToV9(ctx, db, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify local scope falls back to universal
+	var scope string
+	db.QueryRowContext(ctx, `SELECT scope FROM behaviors WHERE id = ?`, "b1").Scan(&scope)
+	if scope != "universal" {
+		t.Errorf("local scope without project = %q, want %q", scope, "universal")
+	}
+}
+
+func TestInitSchema_FreshDB_HasEventsTable(t *testing.T) {
+	// Verify that a fresh database created from scratch includes the events table
+	// and the new behavior columns.
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	if err := InitSchema(ctx, db); err != nil {
+		t.Fatalf("InitSchema failed: %v", err)
+	}
+
+	// Verify events table exists
+	if !tableExists(ctx, db, "events") {
+		t.Error("events table not created in fresh database")
+	}
+
+	// Verify new behavior columns exist
+	cols := getColumns(t, db, "behaviors")
+	if !cols["memory_type"] {
+		t.Error("memory_type column not in fresh schema")
+	}
+	if !cols["episode_data"] {
+		t.Error("episode_data column not in fresh schema")
+	}
+	if !cols["workflow_data"] {
+		t.Error("workflow_data column not in fresh schema")
+	}
+
+	// Verify schema version
+	var version int
+	if err := db.QueryRowContext(ctx, `SELECT MAX(version) FROM schema_version`).Scan(&version); err != nil {
+		t.Fatalf("get schema version: %v", err)
+	}
+	if version != SchemaVersion {
+		t.Errorf("schema version = %d, want %d", version, SchemaVersion)
+	}
+}
+
 // getColumns returns a map of column names for the given table.
 func getColumns(t *testing.T, db *sql.DB, table string) map[string]bool {
 	t.Helper()
