@@ -134,10 +134,16 @@ jobs:
             include/
           key: lancedb-native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.sum') }}
       - name: Download LanceDB native libraries
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ ! -d "lib/" ]; then
             LANCE_VERSION=$(go list -m -f '{{.Version}}' github.com/lancedb/lancedb-go)
-            bash "$(go env GOMODCACHE)/github.com/lancedb/lancedb-go@${LANCE_VERSION}/scripts/download-artifacts.sh" "${LANCE_VERSION}"
+            gh release download "${LANCE_VERSION}" \
+              --repo lancedb/lancedb-go \
+              --pattern 'lancedb-go-native-binaries.tar.gz'
+            tar -xzf lancedb-go-native-binaries.tar.gz
+            rm -f lancedb-go-native-binaries.tar.gz
           fi
       - name: Run CGO tests
         run: go test -race -count=1 ./...
@@ -167,10 +173,16 @@ jobs:
             include/
           key: lancedb-native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.sum') }}
       - name: Download LanceDB native libraries
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ ! -d "lib/" ]; then
             LANCE_VERSION=$(go list -m -f '{{.Version}}' github.com/lancedb/lancedb-go)
-            bash "$(go env GOMODCACHE)/github.com/lancedb/lancedb-go@${LANCE_VERSION}/scripts/download-artifacts.sh" "${LANCE_VERSION}"
+            gh release download "${LANCE_VERSION}" \
+              --repo lancedb/lancedb-go \
+              --pattern 'lancedb-go-native-binaries.tar.gz'
+            tar -xzf lancedb-go-native-binaries.tar.gz
+            rm -f lancedb-go-native-binaries.tar.gz
           fi
       - name: Run CGO tests
         run: go test -race -count=1 ./...
