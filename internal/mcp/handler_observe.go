@@ -6,12 +6,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/nvandessel/floop/internal/events"
 	_ "modernc.org/sqlite" // SQLite driver
 )
+
+// observeCounter provides unique IDs for MCP observe events.
+var observeCounter atomic.Int64
 
 // FloopObserveInput defines the input for floop_observe tool.
 type FloopObserveInput struct {
@@ -76,12 +80,12 @@ func (s *Server) handleFloopObserve(ctx context.Context, req *sdk.CallToolReques
 
 	sessionID := args.SessionID
 	if sessionID == "" {
-		sessionID = fmt.Sprintf("mcp-%d", time.Now().UnixNano())
+		sessionID = fmt.Sprintf("mcp-%d-%d", time.Now().UnixNano(), observeCounter.Add(1))
 	}
 
 	now := time.Now()
 	evt := events.Event{
-		ID:        fmt.Sprintf("evt-%d", now.UnixNano()),
+		ID:        fmt.Sprintf("evt-%d-%d", now.UnixNano(), observeCounter.Add(1)),
 		SessionID: sessionID,
 		Timestamp: now,
 		Source:    args.Source,

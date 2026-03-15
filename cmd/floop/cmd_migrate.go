@@ -43,8 +43,11 @@ func runMigrate(cmd *cobra.Command, args []string) error {
 
 	// Check local store exists
 	localDBPath := filepath.Join(root, ".floop", "floop.db")
-	if _, err := os.Stat(localDBPath); os.IsNotExist(err) {
-		return fmt.Errorf("no local store found at %s", localDBPath)
+	if _, err := os.Stat(localDBPath); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("no local store found at %s", localDBPath)
+		}
+		return fmt.Errorf("checking local store: %w", err)
 	}
 
 	// Open local store
