@@ -1,4 +1,4 @@
-.PHONY: build test test-coverage lint lint-fix fmt fmt-check vet vuln ci clean docs-validate graph-html graph-screenshot graph-preview graph-serve graph-test
+.PHONY: build build-cgo test test-coverage lint lint-fix fmt fmt-check vet vuln ci clean docs-validate graph-html graph-screenshot graph-preview graph-serve graph-test
 
 VERSION ?= dev
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -6,6 +6,18 @@ DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 
 build:
+	go build -ldflags="$(LDFLAGS)" -o ./floop ./cmd/floop
+
+# Build with CGO + LanceDB static linking.
+# Linux (default):  make build-cgo
+# macOS:            CGO_LDFLAGS="-L$(pwd)/lib/darwin_arm64 -llancedb_go -framework Security -framework CoreFoundation -lc++" make build-cgo
+# Prerequisites: C/C++ compiler, LanceDB native libs (run download-artifacts.sh first)
+CGO_CFLAGS ?= -I$(CURDIR)/include
+CGO_LDFLAGS ?= -L$(CURDIR)/lib/$$(go env GOOS)_$$(go env GOARCH) -Wl,-Bstatic -llancedb_go -Wl,-Bdynamic -lm -ldl -lstdc++ -lpthread
+build-cgo:
+	CGO_ENABLED=1 \
+	CGO_CFLAGS="$(CGO_CFLAGS)" \
+	CGO_LDFLAGS="$(CGO_LDFLAGS)" \
 	go build -ldflags="$(LDFLAGS)" -o ./floop ./cmd/floop
 
 test:
