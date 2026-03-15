@@ -62,6 +62,9 @@ func ApplyInhibition(activations map[string]float64, config InhibitionConfig) ma
 	for id, act := range activations {
 		nodes = append(nodes, nodeAct{id: id, act: act})
 	}
+	// Sort by activation descending. Ties are broken by node ID (ascending)
+	// for deterministic winner/loser assignment at the boundary. This means
+	// tied nodes with alphabetically earlier IDs are classified as winners.
 	sort.Slice(nodes, func(i, j int) bool {
 		if nodes[i].act != nodes[j].act {
 			return nodes[i].act > nodes[j].act
