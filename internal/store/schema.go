@@ -762,6 +762,16 @@ func migrateV8ToV9(ctx context.Context, db *sql.DB, projectID string) error {
 		return fmt.Errorf("add memory_type column: %w", err)
 	}
 
+	// Backfill memory_type for existing behavior types
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE behaviors SET memory_type = 'procedural' WHERE behavior_type IN ('procedure', 'workflow')`); err != nil {
+		return fmt.Errorf("backfill procedural memory_type: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE behaviors SET memory_type = 'episodic' WHERE behavior_type = 'episodic'`); err != nil {
+		return fmt.Errorf("backfill episodic memory_type: %w", err)
+	}
+
 	// Add type-specific data columns
 	if _, err := tx.ExecContext(ctx,
 		`ALTER TABLE behaviors ADD COLUMN episode_data TEXT`); err != nil {
