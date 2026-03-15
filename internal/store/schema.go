@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS behaviors (
     embedding_model TEXT,     -- model that produced the embedding
 
     -- Memory consolidation (V9)
-    memory_type TEXT DEFAULT 'semantic',  -- 'semantic', 'episodic', 'workflow'
+    memory_type TEXT DEFAULT 'semantic',  -- 'semantic', 'episodic', 'procedural'
     episode_data TEXT,                    -- JSON for episodic memory data
     workflow_data TEXT,                   -- JSON for workflow memory data
 
@@ -148,11 +148,13 @@ CREATE TABLE IF NOT EXISTS events (
     metadata TEXT,
     project_id TEXT,
     provenance TEXT,
+    consolidated INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);
 CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
 CREATE INDEX IF NOT EXISTS idx_events_project ON events(project_id);
+CREATE INDEX IF NOT EXISTS idx_events_consolidated ON events(consolidated);
 
 -- Schema version
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -725,7 +727,7 @@ func migrateV7ToV8(ctx context.Context, db *sql.DB) error {
 //   - 'local'  -> 'project:<projectID>' (or 'universal' if projectID is empty)
 //
 // New columns on behaviors:
-//   - memory_type: 'semantic' (default), 'episodic', 'workflow'
+//   - memory_type: 'semantic' (default), 'episodic', 'procedural'
 //   - episode_data: JSON for episodic memory data
 //   - workflow_data: JSON for workflow memory data
 //
@@ -783,6 +785,7 @@ func migrateV8ToV9(ctx context.Context, db *sql.DB, projectID string) error {
 			metadata TEXT,
 			project_id TEXT,
 			provenance TEXT,
+			consolidated INTEGER DEFAULT 0,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`); err != nil {
 		return fmt.Errorf("create events table: %w", err)
@@ -798,6 +801,10 @@ func migrateV8ToV9(ctx context.Context, db *sql.DB, projectID string) error {
 	if _, err := tx.ExecContext(ctx,
 		`CREATE INDEX IF NOT EXISTS idx_events_project ON events(project_id)`); err != nil {
 		return fmt.Errorf("create events project index: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`CREATE INDEX IF NOT EXISTS idx_events_consolidated ON events(consolidated)`); err != nil {
+		return fmt.Errorf("create events consolidated index: %w", err)
 	}
 
 	_, err = tx.ExecContext(ctx,

@@ -50,4 +50,31 @@ func TestResolveProjectID(t *testing.T) {
 			t.Errorf("got %q, want empty", id)
 		}
 	})
+
+	t.Run("returns error for malformed yaml", func(t *testing.T) {
+		dir := t.TempDir()
+		floopDir := filepath.Join(dir, ".floop")
+		os.MkdirAll(floopDir, 0o755)
+		os.WriteFile(filepath.Join(floopDir, "config.yaml"), []byte("invalid: [yaml: {\n"), 0o644)
+
+		_, err := ResolveProjectID(dir)
+		if err == nil {
+			t.Error("expected error for malformed yaml")
+		}
+	})
+
+	t.Run("returns empty for missing project id", func(t *testing.T) {
+		dir := t.TempDir()
+		floopDir := filepath.Join(dir, ".floop")
+		os.MkdirAll(floopDir, 0o755)
+		os.WriteFile(filepath.Join(floopDir, "config.yaml"), []byte("other: value\n"), 0o644)
+
+		id, err := ResolveProjectID(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if id != "" {
+			t.Errorf("got %q, want empty", id)
+		}
+	})
 }

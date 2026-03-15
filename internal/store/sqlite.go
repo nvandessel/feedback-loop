@@ -68,7 +68,12 @@ func NewSQLiteGraphStore(projectRoot string) (*SQLiteGraphStore, error) {
 	ctx := context.Background()
 
 	// Resolve project ID for schema migration
-	projectID, _ := project.ResolveProjectID(projectRoot)
+	projectID, err := project.ResolveProjectID(projectRoot)
+	if err != nil {
+		// Log warning but don't fail — graceful degradation to empty projectID
+		fmt.Fprintf(os.Stderr, "warning: failed to resolve project ID: %v\n", err)
+		projectID = ""
+	}
 
 	// Initialize schema with project context
 	if err := initSchemaWithProject(ctx, db, projectID); err != nil {

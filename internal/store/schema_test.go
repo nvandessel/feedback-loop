@@ -456,7 +456,9 @@ func TestMigrateV8ToV9(t *testing.T) {
 		"ALTER TABLE behaviors ADD COLUMN content_hash TEXT",
 	}
 	for _, col := range v2Cols {
-		db.ExecContext(ctx, col)
+		if _, err := db.ExecContext(ctx, col); err != nil {
+			t.Fatal(err)
+		}
 	}
 	v3Cols := []string{
 		"ALTER TABLE edges ADD COLUMN weight REAL DEFAULT 1.0",
@@ -464,17 +466,23 @@ func TestMigrateV8ToV9(t *testing.T) {
 		"ALTER TABLE edges ADD COLUMN last_activated TEXT",
 	}
 	for _, col := range v3Cols {
-		db.ExecContext(ctx, col)
+		if _, err := db.ExecContext(ctx, col); err != nil {
+			t.Fatal(err)
+		}
 	}
 	v6Cols := []string{
 		"ALTER TABLE behaviors ADD COLUMN embedding BLOB",
 		"ALTER TABLE behaviors ADD COLUMN embedding_model TEXT",
 	}
 	for _, col := range v6Cols {
-		db.ExecContext(ctx, col)
+		if _, err := db.ExecContext(ctx, col); err != nil {
+			t.Fatal(err)
+		}
 	}
 	// Record version 8
-	db.ExecContext(ctx, `INSERT INTO schema_version (version, applied_at) VALUES (8, datetime('now'))`)
+	if _, err := db.ExecContext(ctx, `INSERT INTO schema_version (version, applied_at) VALUES (8, datetime('now'))`); err != nil {
+		t.Fatal(err)
+	}
 
 	// Insert behaviors with old scope values
 	_, err = db.ExecContext(ctx,
@@ -551,21 +559,30 @@ func TestMigrateV8ToV9_NoProjectID(t *testing.T) {
 	ctx := context.Background()
 
 	// Same setup as above but abbreviated
-	db.ExecContext(ctx, preSchemaVersionDDL)
-	db.ExecContext(ctx, `CREATE TABLE schema_version (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`)
-	db.ExecContext(ctx, "ALTER TABLE behaviors ADD COLUMN behavior_type TEXT")
-	db.ExecContext(ctx, "ALTER TABLE behaviors ADD COLUMN metadata_extra TEXT")
-	db.ExecContext(ctx, "ALTER TABLE behaviors ADD COLUMN content_hash TEXT")
-	db.ExecContext(ctx, "ALTER TABLE edges ADD COLUMN weight REAL DEFAULT 1.0")
-	db.ExecContext(ctx, "ALTER TABLE edges ADD COLUMN created_at TEXT")
-	db.ExecContext(ctx, "ALTER TABLE edges ADD COLUMN last_activated TEXT")
-	db.ExecContext(ctx, "ALTER TABLE behaviors ADD COLUMN embedding BLOB")
-	db.ExecContext(ctx, "ALTER TABLE behaviors ADD COLUMN embedding_model TEXT")
-	db.ExecContext(ctx, `INSERT INTO schema_version (version, applied_at) VALUES (8, datetime('now'))`)
+	setupStmts := []string{
+		preSchemaVersionDDL,
+		`CREATE TABLE schema_version (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`,
+		"ALTER TABLE behaviors ADD COLUMN behavior_type TEXT",
+		"ALTER TABLE behaviors ADD COLUMN metadata_extra TEXT",
+		"ALTER TABLE behaviors ADD COLUMN content_hash TEXT",
+		"ALTER TABLE edges ADD COLUMN weight REAL DEFAULT 1.0",
+		"ALTER TABLE edges ADD COLUMN created_at TEXT",
+		"ALTER TABLE edges ADD COLUMN last_activated TEXT",
+		"ALTER TABLE behaviors ADD COLUMN embedding BLOB",
+		"ALTER TABLE behaviors ADD COLUMN embedding_model TEXT",
+		`INSERT INTO schema_version (version, applied_at) VALUES (8, datetime('now'))`,
+	}
+	for _, stmt := range setupStmts {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	// Insert a local-scoped behavior
-	db.ExecContext(ctx,
-		`INSERT INTO behaviors (id, name, kind, content_canonical, scope, created_at, updated_at) VALUES ('b1', 'test', 'directive', 'test', 'local', '2024-01-01', '2024-01-01')`)
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO behaviors (id, name, kind, content_canonical, scope, created_at, updated_at) VALUES ('b1', 'test', 'directive', 'test', 'local', '2024-01-01', '2024-01-01')`); err != nil {
+		t.Fatal(err)
+	}
 
 	// Run migration with empty project ID
 	if err := migrateV8ToV9(ctx, db, ""); err != nil {

@@ -5,7 +5,7 @@ import "testing"
 func TestNewBehaviorKinds(t *testing.T) {
 	tests := []struct {
 		kind     BehaviorKind
-		wantType string
+		wantType MemoryType
 	}{
 		{BehaviorKindDirective, MemoryTypeSemantic},
 		{BehaviorKindConstraint, MemoryTypeSemantic},

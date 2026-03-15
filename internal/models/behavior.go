@@ -26,15 +26,18 @@ const (
 	BehaviorKindMerged     BehaviorKind = BehaviorKind(store.NodeKindMerged)
 )
 
+// MemoryType classifies behaviors by cognitive category.
+type MemoryType string
+
 // Memory type constants for classifying behaviors by cognitive category
 const (
-	MemoryTypeSemantic   = "semantic"
-	MemoryTypeEpisodic   = "episodic"
-	MemoryTypeProcedural = "procedural"
+	MemoryTypeSemantic   MemoryType = "semantic"
+	MemoryTypeEpisodic   MemoryType = "episodic"
+	MemoryTypeProcedural MemoryType = "procedural"
 )
 
 // MemoryTypeForKind returns the memory type classification for a given BehaviorKind.
-func MemoryTypeForKind(kind BehaviorKind) string {
+func MemoryTypeForKind(kind BehaviorKind) MemoryType {
 	switch kind {
 	case BehaviorKindEpisodic:
 		return MemoryTypeEpisodic
@@ -101,6 +104,11 @@ type Behavior struct {
 
 	// Provenance - where did this come from?
 	Provenance Provenance `json:"provenance" yaml:"provenance"`
+
+	// Memory consolidation fields (V9)
+	MemoryType   MemoryType    `json:"memory_type,omitempty" yaml:"memory_type,omitempty"`
+	EpisodeData  *EpisodeData  `json:"episode_data,omitempty" yaml:"episode_data,omitempty"`
+	WorkflowData *WorkflowData `json:"workflow_data,omitempty" yaml:"workflow_data,omitempty"`
 
 	// Confidence score (0.0 - 1.0)
 	// Learned behaviors start lower, increase with successful application
