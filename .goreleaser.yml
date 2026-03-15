@@ -1,11 +1,14 @@
 # GoReleaser configuration for floop
 # Documentation: https://goreleaser.com
+#
+# Builds use CGO_ENABLED=0 (BruteForce vector search fallback).
+# For LanceDB support, build from source with CGO enabled.
+# See docs/EMBEDDINGS.md for build-from-source instructions.
 
 version: 2
 
 before:
   hooks:
-    # Ensure dependencies are up to date
     - go mod tidy
 
 builds:
@@ -26,7 +29,6 @@ builds:
     goarch:
       - amd64
       - arm64
-    # Ensure all combinations are built
     ignore: []
 
 archives:
@@ -86,10 +88,11 @@ release:
     brew install nvandessel/tap/floop
     ```
 
-    ### Go
+    ### Go install
     ```
     go install github.com/nvandessel/floop/cmd/floop@latest
     ```
+    Note: `go install` builds without CGO, using BruteForce vector search. For LanceDB persistence, see [building from source](https://github.com/nvandessel/floop/blob/main/docs/EMBEDDINGS.md#building-from-source).
 
     ### Manual
     Download the appropriate archive for your platform below, extract it, and move the `floop` binary to your PATH.
