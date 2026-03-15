@@ -1,3 +1,4 @@
+// Package project provides project identity resolution for floop.
 package project
 
 import (
