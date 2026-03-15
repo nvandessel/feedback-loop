@@ -53,6 +53,10 @@ func (r *Runner) Run(ctx context.Context, evts []events.Event, s store.GraphStor
 		return result, nil
 	}
 
+	if ctx.Err() != nil {
+		return result, ctx.Err()
+	}
+
 	// Stage 2: Classify
 	classified, err := r.consolidator.Classify(ctx, candidates)
 	if err != nil {
@@ -66,6 +70,10 @@ func (r *Runner) Run(ctx context.Context, evts []events.Event, s store.GraphStor
 		return result, nil
 	}
 
+	if ctx.Err() != nil {
+		return result, ctx.Err()
+	}
+
 	// Stage 3: Relate
 	edges, merges, err := r.consolidator.Relate(ctx, classified, s)
 	if err != nil {
@@ -74,11 +82,17 @@ func (r *Runner) Run(ctx context.Context, evts []events.Event, s store.GraphStor
 	result.Edges = edges
 	result.Merges = merges
 
+	if ctx.Err() != nil {
+		return result, ctx.Err()
+	}
+
 	// Stage 4: Promote
 	err = r.consolidator.Promote(ctx, classified, edges, merges, s)
 	if err != nil {
 		return nil, fmt.Errorf("promote stage: %w", err)
 	}
+	// NOTE: This count assumes 1:1 merge proposal to memory. When Relate
+	// returns real merge proposals, Promote should return the actual count.
 	result.Promoted = len(classified) - len(merges)
 
 	result.Duration = time.Since(start)

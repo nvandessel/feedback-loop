@@ -29,7 +29,7 @@ type patternEntry struct {
 
 var signalPatterns = []patternEntry{
 	{
-		patterns:      []string{"no, don't", "instead of", "not that", "actually use", "wrong", "no don't", "don't do"},
+		patterns:      []string{"no, don't", "instead of", "not that", "actually use", "that's wrong", "that is wrong", "is wrong", "are wrong", "no don't", "don't do"},
 		candidateType: "correction",
 		confidence:    0.7,
 	},
@@ -105,13 +105,23 @@ func (h *HeuristicConsolidator) Classify(ctx context.Context, candidates []Candi
 			Tags:      extractTags(c.RawText),
 		}
 
+		var episodeData *models.EpisodeData
+		if kind == models.BehaviorKindEpisodic {
+			sessionID, _ := c.SessionContext["session_id"].(string)
+			episodeData = &models.EpisodeData{
+				SessionID: sessionID,
+				Outcome:   "unknown",
+			}
+		}
+
 		mem := ClassifiedMemory{
-			Candidate:  c,
-			Kind:       kind,
-			MemoryType: memType,
-			Scope:      "universal",
-			Importance: c.Confidence,
-			Content:    content,
+			Candidate:   c,
+			Kind:        kind,
+			MemoryType:  memType,
+			Scope:       "universal",
+			Importance:  c.Confidence,
+			Content:     content,
+			EpisodeData: episodeData,
 		}
 
 		memories = append(memories, mem)
@@ -121,7 +131,7 @@ func (h *HeuristicConsolidator) Classify(ctx context.Context, candidates []Candi
 }
 
 // classifyCandidate maps a candidate type string to a behavior kind and memory type.
-func classifyCandidate(candidateType string) (models.BehaviorKind, string) {
+func classifyCandidate(candidateType string) (models.BehaviorKind, models.MemoryType) {
 	switch candidateType {
 	case "correction":
 		return models.BehaviorKindDirective, models.MemoryTypeSemantic
@@ -132,18 +142,19 @@ func classifyCandidate(candidateType string) (models.BehaviorKind, string) {
 	case "discovery":
 		return models.BehaviorKindDirective, models.MemoryTypeSemantic
 	case "workflow":
-		return models.BehaviorKindProcedure, models.MemoryTypeProcedural
+		return models.BehaviorKindWorkflow, models.MemoryTypeProcedural
 	default:
 		return models.BehaviorKindDirective, models.MemoryTypeSemantic
 	}
 }
 
-// truncate returns s truncated to maxLen characters with "..." appended if it was longer.
+// truncate returns s truncated to maxLen runes with "..." appended if it was longer.
 func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
 		return s
 	}
-	return s[:maxLen] + "..."
+	return string(runes[:maxLen]) + "..."
 }
 
 // extractTags splits text on whitespace, filters short words, and returns up to 5 keywords.
@@ -189,20 +200,21 @@ func (h *HeuristicConsolidator) Promote(ctx context.Context, memories []Classifi
 		}
 	}
 
+	baseTS := time.Now().UnixNano()
 	for i, mem := range memories {
 		if merged[i] {
 			continue
 		}
 
 		node := store.Node{
-			ID:   fmt.Sprintf("consolidated-%d-%d", time.Now().UnixNano(), i),
+			ID:   fmt.Sprintf("consolidated-%d-%d", baseTS, i),
 			Kind: store.NodeKindBehavior,
 			Content: map[string]interface{}{
 				"canonical":     mem.Content.Canonical,
 				"summary":       mem.Content.Summary,
 				"tags":          mem.Content.Tags,
 				"behavior_type": string(mem.Kind),
-				"memory_type":   mem.MemoryType,
+				"memory_type":   string(mem.MemoryType),
 				"scope":         mem.Scope,
 			},
 			Metadata: map[string]interface{}{

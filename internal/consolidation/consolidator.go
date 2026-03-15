@@ -23,8 +23,8 @@ type Candidate struct {
 type ClassifiedMemory struct {
 	Candidate
 	Kind         models.BehaviorKind
-	MemoryType   string // semantic, episodic, procedural
-	Scope        string // "universal" or "project:namespace/name"
+	MemoryType   models.MemoryType // semantic, episodic, procedural
+	Scope        string            // "universal" or "project:namespace/name"
 	Importance   float64
 	Content      models.BehaviorContent
 	EpisodeData  *models.EpisodeData
