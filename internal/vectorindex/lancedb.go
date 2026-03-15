@@ -28,6 +28,10 @@ type LanceDBIndex struct {
 	db    contracts.IConnection
 	table contracts.ITable
 	dims  int
+
+	// Cached Arrow schema and vector type — immutable after construction.
+	arrowSchema *arrow.Schema
+	vectorType  *arrow.FixedSizeListType
 }
 
 // NewLanceDBIndex creates a LanceDBIndex backed by the given directory.
@@ -118,17 +122,24 @@ func NewLanceDBIndex(cfg LanceDBConfig) (*LanceDBIndex, error) {
 		}
 	}
 
-	return &LanceDBIndex{db: db, table: table, dims: cfg.Dims}, nil
+	vectorType := arrow.FixedSizeListOf(int32(cfg.Dims), arrow.PrimitiveTypes.Float32)
+	arrowSchema := arrow.NewSchema([]arrow.Field{
+		{Name: "id", Type: arrow.BinaryTypes.String},
+		{Name: "vector", Type: vectorType},
+	}, nil)
+
+	return &LanceDBIndex{
+		db:          db,
+		table:       table,
+		dims:        cfg.Dims,
+		arrowSchema: arrowSchema,
+		vectorType:  vectorType,
+	}, nil
 }
 
 // buildRecord creates a single-row Arrow record for a behavior embedding.
 func (l *LanceDBIndex) buildRecord(behaviorID string, vector []float32) (arrow.Record, error) {
 	pool := memory.NewGoAllocator()
-
-	arrowSchema := arrow.NewSchema([]arrow.Field{
-		{Name: "id", Type: arrow.BinaryTypes.String},
-		{Name: "vector", Type: arrow.FixedSizeListOf(int32(l.dims), arrow.PrimitiveTypes.Float32)},
-	}, nil)
 
 	idBuilder := array.NewStringBuilder(pool)
 	defer idBuilder.Release()
@@ -142,13 +153,12 @@ func (l *LanceDBIndex) buildRecord(behaviorID string, vector []float32) (arrow.R
 	floatArray := floatBuilder.NewArray()
 	defer floatArray.Release()
 
-	vectorType := arrow.FixedSizeListOf(int32(l.dims), arrow.PrimitiveTypes.Float32)
-	vectorData := array.NewData(vectorType, 1, []*memory.Buffer{nil}, []arrow.ArrayData{floatArray.Data()}, 0, 0)
+	vectorData := array.NewData(l.vectorType, 1, []*memory.Buffer{nil}, []arrow.ArrayData{floatArray.Data()}, 0, 0)
 	defer vectorData.Release()
 	vectorArray := array.NewFixedSizeListData(vectorData)
 	defer vectorArray.Release()
 
-	rec := array.NewRecord(arrowSchema, []arrow.Array{idArray, vectorArray}, 1)
+	rec := array.NewRecord(l.arrowSchema, []arrow.Array{idArray, vectorArray}, 1)
 	return rec, nil
 }
 
