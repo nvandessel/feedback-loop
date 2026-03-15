@@ -109,10 +109,19 @@ jobs:
           go-version-file: "go.mod"
       - name: Download Go modules
         run: go mod download
+      - name: Cache LanceDB native libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            lib/
+            include/
+          key: lancedb-native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.sum') }}
       - name: Download LanceDB native libraries
         run: |
-          LANCE_VERSION=$(go list -m -f '{{.Version}}' github.com/lancedb/lancedb-go)
-          bash "$(go env GOMODCACHE)/github.com/lancedb/lancedb-go@${LANCE_VERSION}/scripts/download-artifacts.sh" "${LANCE_VERSION}"
+          if [ ! -d "lib/" ]; then
+            LANCE_VERSION=$(go list -m -f '{{.Version}}' github.com/lancedb/lancedb-go)
+            bash "$(go env GOMODCACHE)/github.com/lancedb/lancedb-go@${LANCE_VERSION}/scripts/download-artifacts.sh" "${LANCE_VERSION}"
+          fi
       - name: Run CGO tests
         run: go test -race -count=1 ./...
 
@@ -133,9 +142,18 @@ jobs:
           go-version-file: "go.mod"
       - name: Download Go modules
         run: go mod download
+      - name: Cache LanceDB native libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            lib/
+            include/
+          key: lancedb-native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.sum') }}
       - name: Download LanceDB native libraries
         run: |
-          LANCE_VERSION=$(go list -m -f '{{.Version}}' github.com/lancedb/lancedb-go)
-          bash "$(go env GOMODCACHE)/github.com/lancedb/lancedb-go@${LANCE_VERSION}/scripts/download-artifacts.sh" "${LANCE_VERSION}"
+          if [ ! -d "lib/" ]; then
+            LANCE_VERSION=$(go list -m -f '{{.Version}}' github.com/lancedb/lancedb-go)
+            bash "$(go env GOMODCACHE)/github.com/lancedb/lancedb-go@${LANCE_VERSION}/scripts/download-artifacts.sh" "${LANCE_VERSION}"
+          fi
       - name: Run CGO tests
         run: go test -race -count=1 ./...
