@@ -3,6 +3,7 @@ package store
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -81,6 +82,10 @@ func TestEnsureGlobalFloopDir(t *testing.T) {
 	// Save original home directory
 	originalHome := os.Getenv("HOME")
 	defer os.Setenv("HOME", originalHome)
+	if runtime.GOOS == "windows" {
+		originalProfile := os.Getenv("USERPROFILE")
+		defer os.Setenv("USERPROFILE", originalProfile)
+	}
 
 	tests := []struct {
 		name    string
@@ -96,6 +101,9 @@ func TestEnsureGlobalFloopDir(t *testing.T) {
 					t.Fatalf("failed to create temp dir: %v", err)
 				}
 				os.Setenv("HOME", tmpHome)
+				if runtime.GOOS == "windows" {
+					os.Setenv("USERPROFILE", tmpHome)
+				}
 				cleanup := func() {
 					os.RemoveAll(tmpHome)
 				}
@@ -112,6 +120,9 @@ func TestEnsureGlobalFloopDir(t *testing.T) {
 					t.Fatalf("failed to create temp dir: %v", err)
 				}
 				os.Setenv("HOME", tmpHome)
+				if runtime.GOOS == "windows" {
+					os.Setenv("USERPROFILE", tmpHome)
+				}
 				floopDir := filepath.Join(tmpHome, ".floop")
 				os.MkdirAll(floopDir, 0700)
 				cleanup := func() {

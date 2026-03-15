@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -17,6 +18,13 @@ func isolateHome(t *testing.T, tmpDir string) {
 	}
 	oldHome := os.Getenv("HOME")
 	os.Setenv("HOME", tmpHome)
+	if runtime.GOOS == "windows" {
+		oldProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", tmpHome)
+		t.Cleanup(func() {
+			os.Setenv("USERPROFILE", oldProfile)
+		})
+	}
 	t.Cleanup(func() {
 		os.Setenv("HOME", oldHome)
 	})

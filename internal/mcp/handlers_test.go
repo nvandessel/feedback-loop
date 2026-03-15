@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +30,13 @@ func setupTestServer(t *testing.T) (*Server, string) {
 	}
 	oldHome := os.Getenv("HOME")
 	os.Setenv("HOME", tmpHome)
+	if runtime.GOOS == "windows" {
+		oldProfile := os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", tmpHome)
+		t.Cleanup(func() {
+			os.Setenv("USERPROFILE", oldProfile)
+		})
+	}
 	t.Cleanup(func() {
 		os.Setenv("HOME", oldHome)
 	})

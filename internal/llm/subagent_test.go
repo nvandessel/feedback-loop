@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -372,6 +373,9 @@ func TestSubagentClient_validateCLI(t *testing.T) {
 }
 
 func TestSubagentClient_runSubagent_StdinPrompt(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("test uses Unix shell scripts as mock CLIs")
+	}
 	// Create a mock CLI script that reads from stdin and echoes it back
 	tmpDir := t.TempDir()
 	mockCLI := filepath.Join(tmpDir, "mock-cli")
@@ -500,6 +504,9 @@ exit 1
 }
 
 func TestSubagentClient_findCLI_WithAllowedDirs(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("test uses Unix shell scripts as mock CLIs")
+	}
 	tmpDir := t.TempDir()
 	allowedDir := filepath.Join(tmpDir, "allowed")
 	blockedDir := filepath.Join(tmpDir, "blocked")
@@ -774,6 +781,9 @@ func TestSubagentClient_DetectAvailability_LogsDecision(t *testing.T) {
 }
 
 func TestSubagentClient_RunSubagent_LogsDecision(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("test uses Unix shell scripts as mock CLIs")
+	}
 	// Create a mock CLI
 	tmpDir := t.TempDir()
 	mockCLI := filepath.Join(tmpDir, "mock-cli")

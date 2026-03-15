@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -280,6 +281,9 @@ func TestAuditLogger_ErrorEntry(t *testing.T) {
 }
 
 func TestAuditLogger_FilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file permissions not applicable on Windows")
+	}
 	localDir := t.TempDir()
 	globalDir := t.TempDir()
 	logger := NewAuditLogger(localDir, globalDir)
