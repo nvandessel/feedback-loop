@@ -1,9 +1,6 @@
 package events
 
-import (
-	"io"
-	"sort"
-)
+import "io"
 
 // TranscriptAdapter parses agent-specific transcript formats into Events.
 type TranscriptAdapter interface {
@@ -11,7 +8,6 @@ type TranscriptAdapter interface {
 	Format() string
 }
 
-// adapters is the global adapter registry. Registration must happen during init() — concurrent registration is not supported.
 var adapters = map[string]TranscriptAdapter{}
 
 // RegisterAdapter registers a TranscriptAdapter by its format name.
@@ -31,6 +27,5 @@ func AvailableFormats() []string {
 	for f := range adapters {
 		formats = append(formats, f)
 	}
-	sort.Strings(formats)
 	return formats
 }
