@@ -111,10 +111,7 @@ func (c *LLMConsolidator) Classify(ctx context.Context, candidates []Candidate) 
 	return c.heuristic.Classify(ctx, candidates)
 }
 
-// Relate delegates to the heuristic consolidator (stub).
-func (c *LLMConsolidator) Relate(ctx context.Context, memories []ClassifiedMemory, s store.GraphStore) ([]store.Edge, []MergeProposal, error) {
-	return c.heuristic.Relate(ctx, memories, s)
-}
+// Relate is implemented in relate.go.
 
 // Promote delegates to the heuristic consolidator (stub).
 func (c *LLMConsolidator) Promote(ctx context.Context, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, s store.GraphStore) error {
