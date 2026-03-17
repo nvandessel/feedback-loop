@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sort"
 
 	"github.com/nvandessel/floop/internal/events"
 	"github.com/nvandessel/floop/internal/models"
@@ -127,8 +128,11 @@ func (c *LLMConsolidator) Extract(ctx context.Context, evts []events.Event) ([]C
 		candidates = append(candidates, extracted...)
 	}
 
-	// Enforce MaxCandidates cap
+	// Enforce MaxCandidates cap, keeping highest-confidence candidates
 	if c.config.MaxCandidates > 0 && len(candidates) > c.config.MaxCandidates {
+		sort.Slice(candidates, func(i, j int) bool {
+			return candidates[i].Confidence > candidates[j].Confidence
+		})
 		candidates = candidates[:c.config.MaxCandidates]
 	}
 

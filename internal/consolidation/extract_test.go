@@ -10,6 +10,7 @@ import (
 
 	"github.com/nvandessel/floop/internal/events"
 	"github.com/nvandessel/floop/internal/llm"
+	"github.com/nvandessel/floop/internal/models"
 )
 
 // mockLLMClient is a test double for llm.Client.
@@ -498,14 +499,29 @@ func TestExtractCandidatesPrompt(t *testing.T) {
 func TestExtractCandidatesPrompt_WithBehaviors(t *testing.T) {
 	evts := makeEvents(5)
 
-	// Note: we only need ID, Kind, and Content.Canonical for the prompt
-	// Import models is needed but we use a minimal struct approach through the prompt function
-	// Since extractCandidatesPrompt takes []models.Behavior, we test with the prompt builder
-	messages := extractCandidatesPrompt(evts, nil, nil)
-
 	// Without behaviors, should not mention "Existing behaviors"
+	messages := extractCandidatesPrompt(evts, nil, nil)
 	if strings.Contains(messages[1].Content, "Existing behaviors") {
 		t.Error("should not include behaviors section when nil")
+	}
+
+	// With behaviors, should include them in the prompt
+	behaviors := []models.Behavior{
+		{ID: "beh-1", Kind: "correction", Content: models.BehaviorContent{Canonical: "Always use parameterized queries"}},
+		{ID: "beh-2", Kind: "preference", Content: models.BehaviorContent{Canonical: "Prefer explicit error handling"}},
+	}
+	messages = extractCandidatesPrompt(evts, nil, behaviors)
+	if !strings.Contains(messages[1].Content, "Existing behaviors") {
+		t.Error("should include behaviors section when behaviors provided")
+	}
+	if !strings.Contains(messages[1].Content, "beh-1") {
+		t.Error("should include behavior ID beh-1")
+	}
+	if !strings.Contains(messages[1].Content, "Always use parameterized queries") {
+		t.Error("should include behavior content")
+	}
+	if !strings.Contains(messages[1].Content, "beh-2") {
+		t.Error("should include behavior ID beh-2")
 	}
 }
 
@@ -573,14 +589,17 @@ func TestEventIDs(t *testing.T) {
 func TestLLMExtract_MaxCandidatesCap(t *testing.T) {
 	evts := makeEvents(40) // 2 chunks of 20
 
-	// Each chunk produces 1 candidate, but we cap at 1
+	// Chunk 0 produces a low-confidence candidate, chunk 1 produces high-confidence
+	lowConfResp := `{"candidates": [{"source_events": ["evt-1"], "raw_text": "low conf", "candidate_type": "discovery", "confidence": 0.5, "sentiment": "neutral", "session_phase": "opening", "interaction_pattern": "collaborating", "rationale": "low", "already_captured": false}]}`
+	highConfResp := `{"candidates": [{"source_events": ["evt-21"], "raw_text": "high conf", "candidate_type": "correction", "confidence": 0.95, "sentiment": "frustrated", "session_phase": "resolving", "interaction_pattern": "teaching", "rationale": "high", "already_captured": false}]}`
+
 	mock := &mockLLMClient{
 		responses: []string{
 			makeSummaryResponse(0),
 			makeSummaryResponse(1),
 			makeArcResponse(),
-			makeExtractResponse([]string{"evt-1"}, false),
-			makeExtractResponse([]string{"evt-21"}, false),
+			lowConfResp,
+			highConfResp,
 		},
 	}
 
@@ -595,7 +614,12 @@ func TestLLMExtract_MaxCandidatesCap(t *testing.T) {
 	}
 
 	if len(candidates) != 1 {
-		t.Errorf("expected 1 candidate (capped by MaxCandidates), got %d", len(candidates))
+		t.Fatalf("expected 1 candidate (capped by MaxCandidates), got %d", len(candidates))
+	}
+
+	// Should keep the highest-confidence candidate, not the first by chunk order
+	if candidates[0].Confidence != 0.95 {
+		t.Errorf("expected highest-confidence candidate (0.95) to be kept, got %f", candidates[0].Confidence)
 	}
 }
 
