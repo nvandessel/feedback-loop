@@ -305,10 +305,12 @@ func ParseClassifiedMemories(response string, candidates []Candidate) ([]Classif
 }
 
 // stripCodeFences removes markdown code fences from a JSON response.
+// Handles case-insensitive language tags (```json, ```JSON, ```Json, etc.).
 func stripCodeFences(s string) string {
 	s = strings.TrimSpace(s)
-	if strings.HasPrefix(s, "```json") {
-		s = strings.TrimPrefix(s, "```json")
+	lower := strings.ToLower(s)
+	if strings.HasPrefix(lower, "```json") {
+		s = s[len("```json"):]
 	} else if strings.HasPrefix(s, "```") {
 		s = strings.TrimPrefix(s, "```")
 	}

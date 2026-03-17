@@ -785,14 +785,27 @@ func TestLLMClassify_EmptyCanonical(t *testing.T) {
 func TestLLMClassify_CodeFenceStripping(t *testing.T) {
 	candidates := makeCandidates(1)
 	inner := makeClassifyResponse(candidates)
-	wrapped := "```json\n" + inner + "\n```"
 
-	memories, err := ParseClassifiedMemories(wrapped, candidates)
-	if err != nil {
-		t.Fatalf("ParseClassifiedMemories should strip code fences, got: %v", err)
+	tests := []struct {
+		name    string
+		wrapped string
+	}{
+		{"lowercase json", "```json\n" + inner + "\n```"},
+		{"uppercase JSON", "```JSON\n" + inner + "\n```"},
+		{"mixed case Json", "```Json\n" + inner + "\n```"},
+		{"no language tag", "```\n" + inner + "\n```"},
 	}
-	if len(memories) != 1 {
-		t.Fatalf("expected 1 memory, got %d", len(memories))
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			memories, err := ParseClassifiedMemories(tt.wrapped, candidates)
+			if err != nil {
+				t.Fatalf("ParseClassifiedMemories should strip code fences, got: %v", err)
+			}
+			if len(memories) != 1 {
+				t.Fatalf("expected 1 memory, got %d", len(memories))
+			}
+		})
 	}
 }
 
