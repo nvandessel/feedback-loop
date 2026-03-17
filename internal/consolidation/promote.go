@@ -210,18 +210,25 @@ func (c *LLMConsolidator) executeSupersede(ctx context.Context, merge MergePropo
 		return fmt.Errorf("target node not found: %s", merge.TargetID)
 	}
 
-	// Combine lineage: gather source events from old + new
+	// Combine lineage: gather source events from old + new with deduplication
 	var combinedEvents []string
+	seen := make(map[string]bool)
 	if oldProv, ok := existing.Metadata["provenance"].(map[string]interface{}); ok {
 		if oldEvents, ok := oldProv["source_events"].([]interface{}); ok {
 			for _, e := range oldEvents {
-				if str, ok := e.(string); ok {
+				if str, ok := e.(string); ok && !seen[str] {
 					combinedEvents = append(combinedEvents, str)
+					seen[str] = true
 				}
 			}
 		}
 	}
-	combinedEvents = append(combinedEvents, merge.Memory.SourceEvents...)
+	for _, evtID := range merge.Memory.SourceEvents {
+		if !seen[evtID] {
+			combinedEvents = append(combinedEvents, evtID)
+			seen[evtID] = true
+		}
+	}
 
 	// Create new node first (before any mutations to the old node)
 	newID := fmt.Sprintf("supersede-%s-%d", merge.TargetID, time.Now().UnixNano())
@@ -252,6 +259,8 @@ func (c *LLMConsolidator) executeSupersede(ctx context.Context, merge MergePropo
 		CreatedAt: time.Now(),
 	}
 	if err := s.AddEdge(ctx, edge); err != nil {
+		// Clean up the orphaned new node before returning
+		_ = s.DeleteNode(ctx, newID)
 		return fmt.Errorf("adding supersedes edge: %w", err)
 	}
 
