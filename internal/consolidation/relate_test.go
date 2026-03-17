@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/nvandessel/floop/internal/llm"
@@ -712,5 +713,21 @@ func TestRelateMemoriesPrompt(t *testing.T) {
 	// Verify user message contains memory and neighbor data.
 	if len(msgs[1].Content) == 0 {
 		t.Error("user message content is empty")
+	}
+
+	// Verify system prompt contains merge_into example with target_id field
+	// so the LLM emits the correct JSON schema that ParseRelationships expects.
+	sysContent := msgs[0].Content
+	if !strings.Contains(sysContent, `"merge_into"`) {
+		t.Error("system prompt missing merge_into example")
+	}
+	if !strings.Contains(sysContent, `"target_id"`) {
+		t.Error("system prompt missing target_id in merge_into example")
+	}
+	if !strings.Contains(sysContent, `"strategy"`) {
+		t.Error("system prompt missing strategy in merge_into example")
+	}
+	if !strings.Contains(sysContent, `"action": "merge"`) {
+		t.Error("system prompt missing merge action example")
 	}
 }

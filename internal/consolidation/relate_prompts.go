@@ -89,6 +89,13 @@ Respond with ONLY valid JSON in this exact format:
       "edges": [{"target": "bhv-123", "kind": "similar-to", "weight": 0.82}],
       "merge_into": null,
       "rationale": "Related but distinct focus"
+    },
+    {
+      "memory_index": 1,
+      "action": "merge",
+      "edges": [],
+      "merge_into": {"target_id": "bhv-456", "strategy": "absorb"},
+      "rationale": "Near-duplicate of existing behavior"
     }
   ]
 }`
