@@ -172,7 +172,7 @@ func TestLLMRelate_WithNeighbors(t *testing.T) {
 	c := NewLLMConsolidator(client, nil, DefaultLLMConsolidatorConfig())
 	memories := testMemories("sess-1")
 
-	edges, merges, err := c.Relate(ctx, memories, s)
+	edges, merges, _, err := c.Relate(ctx, memories, s)
 	if err != nil {
 		t.Fatalf("Relate returned error: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestLLMRelate_NoEmbeddings(t *testing.T) {
 	c := NewLLMConsolidator(client, nil, DefaultLLMConsolidatorConfig())
 	memories := testMemories("sess-2")
 
-	edges, _, err := c.Relate(ctx, memories, s)
+	edges, _, _, err := c.Relate(ctx, memories, s)
 	if err != nil {
 		t.Fatalf("Relate returned error: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestLLMRelate_LLMFailure(t *testing.T) {
 	c := NewLLMConsolidator(client, nil, DefaultLLMConsolidatorConfig())
 	memories := testMemoriesMultiSession() // 3 memories, same session
 
-	edges, merges, err := c.Relate(ctx, memories, s)
+	edges, merges, _, err := c.Relate(ctx, memories, s)
 	if err != nil {
 		t.Fatalf("Relate should not return error on LLM failure, got: %v", err)
 	}
@@ -288,7 +288,7 @@ func TestLLMRelate_MergeProposal(t *testing.T) {
 	c := NewLLMConsolidator(client, nil, DefaultLLMConsolidatorConfig())
 	memories := testMemories("sess-3")
 
-	_, merges, err := c.Relate(ctx, memories, s)
+	_, merges, _, err := c.Relate(ctx, memories, s)
 	if err != nil {
 		t.Fatalf("Relate returned error: %v", err)
 	}
@@ -338,7 +338,7 @@ func TestLLMRelate_MergeProposalCarriesCosineSimilarity(t *testing.T) {
 	c := NewLLMConsolidator(client, nil, DefaultLLMConsolidatorConfig())
 	memories := testMemories("sess-sim")
 
-	_, merges, err := c.Relate(ctx, memories, s)
+	_, merges, _, err := c.Relate(ctx, memories, s)
 	if err != nil {
 		t.Fatalf("Relate returned error: %v", err)
 	}
@@ -420,7 +420,7 @@ func TestLLMRelate_SkipAction(t *testing.T) {
 	c := NewLLMConsolidator(client, nil, DefaultLLMConsolidatorConfig())
 	memories := testMemories("sess-4")
 
-	edges, merges, err := c.Relate(ctx, memories, s)
+	edges, merges, skips, err := c.Relate(ctx, memories, s)
 	if err != nil {
 		t.Fatalf("Relate returned error: %v", err)
 	}
@@ -434,6 +434,13 @@ func TestLLMRelate_SkipAction(t *testing.T) {
 	if len(merges) != 0 {
 		t.Errorf("expected 0 merges for skip, got %d", len(merges))
 	}
+	// Should report the skipped memory index.
+	if len(skips) != 1 {
+		t.Fatalf("expected 1 skip, got %d", len(skips))
+	}
+	if skips[0] != 0 {
+		t.Errorf("expected skip index 0, got %d", skips[0])
+	}
 }
 
 func TestLLMRelate_EmptyMemories(t *testing.T) {
@@ -441,7 +448,7 @@ func TestLLMRelate_EmptyMemories(t *testing.T) {
 	client := &mockLLMClient{available: true}
 	c := NewLLMConsolidator(client, nil, DefaultLLMConsolidatorConfig())
 
-	edges, merges, err := c.Relate(ctx, nil, nil)
+	edges, merges, skips, err := c.Relate(ctx, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -450,6 +457,9 @@ func TestLLMRelate_EmptyMemories(t *testing.T) {
 	}
 	if merges != nil {
 		t.Errorf("expected nil merges, got %v", merges)
+	}
+	if skips != nil {
+		t.Errorf("expected nil skips, got %v", skips)
 	}
 }
 
@@ -468,7 +478,7 @@ func TestLLMRelate_NilStore(t *testing.T) {
 	c := NewLLMConsolidator(client, nil, DefaultLLMConsolidatorConfig())
 	memories := testMemories("sess-5")
 
-	edges, _, err := c.Relate(ctx, memories, nil)
+	edges, _, _, err := c.Relate(ctx, memories, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

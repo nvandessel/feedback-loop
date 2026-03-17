@@ -23,9 +23,9 @@ type scoredNode struct {
 //  1. Vector search for neighbors + LLM proposals + co-occurrence edges
 //  2. Vector search + co-occurrence edges (on LLM failure)
 //  3. Co-occurrence edges only (on both failures)
-func (c *LLMConsolidator) Relate(ctx context.Context, memories []ClassifiedMemory, s store.GraphStore) ([]store.Edge, []MergeProposal, error) {
+func (c *LLMConsolidator) Relate(ctx context.Context, memories []ClassifiedMemory, s store.GraphStore) ([]store.Edge, []MergeProposal, []int, error) {
 	if len(memories) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
 	// 1. Find neighbors (vector search or fallback).
@@ -50,6 +50,7 @@ func (c *LLMConsolidator) Relate(ctx context.Context, memories []ClassifiedMemor
 	// 2. LLM relationship proposals.
 	var edges []store.Edge
 	var merges []MergeProposal
+	var skips []int
 
 	if c.client != nil && c.client.Available() {
 		msgs, promptErr := RelateMemoriesPrompt(memories, neighbors)
@@ -83,12 +84,13 @@ func (c *LLMConsolidator) Relate(ctx context.Context, memories []ClassifiedMemor
 					"error": parseErr.Error(),
 				})
 			} else {
-				edges, merges = convertProposals(proposals, memories, neighbors)
+				edges, merges, skips = convertProposals(proposals, memories, neighbors)
 				c.decisions.Log(map[string]any{
 					"stage":     "relate",
 					"event":     "proposals_converted",
 					"edges":     len(edges),
 					"merges":    len(merges),
+					"skips":     len(skips),
 					"proposals": len(proposals),
 				})
 			}
@@ -105,9 +107,10 @@ func (c *LLMConsolidator) Relate(ctx context.Context, memories []ClassifiedMemor
 		"total_edges":     len(edges),
 		"cooccurrence":    len(coEdges),
 		"merge_proposals": len(merges),
+		"skips":           len(skips),
 	})
 
-	return edges, merges, nil
+	return edges, merges, skips, nil
 }
 
 // findNeighbors retrieves semantically similar behaviors for each memory.
@@ -297,10 +300,11 @@ func PendingNodeID(index int) string {
 // convertProposals converts parsed LLM proposals into store edges and merge proposals.
 // neighbors provides the scored neighbor lists from vector search so merge proposals
 // can carry the actual cosine similarity rather than defaulting to 0.0.
-func convertProposals(proposals []relateProposal, memories []ClassifiedMemory, neighbors map[int][]scoredNode) ([]store.Edge, []MergeProposal) {
+func convertProposals(proposals []relateProposal, memories []ClassifiedMemory, neighbors map[int][]scoredNode) ([]store.Edge, []MergeProposal, []int) {
 	now := time.Now()
 	var edges []store.Edge
 	var merges []MergeProposal
+	var skips []int
 
 	for _, p := range proposals {
 		if p.MemoryIndex < 0 || p.MemoryIndex >= len(memories) {
@@ -342,11 +346,11 @@ func convertProposals(proposals []relateProposal, memories []ClassifiedMemory, n
 			})
 
 		case "skip":
-			// No edges or merges for skipped memories.
+			skips = append(skips, p.MemoryIndex)
 		}
 	}
 
-	return edges, merges
+	return edges, merges, skips
 }
 
 // neighborSimilarity returns the cosine similarity score for the given target

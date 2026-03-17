@@ -195,13 +195,14 @@ func toInterfaceSlice(ss []string) []interface{} {
 	return result
 }
 
-// Relate is a v0 passthrough that returns empty edges and merge proposals.
-func (h *HeuristicConsolidator) Relate(ctx context.Context, memories []ClassifiedMemory, s store.GraphStore) ([]store.Edge, []MergeProposal, error) {
-	return nil, nil, nil
+// Relate is a v0 passthrough that returns empty edges, merge proposals, and skips.
+func (h *HeuristicConsolidator) Relate(ctx context.Context, memories []ClassifiedMemory, s store.GraphStore) ([]store.Edge, []MergeProposal, []int, error) {
+	return nil, nil, nil, nil
 }
 
 // Promote writes classified memories into the graph store as behavior nodes.
-func (h *HeuristicConsolidator) Promote(ctx context.Context, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, s store.GraphStore) error {
+// Memories whose indices appear in skips are not created as nodes.
+func (h *HeuristicConsolidator) Promote(ctx context.Context, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, skips []int, s store.GraphStore) error {
 	if s == nil {
 		return nil
 	}
@@ -218,6 +219,12 @@ func (h *HeuristicConsolidator) Promote(ctx context.Context, memories []Classifi
 		}
 	}
 
+	// Build set of memories that should be skipped (already captured).
+	skipped := make(map[int]bool, len(skips))
+	for _, idx := range skips {
+		skipped[idx] = true
+	}
+
 	// pendingToActual maps pending-N placeholder IDs to the real node IDs
 	// assigned below, so edges can be rewritten before persisting.
 	pendingToActual := make(map[string]string)
@@ -230,6 +237,12 @@ func (h *HeuristicConsolidator) Promote(ctx context.Context, memories []Classifi
 			if targetID, ok := mergeTargetForIndex[i]; ok {
 				pendingToActual[PendingNodeID(i)] = targetID
 			}
+			continue
+		}
+		if skipped[i] {
+			// Skipped memories are already captured by existing behaviors;
+			// do not create a new node. Leave pending ID unmapped so any
+			// co-occurrence edges referencing it are dropped.
 			continue
 		}
 
