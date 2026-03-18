@@ -54,8 +54,10 @@ type Consolidator interface {
 	Classify(ctx context.Context, candidates []Candidate) ([]ClassifiedMemory, error)
 
 	// Relate finds relationships between new memories and existing behaviors.
-	Relate(ctx context.Context, memories []ClassifiedMemory, s store.GraphStore) ([]store.Edge, []MergeProposal, error)
+	// Returns edges, merge proposals, and indices of memories to skip (already captured).
+	Relate(ctx context.Context, memories []ClassifiedMemory, s store.GraphStore) ([]store.Edge, []MergeProposal, []int, error)
 
 	// Promote writes classified memories and edges into the graph store.
-	Promote(ctx context.Context, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, s store.GraphStore) error
+	// Memories whose indices appear in skips are not created as nodes.
+	Promote(ctx context.Context, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, skips []int, s store.GraphStore) error
 }

@@ -271,7 +271,7 @@ func TestHeuristicPromote(t *testing.T) {
 
 	s := store.NewInMemoryGraphStore()
 
-	err := h.Promote(ctx, memories, nil, nil, s)
+	err := h.Promote(ctx, memories, nil, nil, nil, s)
 	if err != nil {
 		t.Fatalf("Promote returned error: %v", err)
 	}
@@ -323,7 +323,7 @@ func TestHeuristicPromote_NilStore(t *testing.T) {
 		},
 	}
 
-	err := h.Promote(ctx, memories, nil, nil, nil)
+	err := h.Promote(ctx, memories, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Promote with nil store should not error, got: %v", err)
 	}
@@ -337,7 +337,7 @@ func TestHeuristicRelate(t *testing.T) {
 		{Kind: models.BehaviorKindDirective},
 	}
 
-	edges, merges, err := h.Relate(ctx, memories, nil)
+	edges, merges, skips, err := h.Relate(ctx, memories, nil)
 	if err != nil {
 		t.Fatalf("Relate returned error: %v", err)
 	}
@@ -346,5 +346,8 @@ func TestHeuristicRelate(t *testing.T) {
 	}
 	if merges != nil {
 		t.Errorf("expected nil merges, got %v", merges)
+	}
+	if skips != nil {
+		t.Errorf("expected nil skips, got %v", skips)
 	}
 }

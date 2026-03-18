@@ -195,32 +195,59 @@ func toInterfaceSlice(ss []string) []interface{} {
 	return result
 }
 
-// Relate is a v0 passthrough that returns empty edges and merge proposals.
-func (h *HeuristicConsolidator) Relate(ctx context.Context, memories []ClassifiedMemory, s store.GraphStore) ([]store.Edge, []MergeProposal, error) {
-	return nil, nil, nil
+// Relate is a v0 passthrough that returns empty edges, merge proposals, and skips.
+func (h *HeuristicConsolidator) Relate(ctx context.Context, memories []ClassifiedMemory, s store.GraphStore) ([]store.Edge, []MergeProposal, []int, error) {
+	return nil, nil, nil, nil
 }
 
 // Promote writes classified memories into the graph store as behavior nodes.
-func (h *HeuristicConsolidator) Promote(ctx context.Context, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, s store.GraphStore) error {
+// Memories whose indices appear in skips are not created as nodes.
+func (h *HeuristicConsolidator) Promote(ctx context.Context, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, skips []int, s store.GraphStore) error {
 	if s == nil {
 		return nil
 	}
 
-	// Build set of memories that have merge proposals (skip them in v0)
+	// Build set of memories that have merge proposals.
 	merged := make(map[int]bool)
+	mergeTargetForIndex := make(map[int]string)
 	for _, m := range merges {
 		for i, mem := range memories {
 			if mem.RawText == m.Memory.RawText {
 				merged[i] = true
+				mergeTargetForIndex[i] = m.TargetID
 			}
 		}
 	}
 
+	// Build set of memories that should be skipped (already captured).
+	skipped := make(map[int]bool, len(skips))
+	for _, idx := range skips {
+		skipped[idx] = true
+	}
+
+	// pendingToActual maps pending-N placeholder IDs to the real node IDs
+	// assigned below, so edges can be rewritten before persisting.
+	pendingToActual := make(map[string]string)
+
 	baseTS := time.Now().UnixNano()
 	for i, mem := range memories {
 		if merged[i] {
+			// Map the pending ID to the merge target so edges referencing
+			// this memory still resolve to a real node.
+			if targetID, ok := mergeTargetForIndex[i]; ok {
+				pendingToActual[PendingNodeID(i)] = targetID
+			}
 			continue
 		}
+		if skipped[i] {
+			// Skipped memories are already captured by existing behaviors;
+			// do not create a new node. Leave pending ID unmapped so any
+			// co-occurrence edges referencing it are dropped.
+			continue
+		}
+
+		nodeID := fmt.Sprintf("consolidated-%d-%d", baseTS, i)
+		pendingToActual[PendingNodeID(i)] = nodeID
 
 		// Build content map matching BehaviorToNode schema so NodeToBehavior
 		// can reconstruct the Behavior on read.
@@ -238,7 +265,7 @@ func (h *HeuristicConsolidator) Promote(ctx context.Context, memories []Classifi
 		}
 
 		node := store.Node{
-			ID:   fmt.Sprintf("consolidated-%d-%d", baseTS, i),
+			ID:   nodeID,
 			Kind: store.NodeKindBehavior,
 			Content: map[string]interface{}{
 				"name":        mem.Content.Summary,
@@ -262,7 +289,22 @@ func (h *HeuristicConsolidator) Promote(ctx context.Context, memories []Classifi
 		}
 	}
 
+	// Rewrite pending IDs in edges and drop any that still have unresolved references.
 	for _, edge := range edges {
+		src := edge.Source
+		tgt := edge.Target
+		if actual, ok := pendingToActual[src]; ok {
+			src = actual
+		}
+		if actual, ok := pendingToActual[tgt]; ok {
+			tgt = actual
+		}
+		// Drop edges that still reference unresolved pending IDs.
+		if strings.HasPrefix(src, "pending-") || strings.HasPrefix(tgt, "pending-") {
+			continue
+		}
+		edge.Source = src
+		edge.Target = tgt
 		if err := s.AddEdge(ctx, edge); err != nil {
 			return fmt.Errorf("adding edge: %w", err)
 		}

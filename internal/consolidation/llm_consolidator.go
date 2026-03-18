@@ -18,7 +18,6 @@ type LLMConsolidatorConfig struct {
 	ChunkSize int
 
 	// MaxCandidates is the maximum number of candidates to extract per run.
-	// Also controls the batch size for LLM classification (batching triggers at MaxCandidates * 4/3).
 	MaxCandidates int
 
 	// TopK is the number of similar behaviors to retrieve during Relate.
@@ -33,7 +32,7 @@ func DefaultLLMConsolidatorConfig() LLMConsolidatorConfig {
 	return LLMConsolidatorConfig{
 		Model:         "",
 		ChunkSize:     20,
-		MaxCandidates: defaultMaxCandidates,
+		MaxCandidates: 30,
 		TopK:          5,
 		RetryOnce:     true,
 	}
@@ -107,12 +106,14 @@ func (c *LLMConsolidator) Extract(ctx context.Context, evts []events.Event) ([]C
 	return c.heuristic.Extract(ctx, evts)
 }
 
-// Relate delegates to the heuristic consolidator (stub).
-func (c *LLMConsolidator) Relate(ctx context.Context, memories []ClassifiedMemory, s store.GraphStore) ([]store.Edge, []MergeProposal, error) {
-	return c.heuristic.Relate(ctx, memories, s)
+// Classify delegates to the heuristic consolidator (stub).
+func (c *LLMConsolidator) Classify(ctx context.Context, candidates []Candidate) ([]ClassifiedMemory, error) {
+	return c.heuristic.Classify(ctx, candidates)
 }
 
+// Relate is implemented in relate.go.
+
 // Promote delegates to the heuristic consolidator (stub).
-func (c *LLMConsolidator) Promote(ctx context.Context, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, s store.GraphStore) error {
-	return c.heuristic.Promote(ctx, memories, edges, merges, s)
+func (c *LLMConsolidator) Promote(ctx context.Context, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, skips []int, s store.GraphStore) error {
+	return c.heuristic.Promote(ctx, memories, edges, merges, skips, s)
 }
