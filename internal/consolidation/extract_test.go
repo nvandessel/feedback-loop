@@ -365,6 +365,48 @@ func TestLLMExtract_AlreadyCaptured(t *testing.T) {
 	}
 }
 
+func TestLLMExtract_MarkdownFencedJSON(t *testing.T) {
+	evts := makeEvents(10)
+
+	// Wrap every LLM response in markdown code fences, as real LLMs often do
+	fencedSummary := "```json\n" + makeSummaryResponse(0) + "\n```"
+	fencedArc := "```json\n" + makeArcResponse() + "\n```"
+	fencedExtract := "```json\n" + makeExtractResponse([]string{"evt-1", "evt-2"}, false) + "\n```"
+
+	mock := &mockLLMClient{
+		responses: []string{
+			fencedSummary, // Pass 1
+			fencedArc,     // Pass 2
+			fencedExtract, // Pass 3
+		},
+	}
+
+	config := DefaultLLMConsolidatorConfig()
+	config.ChunkSize = 20
+	c := NewLLMConsolidator(mock, nil, config)
+
+	candidates, err := c.Extract(context.Background(), evts)
+	if err != nil {
+		t.Fatalf("Extract returned error: %v", err)
+	}
+
+	if len(candidates) != 1 {
+		t.Fatalf("expected 1 candidate from fenced JSON, got %d", len(candidates))
+	}
+
+	if candidates[0].CandidateType != "correction" {
+		t.Errorf("expected type 'correction', got %q", candidates[0].CandidateType)
+	}
+	if candidates[0].Confidence != 0.92 {
+		t.Errorf("expected confidence 0.92, got %f", candidates[0].Confidence)
+	}
+
+	// All 3 passes should succeed (not fall back to heuristic)
+	if mock.callIndex != 3 {
+		t.Errorf("expected 3 LLM calls, got %d", mock.callIndex)
+	}
+}
+
 func TestLLMExtract_EmptyEvents(t *testing.T) {
 	mock := &mockLLMClient{}
 	config := DefaultLLMConsolidatorConfig()

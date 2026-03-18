@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/nvandessel/floop/internal/events"
+	"github.com/nvandessel/floop/internal/llm"
 	"github.com/nvandessel/floop/internal/models"
 )
 
@@ -166,7 +167,7 @@ func (c *LLMConsolidator) summarizeChunks(ctx context.Context, chunks [][]events
 		}
 
 		var summary extractChunkSummary
-		if err := json.Unmarshal([]byte(response), &summary); err != nil {
+		if err := json.Unmarshal([]byte(llm.ExtractJSON(response)), &summary); err != nil {
 			slog.Warn("extract pass 1: parse chunk summary failed, skipping", "chunk", i, "error", err)
 			c.decisions.Log(map[string]any{
 				"stage": "extract",
@@ -203,7 +204,7 @@ func (c *LLMConsolidator) synthesizeArc(ctx context.Context, summaries []extract
 	}
 
 	var arc extractArcSummary
-	if err := json.Unmarshal([]byte(response), &arc); err != nil {
+	if err := json.Unmarshal([]byte(llm.ExtractJSON(response)), &arc); err != nil {
 		return nil, fmt.Errorf("parse arc summary: %w", err)
 	}
 
@@ -226,7 +227,7 @@ func (c *LLMConsolidator) extractFromChunk(ctx context.Context, chunk []events.E
 	}
 
 	var resp extractResponse
-	if err := json.Unmarshal([]byte(response), &resp); err != nil {
+	if err := json.Unmarshal([]byte(llm.ExtractJSON(response)), &resp); err != nil {
 		return nil, fmt.Errorf("parse extract response: %w", err)
 	}
 
