@@ -322,7 +322,9 @@ func (c *LLMConsolidator) executeSupersede(ctx context.Context, merge MergePropo
 	}
 	if err := s.AddEdge(ctx, edge); err != nil {
 		// Clean up the orphaned new node before returning
-		_ = s.DeleteNode(ctx, newID)
+		if rbErr := s.DeleteNode(ctx, newID); rbErr != nil {
+			slog.Warn("supersede rollback: failed to delete orphaned node", "new_id", newID, "error", rbErr)
+		}
 		return fmt.Errorf("adding supersedes edge: %w", err)
 	}
 
@@ -335,8 +337,12 @@ func (c *LLMConsolidator) executeSupersede(ctx context.Context, merge MergePropo
 	existing.Metadata["merged_reason"] = "superseded"
 	if err := s.UpdateNode(ctx, *existing); err != nil {
 		// Rollback: remove the edge and orphaned new node
-		_ = s.RemoveEdge(ctx, newID, merge.TargetID, EdgeKindSupersedes)
-		_ = s.DeleteNode(ctx, newID)
+		if rbErr := s.RemoveEdge(ctx, newID, merge.TargetID, EdgeKindSupersedes); rbErr != nil {
+			slog.Warn("supersede rollback: failed to remove edge", "new_id", newID, "target", merge.TargetID, "error", rbErr)
+		}
+		if rbErr := s.DeleteNode(ctx, newID); rbErr != nil {
+			slog.Warn("supersede rollback: failed to delete orphaned node", "new_id", newID, "error", rbErr)
+		}
 		return fmt.Errorf("marking old node as merged: %w", err)
 	}
 
@@ -386,7 +392,9 @@ func (c *LLMConsolidator) executeSupplement(ctx context.Context, merge MergeProp
 	}
 	if err := s.AddEdge(ctx, edge); err != nil {
 		// Clean up the orphaned new node before returning
-		_ = s.DeleteNode(ctx, newID)
+		if rbErr := s.DeleteNode(ctx, newID); rbErr != nil {
+			slog.Warn("supplement rollback: failed to delete orphaned node", "new_id", newID, "error", rbErr)
+		}
 		return fmt.Errorf("adding supplements edge: %w", err)
 	}
 

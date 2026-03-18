@@ -77,7 +77,7 @@ For "create" actions, propose edges with these kinds:
 For "merge" actions, specify a strategy:
 - "absorb": target absorbs the new memory (target is broader)
 - "supersede": new memory replaces the target (new is more current)
-- "supplement": combine both into a richer merged behavior
+- "supplement": new memory adds detail to the target (target stays unchanged, new node links to it)
 
 Respond with ONLY valid JSON in this exact format:
 {

@@ -166,6 +166,10 @@ type workflowStepJSON struct {
 // ParseClassifiedMemories parses the LLM response and maps it back to ClassifiedMemory structs.
 // It validates enums, importance range, canonical non-empty, summary length, scope format,
 // tag count, kind/memory_type consistency, and structured data presence.
+//
+// Per-candidate validation failures skip the individual entry (with a warning) rather than
+// rejecting the entire batch, so one bad LLM output doesn't regress all candidates to heuristic.
+// Only structural parse failures (no JSON, bad JSON) fail the whole batch.
 func ParseClassifiedMemories(response string, candidates []Candidate) ([]ClassifiedMemory, error) {
 	// Strip markdown code fences if present (LLMs often wrap JSON in ```json...```)
 	cleaned := llm.ExtractJSON(response)
@@ -178,8 +182,8 @@ func ParseClassifiedMemories(response string, candidates []Candidate) ([]Classif
 		return nil, fmt.Errorf("parsing classify response: %w", err)
 	}
 
-	if len(resp.Classified) != len(candidates) {
-		return nil, fmt.Errorf("expected %d classified entries, got %d", len(candidates), len(resp.Classified))
+	if len(resp.Classified) == 0 {
+		return nil, fmt.Errorf("LLM returned 0 classified entries for %d candidates", len(candidates))
 	}
 
 	// Build candidate lookup by source_events for fallback mapping
@@ -195,6 +199,7 @@ func ParseClassifiedMemories(response string, candidates []Candidate) ([]Classif
 
 	memories := make([]ClassifiedMemory, 0, len(resp.Classified))
 	seen := make(map[int]bool, len(candidates))
+	skipped := 0
 
 	for i, entry := range resp.Classified {
 		// Resolve candidate index using three strategies in priority order:
@@ -221,7 +226,10 @@ func ParseClassifiedMemories(response string, candidates []Candidate) ([]Classif
 			if idx, ok := candidateByEvents[key]; ok {
 				candidateIdx = idx
 			} else {
-				return nil, fmt.Errorf("candidate %d: source_events %v not found in input candidates", i, entry.SourceEvents)
+				slog.Warn("classify: cannot resolve candidate — skipping",
+					"response_pos", i, "source_events", entry.SourceEvents)
+				skipped++
+				continue
 			}
 		}
 
@@ -233,33 +241,17 @@ func ParseClassifiedMemories(response string, candidates []Candidate) ([]Classif
 		}
 		seen[candidateIdx] = true
 
-		kind, err := parseKind(entry.Kind)
-		if err != nil {
-			return nil, fmt.Errorf("candidate %d: %w", candidateIdx, err)
+		// Per-candidate validation: skip individual bad entries rather than
+		// failing the entire batch.
+		if err := validateClassifiedEntry(entry, candidateIdx); err != nil {
+			slog.Warn("classify: validation failed for candidate — skipping",
+				"candidate_idx", candidateIdx, "error", err)
+			skipped++
+			continue
 		}
 
-		memType, err := parseMemoryType(entry.MemoryType)
-		if err != nil {
-			return nil, fmt.Errorf("candidate %d: %w", candidateIdx, err)
-		}
-
-		// Validate kind/memory_type consistency
-		if err := validateKindMemoryType(kind, memType, candidateIdx); err != nil {
-			return nil, err
-		}
-
-		if entry.Importance < 0 || entry.Importance > 1 {
-			return nil, fmt.Errorf("candidate %d: importance %f out of range [0, 1]", candidateIdx, entry.Importance)
-		}
-
-		if strings.TrimSpace(entry.Content.Canonical) == "" {
-			return nil, fmt.Errorf("candidate %d: canonical is empty", candidateIdx)
-		}
-
-		// Validate tag count
-		if err := validateTagCount(entry.Content.Tags, candidateIdx); err != nil {
-			return nil, err
-		}
+		kind, _ := parseKind(entry.Kind)                // validated above
+		memType, _ := parseMemoryType(entry.MemoryType) // validated above
 
 		summary := truncateSummary(entry.Content.Summary, candidateIdx)
 
@@ -268,18 +260,8 @@ func ParseClassifiedMemories(response string, candidates []Candidate) ([]Classif
 			scope = "universal"
 		}
 
-		// Validate scope format
-		if err := validateScope(scope, candidateIdx); err != nil {
-			return nil, err
-		}
-
 		episodeData := toEpisodeData(entry.EpisodeData)
 		workflowData := toWorkflowData(entry.WorkflowData)
-
-		// Validate structured data presence for episodic/workflow kinds
-		if err := validateStructuredData(kind, episodeData, workflowData, candidateIdx); err != nil {
-			return nil, err
-		}
 
 		mem := ClassifiedMemory{
 			Candidate:  candidates[candidateIdx],
@@ -299,10 +281,61 @@ func ParseClassifiedMemories(response string, candidates []Candidate) ([]Classif
 		memories = append(memories, mem)
 	}
 
-	// Verify we didn't silently drop candidates due to duplicates
-	if len(memories) != len(candidates) {
-		return nil, fmt.Errorf("classified %d entries but expected %d (some candidates were duplicated or unmatched)", len(memories), len(candidates))
+	if skipped > 0 {
+		slog.Warn("classify: some candidates failed validation",
+			"skipped", skipped, "accepted", len(memories), "total", len(candidates))
+	}
+
+	// If every candidate was skipped, fail the batch so the caller can retry or fall back.
+	if len(memories) == 0 {
+		return nil, fmt.Errorf("all %d classified entries failed validation", len(resp.Classified))
 	}
 
 	return memories, nil
+}
+
+// validateClassifiedEntry checks a single LLM-classified entry for correctness.
+// Returns nil if valid, or an error describing the first validation failure.
+func validateClassifiedEntry(entry classifiedEntry, candidateIdx int) error {
+	if _, err := parseKind(entry.Kind); err != nil {
+		return fmt.Errorf("candidate %d: %w", candidateIdx, err)
+	}
+
+	memType, err := parseMemoryType(entry.MemoryType)
+	if err != nil {
+		return fmt.Errorf("candidate %d: %w", candidateIdx, err)
+	}
+
+	kind, _ := parseKind(entry.Kind)
+	if err := validateKindMemoryType(kind, memType, candidateIdx); err != nil {
+		return err
+	}
+
+	if entry.Importance < 0 || entry.Importance > 1 {
+		return fmt.Errorf("candidate %d: importance %f out of range [0, 1]", candidateIdx, entry.Importance)
+	}
+
+	if strings.TrimSpace(entry.Content.Canonical) == "" {
+		return fmt.Errorf("candidate %d: canonical is empty", candidateIdx)
+	}
+
+	if err := validateTagCount(entry.Content.Tags, candidateIdx); err != nil {
+		return err
+	}
+
+	scope := entry.Scope
+	if scope == "" {
+		scope = "universal"
+	}
+	if err := validateScope(scope, candidateIdx); err != nil {
+		return err
+	}
+
+	episodeData := toEpisodeData(entry.EpisodeData)
+	workflowData := toWorkflowData(entry.WorkflowData)
+	if err := validateStructuredData(kind, episodeData, workflowData, candidateIdx); err != nil {
+		return err
+	}
+
+	return nil
 }
