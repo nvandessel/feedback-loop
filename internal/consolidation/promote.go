@@ -78,6 +78,8 @@ func (c *LLMConsolidator) Promote(ctx context.Context, memories []ClassifiedMemo
 		pendingID := PendingNodeID(i)
 
 		if skipped[i] {
+			// Skipped memories don't get nodes; co-occurrence edges referencing
+			// them will be filtered out by the pending-ID check below.
 			cl.LogPromote("skip", 0, map[string]any{
 				"reason":      "already_captured",
 				"memory_kind": string(mem.Kind),
@@ -290,8 +292,9 @@ func (c *LLMConsolidator) executeSupersede(ctx context.Context, merge MergePropo
 	}
 
 	// Create new node first (before any mutations to the old node)
-	newID := fmt.Sprintf("supersede-%s-%d", merge.TargetID, time.Now().UnixNano())
-	node := c.buildPromoteNode(merge.Memory, runID, time.Now().UnixNano(), 0)
+	ts := time.Now().UnixNano()
+	newID := fmt.Sprintf("supersede-%s-%d", merge.TargetID, ts)
+	node := c.buildPromoteNode(merge.Memory, runID, ts, merge.MemoryIndex)
 	// Override provenance with combined lineage
 	if node.Metadata == nil {
 		node.Metadata = make(map[string]interface{})
@@ -353,8 +356,9 @@ func (c *LLMConsolidator) executeSupplement(ctx context.Context, merge MergeProp
 	}
 
 	// Create supplementary node
-	newID := fmt.Sprintf("supplement-%s-%d", merge.TargetID, time.Now().UnixNano())
-	node := c.buildPromoteNode(merge.Memory, runID, time.Now().UnixNano(), 0)
+	ts := time.Now().UnixNano()
+	newID := fmt.Sprintf("supplement-%s-%d", merge.TargetID, ts)
+	node := c.buildPromoteNode(merge.Memory, runID, ts, merge.MemoryIndex)
 	node.ID = newID
 
 	// Add supplements provenance for self-describing nodes
