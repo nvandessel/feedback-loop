@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -23,9 +23,9 @@ const EdgeKindSupplements store.EdgeKind = "supplements"
 // Promote writes classified memories into the graph store, executing merge
 // proposals (absorb/supersede/supplement) and logging every decision.
 // It replaces the heuristic Promote with merge-aware logic.
-func (c *LLMConsolidator) Promote(ctx context.Context, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, skips []int, s store.GraphStore) error {
+func (c *LLMConsolidator) Promote(ctx context.Context, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, skips []int, s store.GraphStore) (int, error) {
 	if s == nil {
-		return nil
+		return 0, nil
 	}
 
 	runID := fmt.Sprintf("run-%d", time.Now().UnixNano())
@@ -103,7 +103,7 @@ func (c *LLMConsolidator) Promote(ctx context.Context, memories []ClassifiedMemo
 
 		node := c.buildPromoteNode(mem, runID, baseTS, i)
 		if _, err := s.AddNode(ctx, node); err != nil {
-			return fmt.Errorf("adding consolidated node: %w", err)
+			return 0, fmt.Errorf("adding consolidated node: %w", err)
 		}
 		pendingToActual[pendingID] = node.ID
 		promoted++
@@ -128,7 +128,7 @@ func (c *LLMConsolidator) Promote(ctx context.Context, memories []ClassifiedMemo
 			continue
 		}
 		if err := s.AddEdge(ctx, edge); err != nil {
-			return fmt.Errorf("adding edge: %w", err)
+			return 0, fmt.Errorf("adding edge: %w", err)
 		}
 	}
 
@@ -165,7 +165,7 @@ func (c *LLMConsolidator) Promote(ctx context.Context, memories []ClassifiedMemo
 		SessionID:       sessionID,
 	}, runID, mergeCount)
 
-	return nil
+	return promoted, nil
 }
 
 // executeMerge applies a single merge proposal to the graph store.
@@ -469,6 +469,6 @@ func (c *LLMConsolidator) persistRun(ctx context.Context, s store.GraphStore, re
 		runID, c.config.Model, rec.CandidatesFound, rec.Promoted, mergeCount, rec.DurationMS,
 		nullIfEmpty(rec.ProjectID), nullIfEmpty(rec.SessionID), nullIfZero(rec.TokensUsed),
 	); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: failed to persist consolidation run %s: %v\n", runID, err)
+		slog.Warn("failed to persist consolidation run", "run_id", runID, "error", err)
 	}
 }

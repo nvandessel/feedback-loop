@@ -58,5 +58,6 @@ type Consolidator interface {
 
 	// Promote writes classified memories and edges into the graph store.
 	// Memories whose indices appear in skips are not created as nodes.
-	Promote(ctx context.Context, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, skips []int, s store.GraphStore) error
+	// Returns the number of memories promoted as new nodes.
+	Promote(ctx context.Context, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, skips []int, s store.GraphStore) (int, error)
 }

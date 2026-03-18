@@ -281,7 +281,7 @@ func (c *LLMConsolidator) extractFromChunk(ctx context.Context, chunk []events.E
 // Until then, the "already_captured" filtering in extractFromChunk can only
 // fire if the LLM spontaneously sets it without context.
 func (c *LLMConsolidator) fetchExistingBehaviors(_ context.Context) []models.Behavior {
-	slog.Debug("fetchExistingBehaviors: stub — deduplication not yet active")
+	slog.Warn("fetchExistingBehaviors: stub — pass-3 deduplication context is empty; duplicate candidates may be extracted")
 	return nil
 }
 

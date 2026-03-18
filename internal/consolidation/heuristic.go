@@ -202,19 +202,16 @@ func (h *HeuristicConsolidator) Relate(ctx context.Context, memories []Classifie
 
 // Promote writes classified memories into the graph store as behavior nodes.
 // Memories whose indices appear in skips are not created as nodes.
-func (h *HeuristicConsolidator) Promote(ctx context.Context, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, skips []int, s store.GraphStore) error {
+// Returns the number of memories promoted as new nodes.
+func (h *HeuristicConsolidator) Promote(ctx context.Context, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, skips []int, s store.GraphStore) (int, error) {
 	if s == nil {
-		return nil
+		return 0, nil
 	}
 
 	// Build set of memories that have merge proposals (skip them in v0)
 	merged := make(map[int]bool)
 	for _, m := range merges {
-		for i, mem := range memories {
-			if mem.RawText == m.Memory.RawText {
-				merged[i] = true
-			}
-		}
+		merged[m.MemoryIndex] = true
 	}
 
 	// Build set of memories to skip (already captured)
@@ -223,6 +220,7 @@ func (h *HeuristicConsolidator) Promote(ctx context.Context, memories []Classifi
 		skipped[idx] = true
 	}
 
+	promoted := 0
 	baseTS := time.Now().UnixNano()
 	for i, mem := range memories {
 		if merged[i] || skipped[i] {
@@ -265,15 +263,16 @@ func (h *HeuristicConsolidator) Promote(ctx context.Context, memories []Classifi
 		}
 
 		if _, err := s.AddNode(ctx, node); err != nil {
-			return fmt.Errorf("adding consolidated node: %w", err)
+			return 0, fmt.Errorf("adding consolidated node: %w", err)
 		}
+		promoted++
 	}
 
 	for _, edge := range edges {
 		if err := s.AddEdge(ctx, edge); err != nil {
-			return fmt.Errorf("adding edge: %w", err)
+			return 0, fmt.Errorf("adding edge: %w", err)
 		}
 	}
 
-	return nil
+	return promoted, nil
 }
