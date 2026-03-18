@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/nvandessel/floop/internal/models"
@@ -32,16 +33,10 @@ func (c *LLMConsolidator) Promote(ctx context.Context, memories []ClassifiedMemo
 	start := time.Now()
 
 	// Index merge proposals by memory position so we can skip merged memories
-	// in the create-new pass. Using index-based matching avoids silent drops
-	// when two distinct memories share the same RawText.
+	// in the create-new pass. Uses MemoryIndex from MergeProposal for exact matching.
 	mergedIndices := make(map[int]bool)
 	for _, merge := range merges {
-		for i, mem := range memories {
-			if mem.RawText == merge.Memory.RawText && mem.Kind == merge.Memory.Kind {
-				mergedIndices[i] = true
-				break
-			}
-		}
+		mergedIndices[merge.MemoryIndex] = true
 	}
 	// Build set of memories to skip (already captured by existing behaviors).
 	skipped := make(map[int]bool, len(skips))
@@ -57,12 +52,7 @@ func (c *LLMConsolidator) Promote(ctx context.Context, memories []ClassifiedMemo
 
 		if err != nil {
 			// Merge failed — unmark the memory so it falls through to create-as-new
-			for i, mem := range memories {
-				if mem.RawText == merge.Memory.RawText && mem.Kind == merge.Memory.Kind {
-					delete(mergedIndices, i)
-					break
-				}
-			}
+			delete(mergedIndices, merge.MemoryIndex)
 			cl.LogPromote("merge_failed", elapsed, map[string]any{
 				"target_id": merge.TargetID,
 				"strategy":  merge.Strategy,
@@ -79,10 +69,14 @@ func (c *LLMConsolidator) Promote(ctx context.Context, memories []ClassifiedMemo
 		})
 	}
 
-	// Create nodes for non-merged memories
+	// Create nodes for non-merged memories and build pending→actual ID map
 	promoted := 0
 	baseTS := time.Now().UnixNano()
+	pendingToActual := make(map[string]string) // "pending-N" → actual node ID
+
 	for i, mem := range memories {
+		pendingID := PendingNodeID(i)
+
 		if skipped[i] {
 			cl.LogPromote("skip", 0, map[string]any{
 				"reason":      "already_captured",
@@ -91,6 +85,13 @@ func (c *LLMConsolidator) Promote(ctx context.Context, memories []ClassifiedMemo
 			continue
 		}
 		if mergedIndices[i] {
+			// Map merged memory's pending ID to its merge target
+			for _, merge := range merges {
+				if merge.MemoryIndex == i {
+					pendingToActual[pendingID] = merge.TargetID
+					break
+				}
+			}
 			cl.LogPromote("skip", 0, map[string]any{
 				"reason":      "merged",
 				"memory_kind": string(mem.Kind),
@@ -102,6 +103,7 @@ func (c *LLMConsolidator) Promote(ctx context.Context, memories []ClassifiedMemo
 		if _, err := s.AddNode(ctx, node); err != nil {
 			return fmt.Errorf("adding consolidated node: %w", err)
 		}
+		pendingToActual[pendingID] = node.ID
 		promoted++
 
 		cl.LogPromote("promote", 0, map[string]any{
@@ -111,8 +113,18 @@ func (c *LLMConsolidator) Promote(ctx context.Context, memories []ClassifiedMemo
 		})
 	}
 
-	// Write edges from Relate stage
+	// Rewrite pending IDs in edges to actual node IDs, then write to store
 	for _, edge := range edges {
+		if actual, ok := pendingToActual[edge.Source]; ok {
+			edge.Source = actual
+		}
+		if actual, ok := pendingToActual[edge.Target]; ok {
+			edge.Target = actual
+		}
+		// Skip edges with unresolved pending IDs (shouldn't happen, but defensive)
+		if strings.HasPrefix(edge.Source, "pending-") || strings.HasPrefix(edge.Target, "pending-") {
+			continue
+		}
 		if err := s.AddEdge(ctx, edge); err != nil {
 			return fmt.Errorf("adding edge: %w", err)
 		}

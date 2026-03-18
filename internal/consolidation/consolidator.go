@@ -37,10 +37,11 @@ type ClassifiedMemory struct {
 
 // MergeProposal proposes merging a new memory into an existing behavior.
 type MergeProposal struct {
-	Memory     ClassifiedMemory
-	TargetID   string  // existing behavior ID
-	Similarity float64 // cosine similarity
-	Strategy   string  // "absorb", "supersede", "supplement"
+	Memory      ClassifiedMemory
+	MemoryIndex int     // index in the memories slice (for pending-ID mapping)
+	TargetID    string  // existing behavior ID
+	Similarity  float64 // cosine similarity
+	Strategy    string  // "absorb", "supersede", "supplement"
 }
 
 // Consolidator defines the four-stage consolidation pipeline.

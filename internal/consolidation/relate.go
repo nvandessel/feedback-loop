@@ -379,10 +379,11 @@ func convertProposals(proposals []relateProposal, memories []ClassifiedMemory, n
 				sim = neighborSimilarity(neighbors, p.MemoryIndex, p.MergeInto.TargetID)
 			}
 			merges = append(merges, MergeProposal{
-				Memory:     memories[p.MemoryIndex],
-				TargetID:   p.MergeInto.TargetID,
-				Similarity: sim,
-				Strategy:   p.MergeInto.Strategy,
+				Memory:      memories[p.MemoryIndex],
+				MemoryIndex: p.MemoryIndex,
+				TargetID:    p.MergeInto.TargetID,
+				Similarity:  sim,
+				Strategy:    p.MergeInto.Strategy,
 			})
 
 		case "skip":
