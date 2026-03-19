@@ -186,9 +186,14 @@ func ParseClassifiedMemories(response string, candidates []Candidate) ([]Classif
 		return nil, fmt.Errorf("LLM returned 0 classified entries for %d candidates", len(candidates))
 	}
 
-	// Build candidate lookup by source_events for fallback mapping
+	// Build candidate lookup by source_events for fallback mapping.
+	// Skip candidates with empty source events to avoid key collisions
+	// (e.g. multiple heuristic-fallback chunks with no event IDs).
 	candidateByEvents := make(map[string]int, len(candidates))
 	for i, c := range candidates {
+		if len(c.SourceEvents) == 0 {
+			continue
+		}
 		key := sourceEventsKey(c.SourceEvents)
 		if prev, exists := candidateByEvents[key]; exists {
 			slog.Warn("classify: two candidates share identical source_events key — fallback lookup will favour the later one",

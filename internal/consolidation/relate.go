@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/nvandessel/floop/internal/llm"
@@ -408,7 +409,7 @@ func convertProposals(proposals []relateProposal, memories []ClassifiedMemory, n
 // isPendingID returns true if the ID matches the pending-N format used for
 // cross-referencing new memories within the same batch.
 func isPendingID(id string) bool {
-	return len(id) > 8 && id[:8] == "pending-"
+	return strings.HasPrefix(id, "pending-")
 }
 
 // neighborSimilarity returns the cosine similarity score for the given target

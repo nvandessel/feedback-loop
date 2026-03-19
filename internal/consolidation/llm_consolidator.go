@@ -73,7 +73,6 @@ type MergeDetail struct {
 
 // ConsolidationRunRecord records metadata about a consolidation run.
 type ConsolidationRunRecord struct {
-	EventsProcessed int    `json:"events_processed"`
 	CandidatesFound int    `json:"candidates_found"`
 	Classified      int    `json:"classified"`
 	Promoted        int    `json:"promoted"`
