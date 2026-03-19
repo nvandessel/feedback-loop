@@ -137,10 +137,10 @@ func runConsolidate(cmd *cobra.Command, args []string) error {
 		model = floopCfg.LLM.ComparisonModel
 		logLevel = floopCfg.Logging.Level
 	}
-	// Only create decision logger for LLM executor to avoid empty JSONL files
-	// from heuristic runs when debug/trace logging is enabled.
+	// Only create decision logger when actually using the LLM executor to
+	// avoid empty JSONL files from heuristic fallback runs.
 	var decisions *logging.DecisionLogger
-	if executor == "llm" {
+	if executor == "llm" && llmClient != nil {
 		decisions = logging.NewDecisionLogger(filepath.Join(homeDir, ".floop"), logLevel)
 		if decisions != nil {
 			defer decisions.Close()
