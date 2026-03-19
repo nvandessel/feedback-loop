@@ -28,7 +28,11 @@ func (c *LLMConsolidator) Promote(ctx context.Context, runID string, memories []
 		return PromoteResult{}, nil
 	}
 
-	cl := NewConsolidationLogger(c.decisions, runID, c.config.Model)
+	model := c.config.Model
+	if model == "" {
+		model = "unknown"
+	}
+	cl := NewConsolidationLogger(c.decisions, runID, model)
 
 	// Index merge proposals by memory position so we can skip merged memories
 	// in the create-new pass. Uses MemoryIndex from MergeProposal for exact matching.
