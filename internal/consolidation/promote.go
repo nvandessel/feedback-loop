@@ -23,9 +23,9 @@ const EdgeKindSupplements store.EdgeKind = "supplements"
 // Promote writes classified memories into the graph store, executing merge
 // proposals (absorb/supersede/supplement) and logging every decision.
 // It replaces the heuristic Promote with merge-aware logic.
-func (c *LLMConsolidator) Promote(ctx context.Context, runID string, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, skips []int, s store.GraphStore) (int, error) {
+func (c *LLMConsolidator) Promote(ctx context.Context, runID string, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, skips []int, s store.GraphStore) (PromoteResult, error) {
 	if s == nil {
-		return 0, nil
+		return PromoteResult{}, nil
 	}
 
 	cl := NewConsolidationLogger(c.decisions, runID, c.config.Model)
@@ -107,7 +107,7 @@ func (c *LLMConsolidator) Promote(ctx context.Context, runID string, memories []
 
 		node := c.buildPromoteNode(mem, runID, baseTS, i)
 		if _, err := s.AddNode(ctx, node); err != nil {
-			return 0, fmt.Errorf("adding consolidated node: %w", err)
+			return PromoteResult{}, fmt.Errorf("adding consolidated node: %w", err)
 		}
 		pendingToActual[pendingID] = node.ID
 		promoted++
@@ -132,11 +132,14 @@ func (c *LLMConsolidator) Promote(ctx context.Context, runID string, memories []
 			continue
 		}
 		if err := s.AddEdge(ctx, edge); err != nil {
-			return 0, fmt.Errorf("adding edge: %w", err)
+			return PromoteResult{}, fmt.Errorf("adding edge: %w", err)
 		}
 	}
 
-	return promoted + nodesCreatedByMerge, nil
+	return PromoteResult{
+		Promoted:       promoted + nodesCreatedByMerge,
+		MergesExecuted: mergeCount,
+	}, nil
 }
 
 // executeMerge applies a single merge proposal to the graph store.

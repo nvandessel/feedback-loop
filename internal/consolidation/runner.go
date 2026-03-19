@@ -101,11 +101,11 @@ func (r *Runner) Run(ctx context.Context, evts []events.Event, s store.GraphStor
 	}
 
 	// Stage 4: Promote
-	promoted, err := r.consolidator.Promote(ctx, runID, classified, edges, merges, skips, s)
+	promoteResult, err := r.consolidator.Promote(ctx, runID, classified, edges, merges, skips, s)
 	if err != nil {
 		return nil, fmt.Errorf("promote stage: %w", err)
 	}
-	result.Promoted = promoted
+	result.Promoted = promoteResult.Promoted
 
 	// All input events were scanned — mark them consolidated.
 	result.SourceEventIDs = collectEventIDs(evts)
@@ -137,11 +137,11 @@ func (r *Runner) Run(ctx context.Context, evts []events.Event, s store.GraphStor
 		persistRun(ctx, s, model, ConsolidationRunRecord{
 			CandidatesFound: len(candidates),
 			Classified:      len(classified),
-			Promoted:        promoted,
+			Promoted:        promoteResult.Promoted,
 			DurationMS:      result.Duration.Milliseconds(),
 			ProjectID:       projectID,
 			SessionID:       sessionID,
-		}, result.RunID, len(classified)-promoted-len(skips))
+		}, result.RunID, promoteResult.MergesExecuted)
 	}
 
 	return result, nil

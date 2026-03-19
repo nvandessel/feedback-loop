@@ -61,8 +61,8 @@ func TestLLMPromote_CreateNodes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Promote returned error: %v", err)
 	}
-	if promoted != 2 {
-		t.Fatalf("expected promoted=2, got %d", promoted)
+	if promoted.Promoted != 2 {
+		t.Fatalf("expected promoted=2, got %d", promoted.Promoted)
 	}
 
 	// Verify nodes were created
@@ -306,8 +306,8 @@ func TestLLMPromote_MergeFailure(t *testing.T) {
 	}
 
 	// promoted count must reflect the fallback create (1, not 0)
-	if promoted != 1 {
-		t.Errorf("expected promoted=1 (failed merge falls through to create), got %d", promoted)
+	if promoted.Promoted != 1 {
+		t.Errorf("expected promoted=1 (failed merge falls through to create), got %d", promoted.Promoted)
 	}
 
 	// Memory should have been promoted as new (merge failed, fell through)

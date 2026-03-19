@@ -44,6 +44,12 @@ type MergeProposal struct {
 	Strategy    string  // "absorb", "supersede", "supplement"
 }
 
+// PromoteResult holds the counts from a Promote execution.
+type PromoteResult struct {
+	Promoted       int // new nodes created (create-new + supersede/supplement)
+	MergesExecuted int // successful merge proposals (absorb + supersede + supplement)
+}
+
 // Consolidator defines the four-stage consolidation pipeline.
 type Consolidator interface {
 	// Extract scans raw events for behavioral signals and returns candidates.
@@ -59,6 +65,5 @@ type Consolidator interface {
 	// Promote writes classified memories and edges into the graph store.
 	// Memories whose indices appear in skips are not created as nodes.
 	// runID correlates decision log entries with the DB run record.
-	// Returns the number of memories promoted as new nodes.
-	Promote(ctx context.Context, runID string, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, skips []int, s store.GraphStore) (int, error)
+	Promote(ctx context.Context, runID string, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, skips []int, s store.GraphStore) (PromoteResult, error)
 }
