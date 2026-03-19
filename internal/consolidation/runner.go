@@ -34,6 +34,13 @@ type ModelProvider interface {
 	Model() string
 }
 
+// RunIDSetter is an optional interface that Consolidator implementations
+// can satisfy to receive the run ID before pipeline execution. This allows
+// all decision log entries across stages to share the same run_id.
+type RunIDSetter interface {
+	SetRunID(string)
+}
+
 // Runner orchestrates the consolidation pipeline.
 type Runner struct {
 	consolidator Consolidator
@@ -63,7 +70,7 @@ func (r *Runner) Run(ctx context.Context, evts []events.Event, s store.GraphStor
 
 	// Set runID on the consolidator if it supports it, so all decision log
 	// entries across Extract/Classify/Relate/Promote share the same run_id.
-	if rs, ok := r.consolidator.(interface{ SetRunID(string) }); ok {
+	if rs, ok := r.consolidator.(RunIDSetter); ok {
 		rs.SetRunID(runID)
 	}
 

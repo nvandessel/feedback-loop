@@ -120,9 +120,13 @@ func (c *LLMConsolidator) logDecision(fields map[string]any) {
 	if c.decisions == nil {
 		return
 	}
-	fields["run_id"] = c.runID
-	fields["model"] = c.config.Model
-	c.decisions.Log(fields)
+	merged := make(map[string]any, len(fields)+2)
+	for k, v := range fields {
+		merged[k] = v
+	}
+	merged["run_id"] = c.runID
+	merged["model"] = c.config.Model
+	c.decisions.Log(merged)
 }
 
 // Extract is implemented in extract.go with three-pass chunked extraction.
