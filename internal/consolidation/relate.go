@@ -264,8 +264,14 @@ func (c *LLMConsolidator) findNeighborsByQuery(ctx context.Context, memories []C
 	return result, nil
 }
 
-// buildCoOccurrenceEdges generates co-activated edges between all memories
-// that share the same session ID.
+// maxCoOccurrencePerSession caps the number of memories linked via
+// co-occurrence edges per session, avoiding O(n²) edge growth.
+// With a cap of 15, the maximum edges per session is C(15,2) = 105.
+const maxCoOccurrencePerSession = 15
+
+// buildCoOccurrenceEdges generates co-activated edges between memories
+// that share the same session ID. If a session has more than
+// maxCoOccurrencePerSession memories, only the first N are linked.
 func buildCoOccurrenceEdges(memories []ClassifiedMemory) []store.Edge {
 	// Group memories by session.
 	sessions := make(map[string][]int)
@@ -284,11 +290,16 @@ func buildCoOccurrenceEdges(memories []ClassifiedMemory) []store.Edge {
 		if len(indices) < 2 {
 			continue
 		}
+		// Cap to avoid O(n²) edge count for large sessions.
+		capped := indices
+		if len(capped) > maxCoOccurrencePerSession {
+			capped = capped[:maxCoOccurrencePerSession]
+		}
 		// Create edges between all pairs.
-		for a := 0; a < len(indices); a++ {
-			for b := a + 1; b < len(indices); b++ {
-				srcID := PendingNodeID(indices[a])
-				tgtID := PendingNodeID(indices[b])
+		for a := 0; a < len(capped); a++ {
+			for b := a + 1; b < len(capped); b++ {
+				srcID := PendingNodeID(capped[a])
+				tgtID := PendingNodeID(capped[b])
 				edges = append(edges, store.Edge{
 					Source:    srcID,
 					Target:    tgtID,

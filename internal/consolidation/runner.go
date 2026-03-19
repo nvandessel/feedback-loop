@@ -16,6 +16,7 @@ type RunOptions struct {
 
 // RunResult holds the output of a consolidation run.
 type RunResult struct {
+	RunID          string // unique run identifier shared between decision logs and DB
 	Candidates     []Candidate
 	Classified     []ClassifiedMemory
 	Edges          []store.Edge
@@ -47,7 +48,8 @@ func NewRunnerWithModel(c Consolidator, model string) *Runner {
 // If DryRun is true or the store is nil, it stops after Classify.
 func (r *Runner) Run(ctx context.Context, evts []events.Event, s store.GraphStore, opts RunOptions) (*RunResult, error) {
 	start := time.Now()
-	result := &RunResult{}
+	runID := fmt.Sprintf("run-%d", start.UnixNano())
+	result := &RunResult{RunID: runID}
 
 	// Stage 1: Extract
 	candidates, err := r.consolidator.Extract(ctx, evts)
@@ -99,7 +101,7 @@ func (r *Runner) Run(ctx context.Context, evts []events.Event, s store.GraphStor
 	}
 
 	// Stage 4: Promote
-	promoted, err := r.consolidator.Promote(ctx, classified, edges, merges, skips, s)
+	promoted, err := r.consolidator.Promote(ctx, runID, classified, edges, merges, skips, s)
 	if err != nil {
 		return nil, fmt.Errorf("promote stage: %w", err)
 	}
@@ -111,8 +113,11 @@ func (r *Runner) Run(ctx context.Context, evts []events.Event, s store.GraphStor
 	result.Duration = time.Since(start)
 
 	// Persist run record with all stage counts (best-effort).
-	if r.model != "" {
-		runID := fmt.Sprintf("run-%d", start.UnixNano())
+	{
+		model := r.model
+		if model == "" {
+			model = "unknown"
+		}
 		var projectID, sessionID string
 		for _, mem := range classified {
 			if projectID == "" {
@@ -129,14 +134,14 @@ func (r *Runner) Run(ctx context.Context, evts []events.Event, s store.GraphStor
 				break
 			}
 		}
-		persistRun(ctx, s, r.model, ConsolidationRunRecord{
+		persistRun(ctx, s, model, ConsolidationRunRecord{
 			CandidatesFound: len(candidates),
 			Classified:      len(classified),
 			Promoted:        promoted,
 			DurationMS:      result.Duration.Milliseconds(),
 			ProjectID:       projectID,
 			SessionID:       sessionID,
-		}, runID, len(classified)-promoted-len(skips))
+		}, result.RunID, len(classified)-promoted-len(skips))
 	}
 
 	return result, nil

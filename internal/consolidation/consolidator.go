@@ -58,6 +58,7 @@ type Consolidator interface {
 
 	// Promote writes classified memories and edges into the graph store.
 	// Memories whose indices appear in skips are not created as nodes.
+	// runID correlates decision log entries with the DB run record.
 	// Returns the number of memories promoted as new nodes.
-	Promote(ctx context.Context, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, skips []int, s store.GraphStore) (int, error)
+	Promote(ctx context.Context, runID string, memories []ClassifiedMemory, edges []store.Edge, merges []MergeProposal, skips []int, s store.GraphStore) (int, error)
 }
