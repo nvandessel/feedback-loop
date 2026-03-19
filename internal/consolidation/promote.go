@@ -28,11 +28,7 @@ func (c *LLMConsolidator) Promote(ctx context.Context, runID string, memories []
 		return PromoteResult{}, nil
 	}
 
-	model := c.config.Model
-	if model == "" {
-		model = "unknown"
-	}
-	cl := NewConsolidationLogger(c.decisions, runID, model)
+	cl := NewConsolidationLogger(c.decisions, runID, c.normalizedModel())
 
 	// Index merge proposals by memory position so we can skip merged memories
 	// in the create-new pass. Uses MemoryIndex from MergeProposal for exact matching.
@@ -210,7 +206,7 @@ func (c *LLMConsolidator) executeAbsorb(ctx context.Context, merge MergeProposal
 	if prov == nil {
 		prov = make(map[string]interface{})
 	}
-	prov["consolidated_by"] = c.config.Model
+	prov["consolidated_by"] = c.normalizedModel()
 	prov["source_type"] = string(models.SourceTypeConsolidated)
 	now := time.Now().UTC()
 	prov["consolidated_at"] = now.Format(time.RFC3339)
@@ -398,7 +394,7 @@ func (c *LLMConsolidator) buildPromoteNode(mem ClassifiedMemory, runID string, b
 	// Rich provenance
 	prov := map[string]interface{}{
 		"source_type":     string(models.SourceTypeConsolidated),
-		"consolidated_by": c.config.Model,
+		"consolidated_by": c.normalizedModel(),
 		"source_events":   toInterfaceSlice(mem.SourceEvents),
 		"confidence":      mem.Confidence,
 		"importance":      mem.Importance,

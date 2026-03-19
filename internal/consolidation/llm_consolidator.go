@@ -107,6 +107,16 @@ func (c *LLMConsolidator) Model() string {
 	return c.config.Model
 }
 
+// normalizedModel returns the model identifier, falling back to "unknown"
+// when unconfigured. Use this for all output paths (logs, DB, node provenance)
+// to ensure consistent model attribution.
+func (c *LLMConsolidator) normalizedModel() string {
+	if c.config.Model == "" {
+		return "unknown"
+	}
+	return c.config.Model
+}
+
 // SetRunID sets the run identifier used in decision log entries.
 // Called by Runner before each pipeline execution.
 func (c *LLMConsolidator) SetRunID(id string) {
@@ -125,11 +135,7 @@ func (c *LLMConsolidator) logDecision(fields map[string]any) {
 		merged[k] = v
 	}
 	merged["run_id"] = c.runID
-	model := c.config.Model
-	if model == "" {
-		model = "unknown"
-	}
-	merged["model"] = model
+	merged["model"] = c.normalizedModel()
 	c.decisions.Log(merged)
 }
 
