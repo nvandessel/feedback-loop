@@ -529,9 +529,12 @@ func TestParseRelationships_InvalidAction(t *testing.T) {
 	input := makeLLMResponse([]relateProposal{
 		{MemoryIndex: 0, Action: "destroy"},
 	})
-	_, err := ParseRelationships(input)
-	if err == nil {
-		t.Error("expected error for invalid action")
+	proposals, err := ParseRelationships(input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(proposals) != 0 {
+		t.Errorf("expected 0 proposals after skipping invalid action, got %d", len(proposals))
 	}
 }
 
@@ -539,9 +542,12 @@ func TestParseRelationships_MergeWithoutTarget(t *testing.T) {
 	input := makeLLMResponse([]relateProposal{
 		{MemoryIndex: 0, Action: "merge"},
 	})
-	_, err := ParseRelationships(input)
-	if err == nil {
-		t.Error("expected error for merge without merge_into")
+	proposals, err := ParseRelationships(input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(proposals) != 0 {
+		t.Errorf("expected 0 proposals after skipping merge without target, got %d", len(proposals))
 	}
 }
 
@@ -600,9 +606,12 @@ func TestParseRelationships_InvalidMergeStrategy(t *testing.T) {
 			MergeInto:   &mergeInfo{TargetID: "bhv-1", Strategy: "destroy"},
 		},
 	})
-	_, err := ParseRelationships(input)
-	if err == nil {
-		t.Error("expected error for invalid merge strategy")
+	proposals, err := ParseRelationships(input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(proposals) != 0 {
+		t.Errorf("expected 0 proposals after skipping invalid strategy, got %d", len(proposals))
 	}
 }
 
@@ -636,9 +645,12 @@ func TestParseRelationships_EmptyMergeTargetID(t *testing.T) {
 			MergeInto:   &mergeInfo{TargetID: "", Strategy: "absorb"},
 		},
 	})
-	_, err := ParseRelationships(input)
-	if err == nil {
-		t.Error("expected error for empty merge target_id")
+	proposals, err := ParseRelationships(input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(proposals) != 0 {
+		t.Errorf("expected 0 proposals after skipping empty target_id, got %d", len(proposals))
 	}
 }
 
@@ -667,9 +679,13 @@ func TestParseRelationships_DuplicateMemoryIndex(t *testing.T) {
 		{MemoryIndex: 0, Action: "skip", Rationale: "first"},
 		{MemoryIndex: 0, Action: "skip", Rationale: "duplicate"},
 	})
-	_, err := ParseRelationships(input)
-	if err == nil {
-		t.Error("expected error for duplicate memory_index")
+	proposals, err := ParseRelationships(input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Duplicate should be skipped, keeping first occurrence
+	if len(proposals) != 1 {
+		t.Errorf("expected 1 proposal (first kept, duplicate skipped), got %d", len(proposals))
 	}
 }
 
@@ -769,9 +785,12 @@ func TestConvertProposals_PendingIDEdgeTarget(t *testing.T) {
 
 func TestParseRelationships_NegativeMemoryIndex(t *testing.T) {
 	input := `{"relationships":[{"memory_index":-1,"action":"skip","rationale":"test"}]}`
-	_, err := ParseRelationships(input)
-	if err == nil {
-		t.Error("expected error for negative memory_index")
+	proposals, err := ParseRelationships(input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(proposals) != 0 {
+		t.Errorf("expected 0 proposals after skipping negative index, got %d", len(proposals))
 	}
 }
 

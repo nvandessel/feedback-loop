@@ -3,6 +3,7 @@ package consolidation
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/nvandessel/floop/internal/llm"
 	"github.com/nvandessel/floop/internal/store"
@@ -161,16 +162,23 @@ func ParseRelationships(response string) ([]relateProposal, error) {
 		return nil, fmt.Errorf("parsing relate response: %w", err)
 	}
 
-	// Validate each proposal at the structural level. Per-edge validation
-	// (kind, weight, target) is deferred to convertProposals so that one bad
-	// edge does not discard all proposals.
+	// Per-proposal validation: skip individual bad proposals rather than
+	// rejecting the entire batch. Per-edge validation (kind, weight, target)
+	// is deferred to convertProposals so that one bad edge does not discard
+	// all proposals.
 	seen := make(map[int]bool, len(resp.Relationships))
+	valid := make([]relateProposal, 0, len(resp.Relationships))
+
 	for i, p := range resp.Relationships {
 		if p.MemoryIndex < 0 {
-			return nil, fmt.Errorf("proposal %d: memory_index must not be negative, got %d", i, p.MemoryIndex)
+			slog.Warn("relate: skipping proposal with negative memory_index",
+				"proposal", i, "memory_index", p.MemoryIndex)
+			continue
 		}
 		if seen[p.MemoryIndex] {
-			return nil, fmt.Errorf("proposal %d: duplicate memory_index %d", i, p.MemoryIndex)
+			slog.Warn("relate: skipping duplicate memory_index — keeping first occurrence",
+				"proposal", i, "memory_index", p.MemoryIndex)
+			continue
 		}
 		seen[p.MemoryIndex] = true
 
@@ -178,19 +186,29 @@ func ParseRelationships(response string) ([]relateProposal, error) {
 		case "create", "merge", "skip":
 			// valid
 		default:
-			return nil, fmt.Errorf("proposal %d: invalid action %q", i, p.Action)
+			slog.Warn("relate: skipping proposal with invalid action",
+				"proposal", i, "action", p.Action)
+			continue
 		}
 
 		if p.Action == "merge" && p.MergeInto == nil {
-			return nil, fmt.Errorf("proposal %d: merge action requires merge_into", i)
+			slog.Warn("relate: skipping merge proposal without merge_into",
+				"proposal", i, "memory_index", p.MemoryIndex)
+			continue
 		}
 		if p.MergeInto != nil && p.MergeInto.TargetID == "" {
-			return nil, fmt.Errorf("proposal %d: merge_into.target_id must not be empty", i)
+			slog.Warn("relate: skipping merge proposal with empty target_id",
+				"proposal", i, "memory_index", p.MemoryIndex)
+			continue
 		}
 		if p.MergeInto != nil && !validMergeStrategies[p.MergeInto.Strategy] {
-			return nil, fmt.Errorf("proposal %d: invalid merge strategy %q", i, p.MergeInto.Strategy)
+			slog.Warn("relate: skipping merge proposal with invalid strategy",
+				"proposal", i, "strategy", p.MergeInto.Strategy)
+			continue
 		}
+
+		valid = append(valid, p)
 	}
 
-	return resp.Relationships, nil
+	return valid, nil
 }

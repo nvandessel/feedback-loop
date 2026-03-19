@@ -29,11 +29,18 @@ type RunResult struct {
 // Runner orchestrates the consolidation pipeline.
 type Runner struct {
 	consolidator Consolidator
+	model        string // model identifier for run persistence
 }
 
 // NewRunner creates a new consolidation runner.
 func NewRunner(c Consolidator) *Runner {
 	return &Runner{consolidator: c}
+}
+
+// NewRunnerWithModel creates a new consolidation runner with a model identifier
+// for persisting run records to the consolidation_runs table.
+func NewRunnerWithModel(c Consolidator, model string) *Runner {
+	return &Runner{consolidator: c, model: model}
 }
 
 // Run executes the full consolidation pipeline: Extract, Classify, Relate, Promote.
@@ -102,6 +109,36 @@ func (r *Runner) Run(ctx context.Context, evts []events.Event, s store.GraphStor
 	result.SourceEventIDs = collectEventIDs(evts)
 
 	result.Duration = time.Since(start)
+
+	// Persist run record with all stage counts (best-effort).
+	if r.model != "" {
+		runID := fmt.Sprintf("run-%d", start.UnixNano())
+		var projectID, sessionID string
+		for _, mem := range classified {
+			if projectID == "" {
+				if pid, ok := mem.SessionContext["project_id"].(string); ok {
+					projectID = pid
+				}
+			}
+			if sessionID == "" {
+				if sid, ok := mem.SessionContext["session_id"].(string); ok {
+					sessionID = sid
+				}
+			}
+			if projectID != "" && sessionID != "" {
+				break
+			}
+		}
+		persistRun(ctx, s, r.model, ConsolidationRunRecord{
+			CandidatesFound: len(candidates),
+			Classified:      len(classified),
+			Promoted:        promoted,
+			DurationMS:      result.Duration.Milliseconds(),
+			ProjectID:       projectID,
+			SessionID:       sessionID,
+		}, runID, len(classified)-promoted-len(skips))
+	}
+
 	return result, nil
 }
 

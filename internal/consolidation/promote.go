@@ -30,7 +30,6 @@ func (c *LLMConsolidator) Promote(ctx context.Context, memories []ClassifiedMemo
 
 	runID := fmt.Sprintf("run-%d", time.Now().UnixNano())
 	cl := NewConsolidationLogger(c.decisions, runID, c.config.Model)
-	start := time.Now()
 
 	// Index merge proposals by memory position so we can skip merged memories
 	// in the create-new pass. Uses MemoryIndex from MergeProposal for exact matching.
@@ -131,39 +130,6 @@ func (c *LLMConsolidator) Promote(ctx context.Context, memories []ClassifiedMemo
 			return 0, fmt.Errorf("adding edge: %w", err)
 		}
 	}
-
-	duration := time.Since(start)
-
-	// Extract project/session IDs from memory session context (all memories
-	// in a run share the same session, so take the first non-empty values).
-	var projectID, sessionID string
-	for _, mem := range memories {
-		if projectID == "" {
-			if pid, ok := mem.SessionContext["project_id"].(string); ok {
-				projectID = pid
-			}
-		}
-		if sessionID == "" {
-			if sid, ok := mem.SessionContext["session_id"].(string); ok {
-				sessionID = sid
-			}
-		}
-		if projectID != "" && sessionID != "" {
-			break
-		}
-	}
-
-	// Persist run record to consolidation_runs table if store supports SQL.
-	// Stage counts are set to 0 for stages not tracked at this level;
-	// Promote only knows how many classified memories it received.
-	c.persistRun(ctx, s, ConsolidationRunRecord{
-		CandidatesFound: 0,
-		Classified:      len(memories),
-		Promoted:        promoted,
-		DurationMS:      duration.Milliseconds(),
-		ProjectID:       projectID,
-		SessionID:       sessionID,
-	}, runID, mergeCount)
 
 	return promoted, nil
 }
@@ -423,6 +389,7 @@ func (c *LLMConsolidator) buildPromoteNode(mem ClassifiedMemory, runID string, b
 		"consolidated_by": c.config.Model,
 		"source_events":   toInterfaceSlice(mem.SourceEvents),
 		"confidence":      mem.Confidence,
+		"importance":      mem.Importance,
 		"consolidated_at": time.Now().UTC().Format(time.RFC3339),
 	}
 
@@ -436,6 +403,7 @@ func (c *LLMConsolidator) buildPromoteNode(mem ClassifiedMemory, runID string, b
 
 	metadata := map[string]interface{}{
 		"confidence":        mem.Confidence,
+		"importance":        mem.Importance,
 		"scope":             mem.Scope,
 		"provenance":        prov,
 		"consolidation_run": runID,
@@ -457,7 +425,7 @@ func (c *LLMConsolidator) buildPromoteNode(mem ClassifiedMemory, runID string, b
 // persistRun writes a consolidation run record to the consolidation_runs table.
 // It silently no-ops if the store does not support SQL (e.g., InMemoryGraphStore).
 // Errors are logged but not fatal — run persistence is best-effort.
-func (c *LLMConsolidator) persistRun(ctx context.Context, s store.GraphStore, rec ConsolidationRunRecord, runID string, mergeCount int) {
+func persistRun(ctx context.Context, s store.GraphStore, model string, rec ConsolidationRunRecord, runID string, mergeCount int) {
 	// Type-assert to get the underlying *sql.DB.
 	type sqlDBProvider interface {
 		DB() *sql.DB
@@ -474,7 +442,7 @@ func (c *LLMConsolidator) persistRun(ctx context.Context, s store.GraphStore, re
 	if _, err := db.ExecContext(ctx, `
 		INSERT INTO consolidation_runs (id, model, candidates_found, memories_promoted, merges_executed, duration_ms, project_id, session_id, tokens_used, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-		runID, c.config.Model, rec.CandidatesFound, rec.Promoted, mergeCount, rec.DurationMS,
+		runID, model, rec.CandidatesFound, rec.Promoted, mergeCount, rec.DurationMS,
 		nullIfEmpty(rec.ProjectID), nullIfEmpty(rec.SessionID), nullIfZero(rec.TokensUsed),
 	); err != nil {
 		slog.Warn("failed to persist consolidation run", "run_id", runID, "error", err)

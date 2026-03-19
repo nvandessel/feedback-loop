@@ -786,8 +786,8 @@ func TestBatchCandidates(t *testing.T) {
 		wantBatch int
 	}{
 		{"small set no batching", 10, 20, 1},
-		{"at threshold no batching", 30, 20, 1},
-		{"over threshold", 31, 20, 2},
+		{"at maxSize no batching", 20, 20, 1},
+		{"over maxSize", 21, 20, 2},
 		{"large set", 45, 20, 3},
 		{"zero maxSize defaults", 10, 0, 1},
 	}

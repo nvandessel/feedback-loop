@@ -89,15 +89,13 @@ func toWorkflowData(wd *workflowDataJSON) *models.WorkflowData {
 	}
 }
 
-// batchCandidates splits candidates into batches. If len(candidates) > threshold,
-// each batch has at most maxSize candidates. Otherwise, a single batch is returned.
+// batchCandidates splits candidates into batches of at most maxSize.
+// If len(candidates) <= maxSize, a single batch is returned.
 func batchCandidates(candidates []Candidate, maxSize int) [][]Candidate {
 	if maxSize <= 0 {
 		maxSize = defaultMaxCandidates
 	}
-	// Only batch if we exceed the threshold (maxSize + 10)
-	threshold := maxSize + 10
-	if len(candidates) <= threshold {
+	if len(candidates) <= maxSize {
 		return [][]Candidate{candidates}
 	}
 
