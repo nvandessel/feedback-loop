@@ -42,11 +42,15 @@ type RunIDSetter interface {
 }
 
 // Runner orchestrates the consolidation pipeline.
+// A Runner (and its Consolidator) must not be shared across concurrent Run calls
+// because Run sets mutable state on the consolidator via SetRunID. Each goroutine
+// should create its own Runner with its own Consolidator instance.
 type Runner struct {
 	consolidator Consolidator
 }
 
 // NewRunner creates a new consolidation runner.
+// The returned Runner must not be used concurrently; see Runner doc.
 func NewRunner(c Consolidator) *Runner {
 	return &Runner{consolidator: c}
 }
