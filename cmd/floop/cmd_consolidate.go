@@ -13,6 +13,7 @@ import (
 	"github.com/nvandessel/floop/internal/consolidation"
 	"github.com/nvandessel/floop/internal/events"
 	"github.com/nvandessel/floop/internal/llm"
+	"github.com/nvandessel/floop/internal/logging"
 	"github.com/nvandessel/floop/internal/store"
 	"github.com/nvandessel/floop/internal/utils"
 	"github.com/spf13/cobra"
@@ -131,11 +132,16 @@ func runConsolidate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Run consolidation pipeline
-	var model string
+	var model, logLevel string
 	if floopCfg != nil {
 		model = floopCfg.LLM.ComparisonModel
+		logLevel = floopCfg.Logging.Level
 	}
-	consolidator := consolidation.NewConsolidator(executor, llmClient, nil, model)
+	decisions := logging.NewDecisionLogger(filepath.Join(homeDir, ".floop"), logLevel)
+	if decisions != nil {
+		defer decisions.Close()
+	}
+	consolidator := consolidation.NewConsolidator(executor, llmClient, decisions, model)
 	runner := consolidation.NewRunner(consolidator)
 
 	result, err := runner.Run(ctx, evts, graphStore, consolidation.RunOptions{
