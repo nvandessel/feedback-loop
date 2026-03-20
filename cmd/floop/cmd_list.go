@@ -139,6 +139,10 @@ func newListCmd() *cobra.Command {
 			}
 
 			if jsonOut {
+				// Note: JSON scope field emits the scope constant value ("local", "global",
+				// or "both"). The deprecated --all flag previously emitted "all" but now
+				// emits "both" to match the actual scope constant. This is a documented
+				// breaking change — see PR description.
 				result := map[string]interface{}{
 					"behaviors": behaviors,
 					"count":     len(behaviors),
