@@ -286,11 +286,11 @@ func loadBehaviorsWithScope(projectRoot string, scope constants.Scope) ([]models
 
 	case constants.ScopeGlobal:
 		// Load from global store only
-		homeDir, err := os.UserHomeDir()
+		globalPath, err := store.GlobalFloopPath()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get home directory: %w", err)
+			return nil, fmt.Errorf("failed to get global path: %w", err)
 		}
-		graphStore, err = store.NewSQLiteGraphStore(homeDir)
+		graphStore, err = store.NewSQLiteGraphStore(filepath.Dir(globalPath))
 		if err != nil {
 			return nil, fmt.Errorf("failed to open global store: %w", err)
 		}

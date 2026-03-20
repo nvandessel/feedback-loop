@@ -106,11 +106,11 @@ func runSingleStoreValidation(ctx context.Context, root string, scope store.Stor
 	case store.ScopeLocal:
 		graphStore, err = store.NewSQLiteGraphStore(root)
 	case store.ScopeGlobal:
-		homeDir, homeErr := os.UserHomeDir()
-		if homeErr != nil {
-			return fmt.Errorf("failed to get home directory: %w", homeErr)
+		globalPath, pathErr := store.GlobalFloopPath()
+		if pathErr != nil {
+			return fmt.Errorf("failed to get global path: %w", pathErr)
 		}
-		graphStore, err = store.NewSQLiteGraphStore(homeDir)
+		graphStore, err = store.NewSQLiteGraphStore(filepath.Dir(globalPath))
 	}
 
 	if err != nil {
