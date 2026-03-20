@@ -485,13 +485,16 @@ func (s *Server) Close() error {
 	var closeErr error
 	s.closeOnce.Do(func() {
 		close(s.done)
-		s.workerWg.Wait()
 
+		// Stop the debounce timer before draining workers so it cannot
+		// spawn new background work after Wait() returns.
 		s.pageRankDebounceMu.Lock()
 		if s.pageRankDebounce != nil {
 			s.pageRankDebounce.Stop()
 		}
 		s.pageRankDebounceMu.Unlock()
+
+		s.workerWg.Wait()
 
 		if s.auditLogger != nil {
 			s.auditLogger.Close()
