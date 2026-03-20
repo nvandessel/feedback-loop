@@ -111,6 +111,8 @@ func runSingleStoreValidation(ctx context.Context, root string, scope store.Stor
 			return fmt.Errorf("failed to get global path: %w", pathErr)
 		}
 		graphStore, err = store.NewSQLiteGraphStore(filepath.Dir(globalPath))
+	default:
+		return fmt.Errorf("runSingleStoreValidation requires local or global scope, got %q", scope)
 	}
 
 	if err != nil {
