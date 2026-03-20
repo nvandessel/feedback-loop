@@ -27,11 +27,11 @@ This command analyzes all behaviors in the store, identifies duplicates based on
 semantic similarity, and can automatically merge them.
 
 Examples:
-  floop deduplicate                  # Find duplicates in local store
+  floop deduplicate                  # Find duplicates across both stores (default)
   floop deduplicate --dry-run        # Show what would be merged
   floop deduplicate --threshold 0.8  # Use lower similarity threshold
   floop deduplicate --scope global   # Deduplicate global store only
-  floop deduplicate --scope both     # Cross-store deduplication`,
+  floop deduplicate --scope local    # Deduplicate local store only`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root, _ := cmd.Flags().GetString("root")
 			jsonOut, _ := cmd.Flags().GetBool("json")

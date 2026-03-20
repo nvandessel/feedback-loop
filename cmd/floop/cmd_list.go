@@ -35,8 +35,9 @@ func newListCmd() *cobra.Command {
 			scope := constants.ScopeBoth
 			if globalFlag {
 				scope = constants.ScopeGlobal
-			} else if allFlag {
-				scope = constants.ScopeBoth
+			}
+			if allFlag {
+				fmt.Fprintln(cmd.ErrOrStderr(), "Warning: --all is deprecated; 'both' is now the default scope")
 			}
 
 			// Check initialization based on scope
@@ -138,7 +139,7 @@ func newListCmd() *cobra.Command {
 
 	cmd.Flags().Bool("corrections", false, "Show captured corrections instead of behaviors")
 	cmd.Flags().Bool("global", false, "Show behaviors from global user store (~/.floop/) only")
-	cmd.Flags().Bool("all", false, "Show behaviors from both local and global stores")
+	cmd.Flags().Bool("all", false, "Show behaviors from both local and global stores (now the default; this flag is deprecated)")
 	cmd.Flags().String("tag", "", "Filter behaviors by tag (exact match)")
 
 	return cmd

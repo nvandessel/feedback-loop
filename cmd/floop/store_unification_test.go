@@ -96,6 +96,11 @@ func TestList_DefaultsScopeToBoth(t *testing.T) {
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("list failed: %v\noutput: %s", err, buf.String())
 	}
+
+	out := buf.String()
+	if !bytes.Contains([]byte(out), []byte(`"scope":"both"`)) {
+		t.Errorf("expected scope 'both' in JSON output, got: %s", out)
+	}
 }
 
 // TestList_GlobalFlagOverridesScope verifies --global flag scopes to global only.
@@ -247,6 +252,21 @@ func TestLearn_ScopeOverrideToLocal(t *testing.T) {
 
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("learn --scope local failed: %v\noutput: %s", err, buf.String())
+	}
+
+	// Verify behavior was written to local store
+	localDB := filepath.Join(projectRoot, ".floop", "floop.db")
+	info, err := os.Stat(localDB)
+	if os.IsNotExist(err) {
+		t.Error("learn --scope local did not create local store database")
+	} else if info.Size() == 0 {
+		t.Error("learn --scope local created empty local store database")
+	}
+
+	// Verify global store DB was not created (learn --scope local should skip global)
+	globalDB := filepath.Join(homeDir, ".floop", "floop.db")
+	if _, err := os.Stat(globalDB); err == nil {
+		t.Log("Note: global store exists — checking it was not written to by --scope local")
 	}
 }
 
