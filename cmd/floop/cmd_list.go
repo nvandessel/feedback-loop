@@ -38,6 +38,12 @@ func newListCmd() *cobra.Command {
 				return fmt.Errorf("cannot specify both --local and --all")
 			}
 
+			// Handle --corrections early: it reads from local corrections.jsonl only,
+			// scope checks are irrelevant and would emit misleading warnings.
+			if showCorrections {
+				return listCorrections(root, jsonOut)
+			}
+
 			// Determine scope
 			scope := constants.ScopeBoth
 			if globalFlag {
@@ -112,10 +118,6 @@ func newListCmd() *cobra.Command {
 					fmt.Fprintln(cmd.ErrOrStderr(), "Warning: global .floop not initialized, showing local behaviors only")
 					scope = constants.ScopeLocal
 				}
-			}
-
-			if showCorrections {
-				return listCorrections(root, jsonOut)
 			}
 
 			// Load behaviors from appropriate store(s)

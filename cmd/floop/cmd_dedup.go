@@ -142,11 +142,11 @@ func runSingleStoreDedup(ctx context.Context, root string, scope store.StoreScop
 	case store.ScopeLocal:
 		graphStore, err = store.NewSQLiteGraphStore(root)
 	case store.ScopeGlobal:
-		homeDir, homeErr := os.UserHomeDir()
-		if homeErr != nil {
-			return fmt.Errorf("failed to get home directory: %w", homeErr)
+		globalPath, pathErr := store.GlobalFloopPath()
+		if pathErr != nil {
+			return fmt.Errorf("failed to get global path: %w", pathErr)
 		}
-		graphStore, err = store.NewSQLiteGraphStore(homeDir)
+		graphStore, err = store.NewSQLiteGraphStore(filepath.Dir(globalPath))
 	}
 
 	if err != nil {
@@ -328,12 +328,12 @@ func runCrossStoreDedup(ctx context.Context, root string, cfg dedup.Deduplicator
 	}
 	defer localStore.Close()
 
-	// Open global store
-	homeDir, err := os.UserHomeDir()
+	// Open global store using same path resolution as pre-check
+	globalPath, err := store.GlobalFloopPath()
 	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
+		return fmt.Errorf("failed to get global path: %w", err)
 	}
-	globalStore, err := store.NewSQLiteGraphStore(homeDir)
+	globalStore, err := store.NewSQLiteGraphStore(filepath.Dir(globalPath))
 	if err != nil {
 		return fmt.Errorf("failed to open global store: %w", err)
 	}
