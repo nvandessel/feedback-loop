@@ -58,6 +58,7 @@ type Server struct {
 
 	// Bounded worker pool for background goroutines
 	workerPool chan struct{}
+	workerWg   sync.WaitGroup
 
 	// Session-scoped implicit confirmation tracking.
 	// Each behavior gets at most 1 implicit confirmation per session (not per
@@ -392,7 +393,9 @@ func (s *Server) runBackground(name string, fn func()) {
 	case <-s.done:
 		return // server is shutting down
 	case s.workerPool <- struct{}{}:
+		s.workerWg.Add(1)
 		go func() {
+			defer s.workerWg.Done()
 			defer func() { <-s.workerPool }()
 			select {
 			case <-s.done:
@@ -482,6 +485,7 @@ func (s *Server) Close() error {
 	var closeErr error
 	s.closeOnce.Do(func() {
 		close(s.done)
+		s.workerWg.Wait()
 
 		s.pageRankDebounceMu.Lock()
 		if s.pageRankDebounce != nil {
