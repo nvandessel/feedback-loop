@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/nvandessel/floop/internal/constants"
 	"github.com/nvandessel/floop/internal/edges"
 	"github.com/nvandessel/floop/internal/store"
 	"github.com/spf13/cobra"
@@ -37,7 +36,7 @@ Examples:
 			clear, _ := cmd.Flags().GetBool("clear")
 			scope, _ := cmd.Flags().GetString("scope")
 
-			storeScope := constants.Scope(scope)
+			storeScope := store.StoreScope(scope)
 			if !storeScope.Valid() {
 				return fmt.Errorf("invalid scope: %s (must be local, global, or both)", scope)
 			}
@@ -45,12 +44,53 @@ Examples:
 			ctx := context.Background()
 			var allResults []edges.DeriveResult
 
-			if storeScope == constants.ScopeLocal || storeScope == constants.ScopeBoth {
+			// Check initialization — for ScopeBoth, degrade gracefully if one store is missing
+			hasLocal := true
+			hasGlobal := true
+
+			if storeScope == store.ScopeLocal || storeScope == store.ScopeBoth {
 				floopDir := filepath.Join(root, ".floop")
-				if _, err := os.Stat(floopDir); os.IsNotExist(err) {
-					return fmt.Errorf(".floop not initialized. Run 'floop init' first")
+				if _, err := os.Stat(floopDir); err != nil {
+					hasLocal = false
+					if storeScope == store.ScopeLocal {
+						return fmt.Errorf(".floop not initialized. Run 'floop init' first")
+					}
 				}
-				graphStore, err := store.NewFileGraphStore(root)
+			}
+
+			var resolvedGlobalPath string
+			if storeScope == store.ScopeGlobal || storeScope == store.ScopeBoth {
+				gp, err := store.GlobalFloopPath()
+				if err != nil {
+					hasGlobal = false
+					if storeScope == store.ScopeGlobal {
+						return fmt.Errorf("failed to get global path: %w", err)
+					}
+				} else if _, err := os.Stat(gp); err != nil {
+					hasGlobal = false
+					if storeScope == store.ScopeGlobal {
+						return fmt.Errorf("global .floop not accessible: %w", err)
+					}
+				} else {
+					resolvedGlobalPath = gp
+				}
+			}
+
+			if storeScope == store.ScopeBoth {
+				if !hasLocal && !hasGlobal {
+					return fmt.Errorf("no .floop stores initialized. Run 'floop init' first")
+				}
+				if !hasLocal {
+					fmt.Fprintln(cmd.ErrOrStderr(), "Warning: local .floop not initialized, deriving edges from global store only")
+					storeScope = store.ScopeGlobal
+				} else if !hasGlobal {
+					fmt.Fprintln(cmd.ErrOrStderr(), "Warning: global .floop not initialized, deriving edges from local store only")
+					storeScope = store.ScopeLocal
+				}
+			}
+
+			if hasLocal && (storeScope == store.ScopeLocal || storeScope == store.ScopeBoth) {
+				graphStore, err := store.NewSQLiteGraphStore(root)
 				if err != nil {
 					return fmt.Errorf("failed to open local store: %w", err)
 				}
@@ -62,19 +102,8 @@ Examples:
 				allResults = append(allResults, result)
 			}
 
-			if storeScope == constants.ScopeGlobal || storeScope == constants.ScopeBoth {
-				globalPath, err := store.GlobalFloopPath()
-				if err != nil {
-					return fmt.Errorf("failed to get global path: %w", err)
-				}
-				if _, err := os.Stat(globalPath); os.IsNotExist(err) {
-					return fmt.Errorf("global .floop not initialized. Run 'floop init --global' first")
-				}
-				homeDir, err := os.UserHomeDir()
-				if err != nil {
-					return fmt.Errorf("failed to get home directory: %w", err)
-				}
-				graphStore, err := store.NewFileGraphStore(homeDir)
+			if hasGlobal && (storeScope == store.ScopeGlobal || storeScope == store.ScopeBoth) {
+				graphStore, err := store.NewSQLiteGraphStore(filepath.Dir(resolvedGlobalPath))
 				if err != nil {
 					return fmt.Errorf("failed to open global store: %w", err)
 				}

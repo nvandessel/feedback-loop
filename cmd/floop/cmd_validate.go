@@ -24,9 +24,9 @@ This command checks for:
   - Edge property issues (zero weight, missing timestamps)
 
 Examples:
-  floop validate                  # Validate local store
+  floop validate                  # Validate both stores (default)
   floop validate --scope global   # Validate global store only
-  floop validate --scope both     # Validate both stores`,
+  floop validate --scope local    # Validate local store only`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root, _ := cmd.Flags().GetString("root")
 			jsonOut, _ := cmd.Flags().GetBool("json")
@@ -34,26 +34,49 @@ Examples:
 
 			// Validate scope
 			storeScope := store.StoreScope(scope)
-			if storeScope != store.ScopeLocal && storeScope != store.ScopeGlobal && storeScope != store.ScopeBoth {
+			if !storeScope.Valid() {
 				return fmt.Errorf("invalid scope: %s (must be local, global, or both)", scope)
 			}
 
-			// Check local initialization if needed
+			// Check initialization — for ScopeBoth, degrade gracefully if one store is missing
+			hasLocal := true
+			hasGlobal := true
+
 			if storeScope == store.ScopeLocal || storeScope == store.ScopeBoth {
 				floopDir := filepath.Join(root, ".floop")
-				if _, err := os.Stat(floopDir); os.IsNotExist(err) {
-					return fmt.Errorf(".floop not initialized. Run 'floop init' first")
+				if _, err := os.Stat(floopDir); err != nil {
+					hasLocal = false
+					if storeScope == store.ScopeLocal {
+						return fmt.Errorf(".floop not initialized. Run 'floop init' first")
+					}
 				}
 			}
 
-			// Check global initialization if needed
 			if storeScope == store.ScopeGlobal || storeScope == store.ScopeBoth {
 				globalPath, err := store.GlobalFloopPath()
 				if err != nil {
-					return fmt.Errorf("failed to get global path: %w", err)
+					hasGlobal = false
+					if storeScope == store.ScopeGlobal {
+						return fmt.Errorf("failed to get global path: %w", err)
+					}
+				} else if _, err := os.Stat(globalPath); err != nil {
+					hasGlobal = false
+					if storeScope == store.ScopeGlobal {
+						return fmt.Errorf("global .floop not accessible: %w", err)
+					}
 				}
-				if _, err := os.Stat(globalPath); os.IsNotExist(err) {
-					return fmt.Errorf("global .floop not initialized. Run 'floop init --global' first")
+			}
+
+			if storeScope == store.ScopeBoth {
+				if !hasLocal && !hasGlobal {
+					return fmt.Errorf("no .floop stores initialized. Run 'floop init' first")
+				}
+				if !hasLocal {
+					fmt.Fprintln(cmd.ErrOrStderr(), "Warning: local .floop not initialized, validating global store only")
+					storeScope = store.ScopeGlobal
+				} else if !hasGlobal {
+					fmt.Fprintln(cmd.ErrOrStderr(), "Warning: global .floop not initialized, validating local store only")
+					storeScope = store.ScopeLocal
 				}
 			}
 
@@ -68,7 +91,7 @@ Examples:
 		},
 	}
 
-	cmd.Flags().String("scope", "local", "Store scope: local, global, or both")
+	cmd.Flags().String("scope", "both", "Store scope: local, global, or both")
 
 	return cmd
 }
@@ -83,11 +106,13 @@ func runSingleStoreValidation(ctx context.Context, root string, scope store.Stor
 	case store.ScopeLocal:
 		graphStore, err = store.NewSQLiteGraphStore(root)
 	case store.ScopeGlobal:
-		homeDir, homeErr := os.UserHomeDir()
-		if homeErr != nil {
-			return fmt.Errorf("failed to get home directory: %w", homeErr)
+		globalPath, pathErr := store.GlobalFloopPath()
+		if pathErr != nil {
+			return fmt.Errorf("failed to get global path: %w", pathErr)
 		}
-		graphStore, err = store.NewSQLiteGraphStore(homeDir)
+		graphStore, err = store.NewSQLiteGraphStore(filepath.Dir(globalPath))
+	default:
+		return fmt.Errorf("runSingleStoreValidation requires local or global scope, got %q", scope)
 	}
 
 	if err != nil {

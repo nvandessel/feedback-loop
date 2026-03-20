@@ -219,6 +219,12 @@ func TestNewListCmd(t *testing.T) {
 	if allFlag == nil {
 		t.Error("missing --all flag")
 	}
+
+	// Check local flag exists
+	localFlag := cmd.Flags().Lookup("local")
+	if localFlag == nil {
+		t.Error("missing --local flag")
+	}
 }
 
 func TestInitCmdCreatesDirectory(t *testing.T) {
@@ -362,7 +368,7 @@ func TestListCorrectionsEmpty(t *testing.T) {
 	}
 
 	// List should succeed with empty results
-	err := listCorrections(tmpDir, false)
+	err := listCorrections(os.Stdout, tmpDir, false)
 	if err != nil {
 		t.Fatalf("listCorrections failed: %v", err)
 	}
@@ -373,7 +379,7 @@ func TestListCorrectionsNotInitialized(t *testing.T) {
 	isolateHome(t, tmpDir)
 
 	// List should succeed gracefully
-	err := listCorrections(tmpDir, false)
+	err := listCorrections(os.Stdout, tmpDir, false)
 	if err != nil {
 		t.Fatalf("listCorrections failed: %v", err)
 	}

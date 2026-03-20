@@ -27,11 +27,11 @@ This command analyzes all behaviors in the store, identifies duplicates based on
 semantic similarity, and can automatically merge them.
 
 Examples:
-  floop deduplicate                  # Find duplicates in local store
+  floop deduplicate                  # Find duplicates across both stores (default)
   floop deduplicate --dry-run        # Show what would be merged
   floop deduplicate --threshold 0.8  # Use lower similarity threshold
   floop deduplicate --scope global   # Deduplicate global store only
-  floop deduplicate --scope both     # Cross-store deduplication`,
+  floop deduplicate --scope local    # Deduplicate local store only`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root, _ := cmd.Flags().GetString("root")
 			jsonOut, _ := cmd.Flags().GetBool("json")
@@ -41,27 +41,50 @@ Examples:
 			scope, _ := cmd.Flags().GetString("scope")
 
 			// Validate scope
-			storeScope := constants.Scope(scope)
+			storeScope := store.StoreScope(scope)
 			if !storeScope.Valid() {
 				return fmt.Errorf("invalid scope: %s (must be local, global, or both)", scope)
 			}
 
-			// Check local initialization if needed
+			// Check initialization — for ScopeBoth, degrade gracefully if one store is missing
+			hasLocal := true
+			hasGlobal := true
+
 			if storeScope == store.ScopeLocal || storeScope == store.ScopeBoth {
 				floopDir := filepath.Join(root, ".floop")
-				if _, err := os.Stat(floopDir); os.IsNotExist(err) {
-					return fmt.Errorf(".floop not initialized. Run 'floop init' first")
+				if _, err := os.Stat(floopDir); err != nil {
+					hasLocal = false
+					if storeScope == store.ScopeLocal {
+						return fmt.Errorf(".floop not initialized. Run 'floop init' first")
+					}
 				}
 			}
 
-			// Check global initialization if needed
 			if storeScope == store.ScopeGlobal || storeScope == store.ScopeBoth {
 				globalPath, err := store.GlobalFloopPath()
 				if err != nil {
-					return fmt.Errorf("failed to get global path: %w", err)
+					hasGlobal = false
+					if storeScope == store.ScopeGlobal {
+						return fmt.Errorf("failed to get global path: %w", err)
+					}
+				} else if _, err := os.Stat(globalPath); err != nil {
+					hasGlobal = false
+					if storeScope == store.ScopeGlobal {
+						return fmt.Errorf("global .floop not accessible: %w", err)
+					}
 				}
-				if _, err := os.Stat(globalPath); os.IsNotExist(err) {
-					return fmt.Errorf("global .floop not initialized. Run 'floop init --global' first")
+			}
+
+			if storeScope == store.ScopeBoth {
+				if !hasLocal && !hasGlobal {
+					return fmt.Errorf("no .floop stores initialized. Run 'floop init' first")
+				}
+				if !hasLocal {
+					fmt.Fprintln(cmd.ErrOrStderr(), "Warning: local .floop not initialized, deduplicating global store only")
+					storeScope = store.ScopeGlobal
+				} else if !hasGlobal {
+					fmt.Fprintln(cmd.ErrOrStderr(), "Warning: global .floop not initialized, deduplicating local store only")
+					storeScope = store.ScopeLocal
 				}
 			}
 
@@ -97,7 +120,7 @@ Examples:
 	cmd.Flags().Bool("dry-run", false, "Show duplicates without merging")
 	cmd.Flags().Float64("threshold", constants.DefaultAutoMergeThreshold, "Similarity threshold for duplicate detection (0.0-1.0)")
 	cmd.Flags().Float64("embedding-threshold", constants.DefaultEmbeddingDedupThreshold, "Cosine similarity threshold for embedding-based duplicate detection (0.0-1.0)")
-	cmd.Flags().String("scope", "local", "Store scope: local, global, or both")
+	cmd.Flags().String("scope", "both", "Store scope: local, global, or both")
 
 	return cmd
 }
@@ -117,13 +140,15 @@ func runSingleStoreDedup(ctx context.Context, root string, scope store.StoreScop
 
 	switch scope {
 	case store.ScopeLocal:
-		graphStore, err = store.NewFileGraphStore(root)
+		graphStore, err = store.NewSQLiteGraphStore(root)
 	case store.ScopeGlobal:
-		homeDir, homeErr := os.UserHomeDir()
-		if homeErr != nil {
-			return fmt.Errorf("failed to get home directory: %w", homeErr)
+		globalPath, pathErr := store.GlobalFloopPath()
+		if pathErr != nil {
+			return fmt.Errorf("failed to get global path: %w", pathErr)
 		}
-		graphStore, err = store.NewFileGraphStore(homeDir)
+		graphStore, err = store.NewSQLiteGraphStore(filepath.Dir(globalPath))
+	default:
+		return fmt.Errorf("runSingleStoreDedup requires local or global scope, got %q", scope)
 	}
 
 	if err != nil {
@@ -297,20 +322,24 @@ func mergeDuplicatePairs(ctx context.Context, graphStore store.GraphStore, dupli
 }
 
 // runCrossStoreDedup runs deduplication across local and global stores.
+// Note: the caller's pre-checks verify that both store directories exist, but not
+// that the DB files are healthy. If a store is corrupted or locked, this function
+// returns a hard error rather than falling back to single-store dedup. This is
+// intentional: cross-store dedup requires both stores to produce correct results.
 func runCrossStoreDedup(ctx context.Context, root string, cfg dedup.DeduplicatorConfig, llmClient llm.Client, dryRun, jsonOut bool) error {
 	// Open local store
-	localStore, err := store.NewFileGraphStore(root)
+	localStore, err := store.NewSQLiteGraphStore(root)
 	if err != nil {
 		return fmt.Errorf("failed to open local store: %w", err)
 	}
 	defer localStore.Close()
 
-	// Open global store
-	homeDir, err := os.UserHomeDir()
+	// Open global store using same path resolution as pre-check
+	globalPath, err := store.GlobalFloopPath()
 	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
+		return fmt.Errorf("failed to get global path: %w", err)
 	}
-	globalStore, err := store.NewFileGraphStore(homeDir)
+	globalStore, err := store.NewSQLiteGraphStore(filepath.Dir(globalPath))
 	if err != nil {
 		return fmt.Errorf("failed to open global store: %w", err)
 	}

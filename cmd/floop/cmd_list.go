@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -23,57 +24,104 @@ func newListCmd() *cobra.Command {
 			jsonOut, _ := cmd.Flags().GetBool("json")
 			showCorrections, _ := cmd.Flags().GetBool("corrections")
 			globalFlag, _ := cmd.Flags().GetBool("global")
+			localFlag, _ := cmd.Flags().GetBool("local")
 			allFlag, _ := cmd.Flags().GetBool("all")
 			tagFilter, _ := cmd.Flags().GetString("tag")
 
 			// Validate flag combinations
+			if globalFlag && localFlag {
+				return fmt.Errorf("cannot specify both --global and --local")
+			}
 			if globalFlag && allFlag {
 				return fmt.Errorf("cannot specify both --global and --all")
 			}
-
-			// Determine scope
-			scope := constants.ScopeLocal
-			if globalFlag {
-				scope = constants.ScopeGlobal
-			} else if allFlag {
-				scope = constants.ScopeBoth
+			if localFlag && allFlag {
+				return fmt.Errorf("cannot specify both --local and --all")
 			}
 
-			// Check initialization based on scope
+			// Handle --corrections early: it reads from local corrections.jsonl only,
+			// scope checks are irrelevant and would emit misleading warnings.
+			if showCorrections {
+				if globalFlag || localFlag || allFlag {
+					fmt.Fprintln(cmd.ErrOrStderr(), "Warning: --corrections reads local corrections only; scope flags are ignored")
+				}
+				return listCorrections(cmd.OutOrStdout(), root, jsonOut)
+			}
+
+			// Determine scope
+			scope := constants.ScopeBoth
+			if globalFlag {
+				scope = constants.ScopeGlobal
+			} else if localFlag {
+				scope = constants.ScopeLocal
+			}
+			if allFlag {
+				// MarkDeprecated already prints a warning via Cobra
+				scope = constants.ScopeBoth // explicit: don't rely on default if flag ordering changes
+			}
+
+			// Check initialization — for ScopeBoth, degrade gracefully if one store is missing
+			hasLocal := true
+			hasGlobal := true
+
 			if scope == constants.ScopeLocal || scope == constants.ScopeBoth {
 				floopDir := filepath.Join(root, ".floop")
-				if _, err := os.Stat(floopDir); os.IsNotExist(err) {
-					if jsonOut {
-						json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]interface{}{
-							"error": "local .floop not initialized",
-						})
-					} else {
-						fmt.Fprintln(cmd.OutOrStdout(), "Local .floop not initialized. Run 'floop init' first.")
+				if _, err := os.Stat(floopDir); err != nil {
+					hasLocal = false
+					if scope == constants.ScopeLocal {
+						if jsonOut {
+							json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]interface{}{
+								"error": "local .floop not initialized",
+							})
+						} else {
+							fmt.Fprintln(cmd.OutOrStdout(), "Local .floop not initialized. Run 'floop init' first.")
+						}
+						return nil
 					}
-					return nil
 				}
 			}
 
 			if scope == constants.ScopeGlobal || scope == constants.ScopeBoth {
 				globalPath, err := store.GlobalFloopPath()
-				if err == nil {
-					if _, err := os.Stat(globalPath); os.IsNotExist(err) {
-						if scope == constants.ScopeGlobal {
-							if jsonOut {
-								json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]interface{}{
-									"error": "global .floop not initialized",
-								})
-							} else {
-								fmt.Fprintln(cmd.OutOrStdout(), "Global .floop not initialized. Run 'floop init --global' first.")
-							}
-							return nil
+				if err != nil {
+					hasGlobal = false
+					if scope == constants.ScopeGlobal {
+						return fmt.Errorf("failed to get global path: %w", err)
+					}
+				} else if _, err := os.Stat(globalPath); err != nil {
+					hasGlobal = false
+					if scope == constants.ScopeGlobal {
+						if jsonOut {
+							json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]interface{}{
+								"error": "global .floop not accessible",
+							})
+						} else {
+							fmt.Fprintln(cmd.OutOrStdout(), "Global .floop not initialized. Run 'floop init --global' first.")
 						}
+						return nil
 					}
 				}
 			}
 
-			if showCorrections {
-				return listCorrections(root, jsonOut)
+			// For ScopeBoth, degrade to whichever store is available
+			if scope == constants.ScopeBoth {
+				if !hasLocal && !hasGlobal {
+					if jsonOut {
+						json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]interface{}{
+							"error": "no .floop stores initialized",
+						})
+					} else {
+						fmt.Fprintln(cmd.OutOrStdout(), "No .floop stores initialized. Run 'floop init' first.")
+					}
+					return nil
+				}
+				if !hasLocal {
+					fmt.Fprintln(cmd.ErrOrStderr(), "Warning: local .floop not initialized, showing global behaviors only")
+					scope = constants.ScopeGlobal
+				} else if !hasGlobal {
+					fmt.Fprintln(cmd.ErrOrStderr(), "Warning: global .floop not initialized, showing local behaviors only")
+					scope = constants.ScopeLocal
+				}
 			}
 
 			// Load behaviors from appropriate store(s)
@@ -97,24 +145,20 @@ func newListCmd() *cobra.Command {
 			}
 
 			if jsonOut {
+				// Note: JSON scope field emits the scope constant value ("local", "global",
+				// or "both"). The deprecated --all flag previously emitted "all" but now
+				// emits "both" to match the actual scope constant. This is a documented
+				// breaking change — see PR description.
 				result := map[string]interface{}{
 					"behaviors": behaviors,
 					"count":     len(behaviors),
-				}
-				if globalFlag {
-					result["scope"] = string(constants.ScopeGlobal)
-				} else if allFlag {
-					result["scope"] = "all"
-				} else {
-					result["scope"] = string(constants.ScopeLocal)
+					"scope":     string(scope),
 				}
 				json.NewEncoder(cmd.OutOrStdout()).Encode(result)
 			} else {
 				// Show scope in header
-				scopeStr := string(constants.ScopeLocal)
-				if globalFlag {
-					scopeStr = string(constants.ScopeGlobal)
-				} else if allFlag {
+				scopeStr := string(scope)
+				if scope == constants.ScopeBoth {
 					scopeStr = "all (local + global)"
 				}
 
@@ -146,25 +190,27 @@ func newListCmd() *cobra.Command {
 
 	cmd.Flags().Bool("corrections", false, "Show captured corrections instead of behaviors")
 	cmd.Flags().Bool("global", false, "Show behaviors from global user store (~/.floop/) only")
+	cmd.Flags().Bool("local", false, "Show behaviors from local project store only")
 	cmd.Flags().Bool("all", false, "Show behaviors from both local and global stores")
+	_ = cmd.Flags().MarkDeprecated("all", "both is now the default scope; use --local or --global to narrow")
 	cmd.Flags().String("tag", "", "Filter behaviors by tag (exact match)")
 
 	return cmd
 }
 
-func listCorrections(root string, jsonOut bool) error {
+func listCorrections(w io.Writer, root string, jsonOut bool) error {
 	correctionsPath := filepath.Join(root, ".floop", "corrections.jsonl")
 
 	data, err := os.ReadFile(correctionsPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			if jsonOut {
-				json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+				json.NewEncoder(w).Encode(map[string]interface{}{
 					"corrections": []models.Correction{},
 					"count":       0,
 				})
 			} else {
-				fmt.Println("No corrections captured yet.")
+				fmt.Fprintln(w, "No corrections captured yet.")
 			}
 			return nil
 		}
@@ -186,24 +232,24 @@ func listCorrections(root string, jsonOut bool) error {
 	}
 
 	if jsonOut {
-		json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]interface{}{
 			"corrections": corrections,
 			"count":       len(corrections),
 		})
 	} else {
 		if len(corrections) == 0 {
-			fmt.Println("No corrections captured yet.")
+			fmt.Fprintln(w, "No corrections captured yet.")
 			return nil
 		}
-		fmt.Printf("Captured corrections (%d):\n\n", len(corrections))
+		fmt.Fprintf(w, "Captured corrections (%d):\n\n", len(corrections))
 		for i, c := range corrections {
-			fmt.Printf("%d. [%s]\n", i+1, c.Timestamp.Format("2006-01-02T15:04:05Z07:00"))
-			fmt.Printf("   Wrong: %s\n", c.AgentAction)
-			fmt.Printf("   Right: %s\n", c.CorrectedAction)
+			fmt.Fprintf(w, "%d. [%s]\n", i+1, c.Timestamp.Format("2006-01-02T15:04:05Z07:00"))
+			fmt.Fprintf(w, "   Wrong: %s\n", c.AgentAction)
+			fmt.Fprintf(w, "   Right: %s\n", c.CorrectedAction)
 			if c.Context.FilePath != "" {
-				fmt.Printf("   File:  %s\n", c.Context.FilePath)
+				fmt.Fprintf(w, "   File:  %s\n", c.Context.FilePath)
 			}
-			fmt.Println()
+			fmt.Fprintln(w)
 		}
 	}
 
@@ -235,18 +281,18 @@ func loadBehaviorsWithScope(projectRoot string, scope constants.Scope) ([]models
 	switch scope {
 	case constants.ScopeLocal:
 		// Load from local store only
-		graphStore, err = store.NewFileGraphStore(projectRoot)
+		graphStore, err = store.NewSQLiteGraphStore(projectRoot)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open local store: %w", err)
 		}
 
 	case constants.ScopeGlobal:
 		// Load from global store only
-		homeDir, err := os.UserHomeDir()
+		globalPath, err := store.GlobalFloopPath()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get home directory: %w", err)
+			return nil, fmt.Errorf("failed to get global path: %w", err)
 		}
-		graphStore, err = store.NewFileGraphStore(homeDir)
+		graphStore, err = store.NewSQLiteGraphStore(filepath.Dir(globalPath))
 		if err != nil {
 			return nil, fmt.Errorf("failed to open global store: %w", err)
 		}
@@ -295,20 +341,39 @@ Use --json for machine-readable output suitable for agent consumption.`,
 			env, _ := cmd.Flags().GetString("env")
 			jsonOut, _ := cmd.Flags().GetBool("json")
 
+			// Determine effective scope — degrade gracefully if one store is missing
+			activeScope := constants.ScopeBoth
 			floopDir := filepath.Join(root, ".floop")
-			if _, err := os.Stat(floopDir); os.IsNotExist(err) {
+			hasLocal := true
+			if _, err := os.Stat(floopDir); err != nil {
+				hasLocal = false
+			}
+
+			hasGlobal := true
+			if globalPath, err := store.GlobalFloopPath(); err != nil {
+				hasGlobal = false
+			} else if _, err := os.Stat(globalPath); err != nil {
+				hasGlobal = false
+			}
+
+			if !hasLocal && !hasGlobal {
 				if jsonOut {
-					json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
-						"error": ".floop not initialized",
+					json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]interface{}{
+						"error": "no .floop stores initialized",
 					})
 				} else {
-					fmt.Println("Not initialized. Run 'floop init' first.")
+					fmt.Fprintln(cmd.OutOrStdout(), "Not initialized. Run 'floop init' first.")
 				}
 				return nil
 			}
+			if !hasLocal {
+				activeScope = constants.ScopeGlobal
+			} else if !hasGlobal {
+				activeScope = constants.ScopeLocal
+			}
 
-			// Load all behaviors from both local and global stores
-			behaviors, err := loadBehaviorsWithScope(root, constants.ScopeBoth)
+			// Load behaviors from available store(s)
+			behaviors, err := loadBehaviorsWithScope(root, activeScope)
 			if err != nil {
 				return fmt.Errorf("failed to load behaviors: %w", err)
 			}
