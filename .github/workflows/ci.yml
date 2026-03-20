@@ -115,8 +115,8 @@ jobs:
             lib_dir: linux_amd64
           - os: macos-latest
             lib_dir: darwin_arm64
-          # Windows: no native binaries in upstream release + size_t bug
-          # https://github.com/lancedb/lancedb-go/issues/17
+          - os: windows-latest
+            lib_dir: windows_amd64
     runs-on: ${{ matrix.os }}
     env:
       CGO_ENABLED: "1"
@@ -151,5 +151,9 @@ jobs:
             tar -xzf lancedb-go-native-binaries.tar.gz
             rm -f lancedb-go-native-binaries.tar.gz
           fi
+      - name: Add library path (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "${{ github.workspace }}/lib/${{ matrix.lib_dir }}" >> $GITHUB_PATH
       - name: Run CGO tests
         run: go test -race -count=1 ./...
