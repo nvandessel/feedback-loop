@@ -47,6 +47,7 @@ func newListCmd() *cobra.Command {
 			}
 			if allFlag {
 				fmt.Fprintln(cmd.ErrOrStderr(), "Warning: --all is deprecated; 'both' is now the default scope")
+				scope = constants.ScopeBoth // explicit: don't rely on default if flag ordering changes
 			}
 
 			// Check initialization — for ScopeBoth, degrade gracefully if one store is missing
