@@ -52,7 +52,7 @@ Examples:
 
 			if storeScope == store.ScopeLocal || storeScope == store.ScopeBoth {
 				floopDir := filepath.Join(root, ".floop")
-				if _, err := os.Stat(floopDir); os.IsNotExist(err) {
+				if _, err := os.Stat(floopDir); err != nil {
 					hasLocal = false
 					if storeScope == store.ScopeLocal {
 						return fmt.Errorf(".floop not initialized. Run 'floop init' first")
@@ -67,10 +67,10 @@ Examples:
 					if storeScope == store.ScopeGlobal {
 						return fmt.Errorf("failed to get global path: %w", err)
 					}
-				} else if _, err := os.Stat(globalPath); os.IsNotExist(err) {
+				} else if _, err := os.Stat(globalPath); err != nil {
 					hasGlobal = false
 					if storeScope == store.ScopeGlobal {
-						return fmt.Errorf("global .floop not initialized. Run 'floop init --global' first")
+						return fmt.Errorf("global .floop not accessible: %w", err)
 					}
 				}
 			}
