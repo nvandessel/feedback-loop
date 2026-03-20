@@ -68,7 +68,7 @@ Examples:
 		},
 	}
 
-	cmd.Flags().String("scope", "local", "Store scope: local, global, or both")
+	cmd.Flags().String("scope", "both", "Store scope: local, global, or both")
 
 	return cmd
 }

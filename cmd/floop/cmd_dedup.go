@@ -97,7 +97,7 @@ Examples:
 	cmd.Flags().Bool("dry-run", false, "Show duplicates without merging")
 	cmd.Flags().Float64("threshold", constants.DefaultAutoMergeThreshold, "Similarity threshold for duplicate detection (0.0-1.0)")
 	cmd.Flags().Float64("embedding-threshold", constants.DefaultEmbeddingDedupThreshold, "Cosine similarity threshold for embedding-based duplicate detection (0.0-1.0)")
-	cmd.Flags().String("scope", "local", "Store scope: local, global, or both")
+	cmd.Flags().String("scope", "both", "Store scope: local, global, or both")
 
 	return cmd
 }
@@ -117,13 +117,13 @@ func runSingleStoreDedup(ctx context.Context, root string, scope store.StoreScop
 
 	switch scope {
 	case store.ScopeLocal:
-		graphStore, err = store.NewFileGraphStore(root)
+		graphStore, err = store.NewSQLiteGraphStore(root)
 	case store.ScopeGlobal:
 		homeDir, homeErr := os.UserHomeDir()
 		if homeErr != nil {
 			return fmt.Errorf("failed to get home directory: %w", homeErr)
 		}
-		graphStore, err = store.NewFileGraphStore(homeDir)
+		graphStore, err = store.NewSQLiteGraphStore(homeDir)
 	}
 
 	if err != nil {
@@ -299,7 +299,7 @@ func mergeDuplicatePairs(ctx context.Context, graphStore store.GraphStore, dupli
 // runCrossStoreDedup runs deduplication across local and global stores.
 func runCrossStoreDedup(ctx context.Context, root string, cfg dedup.DeduplicatorConfig, llmClient llm.Client, dryRun, jsonOut bool) error {
 	// Open local store
-	localStore, err := store.NewFileGraphStore(root)
+	localStore, err := store.NewSQLiteGraphStore(root)
 	if err != nil {
 		return fmt.Errorf("failed to open local store: %w", err)
 	}
@@ -310,7 +310,7 @@ func runCrossStoreDedup(ctx context.Context, root string, cfg dedup.Deduplicator
 	if err != nil {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
-	globalStore, err := store.NewFileGraphStore(homeDir)
+	globalStore, err := store.NewSQLiteGraphStore(homeDir)
 	if err != nil {
 		return fmt.Errorf("failed to open global store: %w", err)
 	}

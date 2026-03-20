@@ -32,7 +32,7 @@ func newListCmd() *cobra.Command {
 			}
 
 			// Determine scope
-			scope := constants.ScopeLocal
+			scope := constants.ScopeBoth
 			if globalFlag {
 				scope = constants.ScopeGlobal
 			} else if allFlag {
@@ -235,7 +235,7 @@ func loadBehaviorsWithScope(projectRoot string, scope constants.Scope) ([]models
 	switch scope {
 	case constants.ScopeLocal:
 		// Load from local store only
-		graphStore, err = store.NewFileGraphStore(projectRoot)
+		graphStore, err = store.NewSQLiteGraphStore(projectRoot)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open local store: %w", err)
 		}
@@ -246,7 +246,7 @@ func loadBehaviorsWithScope(projectRoot string, scope constants.Scope) ([]models
 		if err != nil {
 			return nil, fmt.Errorf("failed to get home directory: %w", err)
 		}
-		graphStore, err = store.NewFileGraphStore(homeDir)
+		graphStore, err = store.NewSQLiteGraphStore(homeDir)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open global store: %w", err)
 		}

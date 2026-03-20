@@ -50,7 +50,7 @@ Examples:
 				if _, err := os.Stat(floopDir); os.IsNotExist(err) {
 					return fmt.Errorf(".floop not initialized. Run 'floop init' first")
 				}
-				graphStore, err := store.NewFileGraphStore(root)
+				graphStore, err := store.NewSQLiteGraphStore(root)
 				if err != nil {
 					return fmt.Errorf("failed to open local store: %w", err)
 				}
@@ -74,7 +74,7 @@ Examples:
 				if err != nil {
 					return fmt.Errorf("failed to get home directory: %w", err)
 				}
-				graphStore, err := store.NewFileGraphStore(homeDir)
+				graphStore, err := store.NewSQLiteGraphStore(homeDir)
 				if err != nil {
 					return fmt.Errorf("failed to open global store: %w", err)
 				}
