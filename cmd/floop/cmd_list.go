@@ -191,7 +191,7 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().Bool("global", false, "Show behaviors from global user store (~/.floop/) only")
 	cmd.Flags().Bool("local", false, "Show behaviors from local project store only")
 	cmd.Flags().Bool("all", false, "Show behaviors from both local and global stores")
-	cmd.Flags().MarkDeprecated("all", "both is now the default scope; use --local or --global to narrow")
+	_ = cmd.Flags().MarkDeprecated("all", "both is now the default scope; use --local or --global to narrow")
 	cmd.Flags().String("tag", "", "Filter behaviors by tag (exact match)")
 
 	return cmd
