@@ -389,11 +389,12 @@ func (s *Server) debouncedRefreshPageRank() {
 // If the pool is full, the task is dropped with a warning.
 // If the server is shutting down, the task is not started.
 func (s *Server) runBackground(name string, fn func()) {
+	s.workerWg.Add(1)
 	select {
 	case <-s.done:
+		s.workerWg.Done()
 		return // server is shutting down
 	case s.workerPool <- struct{}{}:
-		s.workerWg.Add(1)
 		go func() {
 			defer s.workerWg.Done()
 			defer func() { <-s.workerPool }()
@@ -405,6 +406,7 @@ func (s *Server) runBackground(name string, fn func()) {
 			fn()
 		}()
 	default:
+		s.workerWg.Done()
 		s.logger.Warn("background worker pool full, skipping task", "task", name)
 	}
 }
