@@ -144,7 +144,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if [ ! -d "lib/" ]; then
-            LANCE_VERSION=$(go list -m -f '{{.Version}}' github.com/lancedb/lancedb-go)
+            LANCE_VERSION=$(go list -m -f '{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}' github.com/lancedb/lancedb-go)
             gh release download "${LANCE_VERSION}" \
               --repo nvandessel/lancedb-go \
               --pattern 'lancedb-go-native-binaries.tar.gz'
