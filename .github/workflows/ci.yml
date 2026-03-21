@@ -113,15 +113,18 @@ jobs:
         include:
           - os: ubuntu-latest
             lib_dir: linux_amd64
+            extra_ldflags: ""
           - os: macos-latest
             lib_dir: darwin_arm64
-          # Windows: no native binaries in upstream release + size_t bug
-          # https://github.com/lancedb/lancedb-go/issues/17
+            extra_ldflags: ""
+          - os: windows-latest
+            lib_dir: windows-gnu_amd64
+            extra_ldflags: "-lws2_32 -lntdll -luserenv -lbcrypt"
     runs-on: ${{ matrix.os }}
     env:
       CGO_ENABLED: "1"
       CGO_CFLAGS: "-I${{ github.workspace }}/include"
-      CGO_LDFLAGS: "-L${{ github.workspace }}/lib/${{ matrix.lib_dir }} -llancedb_go"
+      CGO_LDFLAGS: "-L${{ github.workspace }}/lib/${{ matrix.lib_dir }} -llancedb_go ${{ matrix.extra_ldflags }}"
       LD_LIBRARY_PATH: "${{ github.workspace }}/lib/${{ matrix.lib_dir }}"
       DYLD_LIBRARY_PATH: "${{ github.workspace }}/lib/${{ matrix.lib_dir }}"
     steps:
@@ -144,12 +147,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if [ ! -d "lib/" ]; then
-            LANCE_VERSION=$(go list -m -f '{{.Version}}' github.com/lancedb/lancedb-go)
+            LANCE_VERSION=$(go list -m -f '{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}' github.com/lancedb/lancedb-go)
             gh release download "${LANCE_VERSION}" \
               --repo nvandessel/lancedb-go \
               --pattern 'lancedb-go-native-binaries.tar.gz'
             tar -xzf lancedb-go-native-binaries.tar.gz
             rm -f lancedb-go-native-binaries.tar.gz
           fi
+      - name: Add library path (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "${{ github.workspace }}/lib/${{ matrix.lib_dir }}" >> $GITHUB_PATH
       - name: Run CGO tests
         run: go test -race -count=1 ./...
