@@ -1119,21 +1119,16 @@ func (s *SQLiteGraphStore) incrementalExportNodes(ctx context.Context, dirtyOps 
 		}
 	}
 
-	// Write all nodes back to file
-	f, err := os.Create(s.nodesFile)
-	if err != nil {
-		return fmt.Errorf("failed to create nodes file: %w", err)
-	}
-	defer f.Close()
-
-	encoder := json.NewEncoder(f)
-	for _, node := range existingNodes {
-		if err := encoder.Encode(node); err != nil {
-			return fmt.Errorf("failed to encode node: %w", err)
+	// Write all nodes back to file atomically
+	return atomicWriteFile(s.nodesFile, func(f *os.File) error {
+		encoder := json.NewEncoder(f)
+		for _, node := range existingNodes {
+			if err := encoder.Encode(node); err != nil {
+				return fmt.Errorf("failed to encode node: %w", err)
+			}
 		}
-	}
-
-	return nil
+		return nil
+	})
 }
 
 // reconcileNodeCount compares the JSONL node count with the SQLite behavior
@@ -1250,21 +1245,16 @@ func (s *SQLiteGraphStore) exportNodesToJSONL(ctx context.Context) error {
 		}
 	}
 
-	// Write to file
-	f, err := os.Create(s.nodesFile)
-	if err != nil {
-		return fmt.Errorf("failed to create nodes file: %w", err)
-	}
-	defer f.Close()
-
-	encoder := json.NewEncoder(f)
-	for _, node := range nodes {
-		if err := encoder.Encode(node); err != nil {
-			return fmt.Errorf("failed to encode node: %w", err)
+	// Write to file atomically
+	return atomicWriteFile(s.nodesFile, func(f *os.File) error {
+		encoder := json.NewEncoder(f)
+		for _, node := range nodes {
+			if err := encoder.Encode(node); err != nil {
+				return fmt.Errorf("failed to encode node: %w", err)
+			}
 		}
-	}
-
-	return nil
+		return nil
+	})
 }
 
 // exportEdgesToJSONL exports all edges to the edges.jsonl file.
@@ -1275,13 +1265,7 @@ func (s *SQLiteGraphStore) exportEdgesToJSONL(ctx context.Context) error {
 	}
 	defer rows.Close()
 
-	f, err := os.Create(s.edgesFile)
-	if err != nil {
-		return fmt.Errorf("failed to create edges file: %w", err)
-	}
-	defer f.Close()
-
-	encoder := json.NewEncoder(f)
+	var edges []Edge
 	for rows.Next() {
 		var source, target, kind string
 		var weight sql.NullFloat64
@@ -1320,11 +1304,56 @@ func (s *SQLiteGraphStore) exportEdgesToJSONL(ctx context.Context) error {
 			}
 		}
 
-		if err := encoder.Encode(edge); err != nil {
-			return fmt.Errorf("failed to encode edge: %w", err)
-		}
+		edges = append(edges, edge)
 	}
 
+	return atomicWriteFile(s.edgesFile, func(f *os.File) error {
+		encoder := json.NewEncoder(f)
+		for _, edge := range edges {
+			if err := encoder.Encode(edge); err != nil {
+				return fmt.Errorf("failed to encode edge: %w", err)
+			}
+		}
+		return nil
+	})
+}
+
+// atomicWriteFile writes to targetPath crash-safely by writing to a temp file
+// in the same directory, calling fsync, then atomically renaming over the target.
+func atomicWriteFile(targetPath string, writeFn func(f *os.File) error) error {
+	dir := filepath.Dir(targetPath)
+	tmp, err := os.CreateTemp(dir, filepath.Base(targetPath)+".tmp.*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tmpPath := tmp.Name()
+
+	// Clean up temp file on any error
+	success := false
+	defer func() {
+		if !success {
+			tmp.Close()
+			os.Remove(tmpPath)
+		}
+	}()
+
+	if err := writeFn(tmp); err != nil {
+		return err
+	}
+
+	if err := tmp.Sync(); err != nil {
+		return fmt.Errorf("failed to fsync temp file: %w", err)
+	}
+
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, targetPath); err != nil {
+		return fmt.Errorf("failed to rename temp file: %w", err)
+	}
+
+	success = true
 	return nil
 }
 
