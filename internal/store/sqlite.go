@@ -1307,6 +1307,10 @@ func (s *SQLiteGraphStore) exportEdgesToJSONL(ctx context.Context) error {
 		edges = append(edges, edge)
 	}
 
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("failed to iterate edges: %w", err)
+	}
+
 	return atomicWriteFile(s.edgesFile, func(f *os.File) error {
 		encoder := json.NewEncoder(f)
 		for _, edge := range edges {
@@ -1330,9 +1334,12 @@ func atomicWriteFile(targetPath string, writeFn func(f *os.File) error) error {
 
 	// Clean up temp file on any error
 	success := false
+	tmpClosed := false
 	defer func() {
 		if !success {
-			tmp.Close()
+			if !tmpClosed {
+				tmp.Close()
+			}
 			os.Remove(tmpPath)
 		}
 	}()
@@ -1348,6 +1355,7 @@ func atomicWriteFile(targetPath string, writeFn func(f *os.File) error) error {
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("failed to close temp file: %w", err)
 	}
+	tmpClosed = true
 
 	if err := os.Rename(tmpPath, targetPath); err != nil {
 		return fmt.Errorf("failed to rename temp file: %w", err)
