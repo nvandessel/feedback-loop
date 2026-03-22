@@ -130,22 +130,30 @@ func TestSetConfigValue(t *testing.T) {
 
 	// Verify values are actually set
 	cfg := config.Default()
-	setConfigValue(cfg, "llm.provider", "openai")
+	if err := setConfigValue(cfg, "llm.provider", "openai"); err != nil {
+		t.Fatalf("setConfigValue(llm.provider) failed: %v", err)
+	}
 	if cfg.LLM.Provider != "openai" {
 		t.Errorf("after set, llm.provider = %q, want %q", cfg.LLM.Provider, "openai")
 	}
 
-	setConfigValue(cfg, "llm.timeout", "1m")
+	if err := setConfigValue(cfg, "llm.timeout", "1m"); err != nil {
+		t.Fatalf("setConfigValue(llm.timeout) failed: %v", err)
+	}
 	if cfg.LLM.Timeout != time.Minute {
 		t.Errorf("after set, llm.timeout = %v, want %v", cfg.LLM.Timeout, time.Minute)
 	}
 
-	setConfigValue(cfg, "llm.enabled", "1")
+	if err := setConfigValue(cfg, "llm.enabled", "1"); err != nil {
+		t.Fatalf("setConfigValue(llm.enabled) failed: %v", err)
+	}
 	if !cfg.LLM.Enabled {
 		t.Error("after set llm.enabled=1, expected true")
 	}
 
-	setConfigValue(cfg, "deduplication.similarity_threshold", "0.75")
+	if err := setConfigValue(cfg, "deduplication.similarity_threshold", "0.75"); err != nil {
+		t.Fatalf("setConfigValue(deduplication.similarity_threshold) failed: %v", err)
+	}
 	if cfg.Deduplication.SimilarityThreshold != 0.75 {
 		t.Errorf("after set, threshold = %f, want 0.75", cfg.Deduplication.SimilarityThreshold)
 	}

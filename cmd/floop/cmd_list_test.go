@@ -59,7 +59,11 @@ func TestListCorrectionsWithData(t *testing.T) {
 	if err := json.Unmarshal(jsonBuf.Bytes(), &result); err != nil {
 		t.Fatalf("failed to parse JSON: %v", err)
 	}
-	if result["count"].(float64) != 1 {
+	countVal, ok := result["count"].(float64)
+	if !ok {
+		t.Fatal("expected 'count' field to be a number")
+	}
+	if countVal != 1 {
 		t.Errorf("expected count=1, got %v", result["count"])
 	}
 }

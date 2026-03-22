@@ -91,6 +91,7 @@ func TestRunTagsBackfillDryRun(t *testing.T) {
 			t.Error("dry run should not modify store, but tags were added")
 		}
 	}
+	// If content is not a map, there are no tags — dry run is correct
 }
 
 func TestRunTagsBackfillAppliesTags(t *testing.T) {

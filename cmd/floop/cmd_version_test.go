@@ -45,6 +45,8 @@ func TestVersionCmdTextOutput(t *testing.T) {
 }
 
 func TestVersionCmdJSONOutput(t *testing.T) {
+	// NOTE: This test mutates package-level vars (version, commit, date).
+	// Do not use t.Parallel() — the save/restore via t.Cleanup is not goroutine-safe.
 	origVersion := version
 	origCommit := commit
 	origDate := date

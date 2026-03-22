@@ -46,6 +46,7 @@ func setupQueryTest(t *testing.T) (string, string) {
 	if err != nil {
 		t.Fatalf("failed to open store: %v", err)
 	}
+	defer graphStore.Close()
 	nodes, err := graphStore.QueryNodes(ctx, map[string]interface{}{"kind": "behavior"})
 	if err != nil {
 		t.Fatalf("failed to query: %v", err)
@@ -54,7 +55,6 @@ func setupQueryTest(t *testing.T) (string, string) {
 		t.Fatal("no behaviors found after learn")
 	}
 	behaviorID := nodes[0].ID
-	graphStore.Close()
 
 	return tmpDir, behaviorID
 }
@@ -273,9 +273,14 @@ func TestListCmdTagFilter(t *testing.T) {
 	}
 
 	var result map[string]interface{}
-	json.Unmarshal(buf.Bytes(), &result)
-	count := int(result["count"].(float64))
-	if count != 0 {
-		t.Errorf("expected 0 behaviors with nonexistent tag, got %d", count)
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("failed to parse JSON: %v", err)
+	}
+	countVal, ok := result["count"].(float64)
+	if !ok {
+		t.Fatal("expected 'count' field to be a number")
+	}
+	if int(countVal) != 0 {
+		t.Errorf("expected 0 behaviors with nonexistent tag, got %d", int(countVal))
 	}
 }
