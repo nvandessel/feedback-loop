@@ -84,7 +84,14 @@ func TestHandleFloopFeedback_Confirmed(t *testing.T) {
 	if node == nil {
 		t.Fatal("node fb-test-1 not found after feedback")
 	}
-	stats, _ := node.Metadata["stats"].(map[string]interface{})
+	rawStats, ok := node.Metadata["stats"]
+	if !ok {
+		t.Fatal("stats key not found in node.Metadata after confirmed feedback")
+	}
+	stats, ok := rawStats.(map[string]interface{})
+	if !ok {
+		t.Fatalf("stats is not map[string]interface{}, got %T", rawStats)
+	}
 	if tc, ok := stats["times_confirmed"]; ok {
 		switch v := tc.(type) {
 		case int:
