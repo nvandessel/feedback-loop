@@ -157,7 +157,9 @@ Verify dependencies are installed:
 # Linux/macOS
 ls ~/.floop/lib/libllama.*    # Should show libllama.so or libllama.dylib
 ls ~/.floop/models/*.gguf      # Should show the model file
+```
 
+```powershell
 # Windows (PowerShell)
 dir $env:USERPROFILE\.floop\lib\libllama.*    # Should show libllama.dll
 dir $env:USERPROFILE\.floop\models\*.gguf

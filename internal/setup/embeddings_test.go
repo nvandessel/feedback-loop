@@ -135,7 +135,12 @@ func TestLibraryName(t *testing.T) {
 
 	// Verify the name has a recognized extension
 	validExts := []string{".so", ".dylib", ".dll"}
-	ext := name[strings.LastIndex(name, "."):]
+	idx := strings.LastIndex(name, ".")
+	if idx < 0 {
+		t.Errorf("library filename %q has no extension", name)
+		return
+	}
+	ext := name[idx:]
 	found := false
 	for _, valid := range validExts {
 		if ext == valid {
