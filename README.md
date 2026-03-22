@@ -47,7 +47,7 @@ go install github.com/nvandessel/floop/cmd/floop@latest
 floop init
 
 # Or create a project-local store for repo-specific behaviors
-cd your-project && floop init --local
+cd your-project && floop init --project
 ```
 
 ### Teach your agent something

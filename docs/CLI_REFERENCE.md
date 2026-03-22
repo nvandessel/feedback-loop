@@ -537,7 +537,7 @@ Analyzes all behaviors in the store, identifies duplicates based on semantic sim
 **Examples:**
 
 ```bash
-# Find and merge duplicates in local store
+# Find and merge duplicates (both stores by default)
 floop deduplicate
 
 # Preview duplicates without merging

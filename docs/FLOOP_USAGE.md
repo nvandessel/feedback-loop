@@ -145,7 +145,7 @@ floop uses a **global-first architecture**. The global store (`~/.floop/`) is th
 ```bash
 # Initialize stores
 floop init              # Global store (default)
-floop init --local      # Project-local store
+floop init --project    # Project-local store
 
 # View store statistics
 floop stats             # Shows stats for both stores
