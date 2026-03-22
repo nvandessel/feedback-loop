@@ -153,6 +153,41 @@ func TestLibraryName(t *testing.T) {
 	}
 }
 
+func TestDetectInstalled_IgnoresDirectoriesAndNonGGUF(t *testing.T) {
+	baseDir := t.TempDir()
+	modelsDir := filepath.Join(baseDir, "models")
+	os.MkdirAll(modelsDir, 0755)
+
+	// Create a subdirectory (should be ignored)
+	os.MkdirAll(filepath.Join(modelsDir, "subdir"), 0755)
+	// Create a non-gguf file (should be ignored)
+	os.WriteFile(filepath.Join(modelsDir, "readme.txt"), []byte("not a model"), 0644)
+
+	result := DetectInstalled(baseDir)
+	if result.ModelPath != "" {
+		t.Errorf("expected empty ModelPath when only dirs and non-gguf exist, got %q", result.ModelPath)
+	}
+}
+
+func TestDetectInstalled_LibDirExistsButNoLibFile(t *testing.T) {
+	baseDir := t.TempDir()
+	libDir := filepath.Join(baseDir, "lib")
+	os.MkdirAll(libDir, 0755)
+	// lib dir exists but no libllama file inside
+
+	result := DetectInstalled(baseDir)
+	if result.LibPath != "" {
+		t.Errorf("expected empty LibPath when lib dir has no library file, got %q", result.LibPath)
+	}
+}
+
+func TestDefaultFloopDir_EndsWith(t *testing.T) {
+	dir := DefaultFloopDir()
+	if !strings.HasSuffix(dir, ".floop") {
+		t.Errorf("expected DefaultFloopDir to end with .floop, got %q", dir)
+	}
+}
+
 func TestDefaultEmbeddingModelURL(t *testing.T) {
 	url := DefaultEmbeddingModelURL()
 	if url == "" {
