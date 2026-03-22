@@ -160,9 +160,11 @@ func TestConnectCmdIntegration(t *testing.T) {
 
 	// This will fail because the second ID doesn't exist — that's fine, we're testing the path
 	err := rootCmd2.Execute()
-	if err != nil && strings.Contains(err.Error(), "target node not found") {
-		// Expected — we're hitting deep into the RunE
-		return
+	if err == nil {
+		t.Fatal("expected error for nonexistent target, got nil")
+	}
+	if !strings.Contains(err.Error(), "target node not found") {
+		t.Errorf("expected 'target node not found' error, got: %v", err)
 	}
 }
 
