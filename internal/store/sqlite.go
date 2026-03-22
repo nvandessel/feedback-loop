@@ -1119,21 +1119,16 @@ func (s *SQLiteGraphStore) incrementalExportNodes(ctx context.Context, dirtyOps 
 		}
 	}
 
-	// Write all nodes back to file
-	f, err := os.Create(s.nodesFile)
-	if err != nil {
-		return fmt.Errorf("failed to create nodes file: %w", err)
-	}
-	defer f.Close()
-
-	encoder := json.NewEncoder(f)
-	for _, node := range existingNodes {
-		if err := encoder.Encode(node); err != nil {
-			return fmt.Errorf("failed to encode node: %w", err)
+	// Write all nodes back to file atomically
+	return atomicWriteFile(s.nodesFile, func(f *os.File) error {
+		encoder := json.NewEncoder(f)
+		for _, node := range existingNodes {
+			if err := encoder.Encode(node); err != nil {
+				return fmt.Errorf("failed to encode node: %w", err)
+			}
 		}
-	}
-
-	return nil
+		return nil
+	})
 }
 
 // reconcileNodeCount compares the JSONL node count with the SQLite behavior
@@ -1250,21 +1245,16 @@ func (s *SQLiteGraphStore) exportNodesToJSONL(ctx context.Context) error {
 		}
 	}
 
-	// Write to file
-	f, err := os.Create(s.nodesFile)
-	if err != nil {
-		return fmt.Errorf("failed to create nodes file: %w", err)
-	}
-	defer f.Close()
-
-	encoder := json.NewEncoder(f)
-	for _, node := range nodes {
-		if err := encoder.Encode(node); err != nil {
-			return fmt.Errorf("failed to encode node: %w", err)
+	// Write to file atomically
+	return atomicWriteFile(s.nodesFile, func(f *os.File) error {
+		encoder := json.NewEncoder(f)
+		for _, node := range nodes {
+			if err := encoder.Encode(node); err != nil {
+				return fmt.Errorf("failed to encode node: %w", err)
+			}
 		}
-	}
-
-	return nil
+		return nil
+	})
 }
 
 // exportEdgesToJSONL exports all edges to the edges.jsonl file.
@@ -1275,57 +1265,55 @@ func (s *SQLiteGraphStore) exportEdgesToJSONL(ctx context.Context) error {
 	}
 	defer rows.Close()
 
-	f, err := os.Create(s.edgesFile)
-	if err != nil {
-		return fmt.Errorf("failed to create edges file: %w", err)
-	}
-	defer f.Close()
+	return atomicWriteFile(s.edgesFile, func(f *os.File) error {
+		encoder := json.NewEncoder(f)
+		for rows.Next() {
+			var source, target, kind string
+			var weight sql.NullFloat64
+			var createdAtStr, lastActivatedStr, metadataJSON sql.NullString
 
-	encoder := json.NewEncoder(f)
-	for rows.Next() {
-		var source, target, kind string
-		var weight sql.NullFloat64
-		var createdAtStr, lastActivatedStr, metadataJSON sql.NullString
+			if err := rows.Scan(&source, &target, &kind, &weight, &createdAtStr, &lastActivatedStr, &metadataJSON); err != nil {
+				return fmt.Errorf("failed to scan edge: %w", err)
+			}
 
-		if err := rows.Scan(&source, &target, &kind, &weight, &createdAtStr, &lastActivatedStr, &metadataJSON); err != nil {
-			return fmt.Errorf("failed to scan edge: %w", err)
-		}
+			edge := Edge{
+				Source: source,
+				Target: target,
+				Kind:   EdgeKind(kind),
+			}
 
-		edge := Edge{
-			Source: source,
-			Target: target,
-			Kind:   EdgeKind(kind),
-		}
+			if weight.Valid {
+				edge.Weight = weight.Float64
+			}
 
-		if weight.Valid {
-			edge.Weight = weight.Float64
-		}
+			if createdAtStr.Valid {
+				if t, err := time.Parse(time.RFC3339, createdAtStr.String); err == nil {
+					edge.CreatedAt = t
+				}
+			}
 
-		if createdAtStr.Valid {
-			if t, err := time.Parse(time.RFC3339, createdAtStr.String); err == nil {
-				edge.CreatedAt = t
+			if lastActivatedStr.Valid {
+				if t, err := time.Parse(time.RFC3339, lastActivatedStr.String); err == nil {
+					edge.LastActivated = &t
+				}
+			}
+
+			if metadataJSON.Valid {
+				var metadata map[string]interface{}
+				if err := json.Unmarshal([]byte(metadataJSON.String), &metadata); err == nil {
+					edge.Metadata = metadata
+				}
+			}
+
+			if err := encoder.Encode(edge); err != nil {
+				return fmt.Errorf("failed to encode edge: %w", err)
 			}
 		}
-
-		if lastActivatedStr.Valid {
-			if t, err := time.Parse(time.RFC3339, lastActivatedStr.String); err == nil {
-				edge.LastActivated = &t
-			}
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("failed to iterate edges: %w", err)
 		}
-
-		if metadataJSON.Valid {
-			var metadata map[string]interface{}
-			if err := json.Unmarshal([]byte(metadataJSON.String), &metadata); err == nil {
-				edge.Metadata = metadata
-			}
-		}
-
-		if err := encoder.Encode(edge); err != nil {
-			return fmt.Errorf("failed to encode edge: %w", err)
-		}
-	}
-
-	return nil
+		return nil
+	})
 }
 
 // Close syncs and closes the store.
