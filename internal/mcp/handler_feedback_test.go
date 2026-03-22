@@ -138,5 +138,3 @@ func TestHandleFloopFeedback_Validation(t *testing.T) {
 		})
 	}
 }
-
-
