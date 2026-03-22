@@ -87,6 +87,9 @@ jobs:
           PLATFORM="$(go env GOOS)_$(go env GOARCH)"
           if [ ! -f "lib/${PLATFORM}/liblancedb_go.a" ]; then
             rm -rf lib/ include/
+            # go.mod has a replace directive pointing to nvandessel/lancedb-go (a fork with
+            # patches not yet upstream). The version template resolves the replaced version so
+            # we download binaries from the fork's releases, which is where they are published.
             LANCE_VERSION=$(go list -m -f '{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}' github.com/lancedb/lancedb-go)
             gh release download "${LANCE_VERSION}" \
               --repo nvandessel/lancedb-go \
