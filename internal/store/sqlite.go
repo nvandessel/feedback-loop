@@ -1265,58 +1265,52 @@ func (s *SQLiteGraphStore) exportEdgesToJSONL(ctx context.Context) error {
 	}
 	defer rows.Close()
 
-	var edges []Edge
-	for rows.Next() {
-		var source, target, kind string
-		var weight sql.NullFloat64
-		var createdAtStr, lastActivatedStr, metadataJSON sql.NullString
-
-		if err := rows.Scan(&source, &target, &kind, &weight, &createdAtStr, &lastActivatedStr, &metadataJSON); err != nil {
-			return fmt.Errorf("failed to scan edge: %w", err)
-		}
-
-		edge := Edge{
-			Source: source,
-			Target: target,
-			Kind:   EdgeKind(kind),
-		}
-
-		if weight.Valid {
-			edge.Weight = weight.Float64
-		}
-
-		if createdAtStr.Valid {
-			if t, err := time.Parse(time.RFC3339, createdAtStr.String); err == nil {
-				edge.CreatedAt = t
-			}
-		}
-
-		if lastActivatedStr.Valid {
-			if t, err := time.Parse(time.RFC3339, lastActivatedStr.String); err == nil {
-				edge.LastActivated = &t
-			}
-		}
-
-		if metadataJSON.Valid {
-			var metadata map[string]interface{}
-			if err := json.Unmarshal([]byte(metadataJSON.String), &metadata); err == nil {
-				edge.Metadata = metadata
-			}
-		}
-
-		edges = append(edges, edge)
-	}
-
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("failed to iterate edges: %w", err)
-	}
-
 	return atomicWriteFile(s.edgesFile, func(f *os.File) error {
 		encoder := json.NewEncoder(f)
-		for _, edge := range edges {
+		for rows.Next() {
+			var source, target, kind string
+			var weight sql.NullFloat64
+			var createdAtStr, lastActivatedStr, metadataJSON sql.NullString
+
+			if err := rows.Scan(&source, &target, &kind, &weight, &createdAtStr, &lastActivatedStr, &metadataJSON); err != nil {
+				return fmt.Errorf("failed to scan edge: %w", err)
+			}
+
+			edge := Edge{
+				Source: source,
+				Target: target,
+				Kind:   EdgeKind(kind),
+			}
+
+			if weight.Valid {
+				edge.Weight = weight.Float64
+			}
+
+			if createdAtStr.Valid {
+				if t, err := time.Parse(time.RFC3339, createdAtStr.String); err == nil {
+					edge.CreatedAt = t
+				}
+			}
+
+			if lastActivatedStr.Valid {
+				if t, err := time.Parse(time.RFC3339, lastActivatedStr.String); err == nil {
+					edge.LastActivated = &t
+				}
+			}
+
+			if metadataJSON.Valid {
+				var metadata map[string]interface{}
+				if err := json.Unmarshal([]byte(metadataJSON.String), &metadata); err == nil {
+					edge.Metadata = metadata
+				}
+			}
+
 			if err := encoder.Encode(edge); err != nil {
 				return fmt.Errorf("failed to encode edge: %w", err)
 			}
+		}
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("failed to iterate edges: %w", err)
 		}
 		return nil
 	})
