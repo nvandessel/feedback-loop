@@ -6,6 +6,8 @@
 [![Release](https://img.shields.io/github/v/release/nvandessel/floop)](https://github.com/nvandessel/floop/releases/latest)
 [![Go 1.25+](https://img.shields.io/badge/go-1.25%2B-blue.svg)](https://go.dev/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/nvandessel/floop)](https://goreportcard.com/report/github.com/nvandessel/floop)
+[![Go Reference](https://pkg.go.dev/badge/github.com/nvandessel/floop.svg)](https://pkg.go.dev/github.com/nvandessel/floop)
 
 Every correction you give an AI agent is a lesson that dies at the end of the session. floop makes it stick.
 
@@ -17,10 +19,14 @@ A correction becomes a behavior. Behaviors connect into a graph. The graph uses 
 - **Context-aware activation** — Behaviors fire based on file type, task, and semantic relevance — not a static prompt dump
 - **Spreading activation** — Graph-based memory retrieval inspired by cognitive science (Collins & Loftus, ACT-R) — triggered behaviors propagate energy to related nodes, pulling in associative context
 - **Vector-accelerated retrieval** — Local embeddings with LanceDB (embedded vector database) pre-filter candidates before spreading activation, scaling to thousands of behaviors
+- **LLM-powered consolidation** — Multi-provider structured output merges duplicate behaviors intelligently (OpenAI, Anthropic, Ollama)
+- **Global-first architecture** — Behaviors live in a global store by default (`~/.floop/`), with optional project-local stores for repo-specific rules
+- **Graceful degradation** — Embeddings, LLM consolidation, and LanceDB are all optional; floop works with zero external dependencies
 - **Token-optimized** — Budget-aware assembly keeps injected context within limits
 - **Store management** — Stats, deduplication, backup/restore, and graph visualization keep your behavior store healthy
 - **MCP server** — Works with any AI tool that supports the Model Context Protocol
 - **CLI-first** — Every operation available as a command with `--json` output for agent consumption
+- **Cross-platform** — Linux, macOS, and Windows (amd64 + arm64)
 
 ## Quick Start
 
@@ -30,20 +36,32 @@ A correction becomes a behavior. Behaviors connect into a graph. The graph uses 
 # Homebrew (macOS/Linux)
 brew install nvandessel/tap/floop
 
-# Go
+# Go (all platforms including Windows)
 go install github.com/nvandessel/floop/cmd/floop@latest
+```
+
+### Initialize
+
+```bash
+# Set up the global behavior store (recommended — behaviors follow you across projects)
+floop init
+
+# Or create a project-local store for repo-specific behaviors
+cd your-project && floop init --project
 ```
 
 ### Teach your agent something
 
 ```bash
-cd your-project && floop init
-
 # Capture a correction
 floop learn --right "Always use structured logging, never fmt.Println"
 
 # See what floop learned
 floop list
+
+# Behaviors from both global and local stores are shown by default
+# Use --local or --global to filter
+floop list --local
 ```
 
 ### See it activate
@@ -77,7 +95,8 @@ See [docs/integrations/](docs/integrations/) for setup guides for Cursor, Windsu
 
 ```bash
 floop stats                          # Check behavior store health
-floop deduplicate --dry-run          # Find duplicate behaviors
+floop deduplicate --dry-run          # Find duplicate behaviors (checks both stores)
+floop validate                       # Check graph consistency (both stores)
 floop connect <src> <tgt> --kind similar-to  # Link related behaviors
 ```
 
