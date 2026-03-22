@@ -1326,6 +1326,14 @@ func atomicWriteFile(targetPath string, writeFn func(f *os.File) error) error {
 	}
 	tmpPath := tmp.Name()
 
+	// Match os.Create's 0666 permissions (umask applies) so the renamed file
+	// preserves the same access as before the atomic-write refactor.
+	if err := os.Chmod(tmpPath, 0666); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to set temp file permissions: %w", err)
+	}
+
 	// Clean up temp file on any error
 	success := false
 	tmpClosed := false
