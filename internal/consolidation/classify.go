@@ -195,13 +195,16 @@ func (c *LLMConsolidator) classifyBatch(ctx context.Context, batch []Candidate, 
 		return nil, fmt.Errorf("parse failed: %w", err)
 	}
 
-	// Log successful classification
+	// Log successful classification with training data
 	c.logDecision(map[string]any{
 		"stage":      "classify",
 		"event":      "batch_classified",
 		"batch":      batchIdx,
 		"count":      len(classified),
 		"llm_driven": true,
+		"prompt":     messagesToStrings(msgs),
+		"response":   response,
+		"parsed":     classified,
 	})
 
 	return classified, nil

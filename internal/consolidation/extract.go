@@ -178,6 +178,16 @@ func (c *LLMConsolidator) summarizeChunks(ctx context.Context, chunks [][]events
 			continue
 		}
 
+		// Log successful LLM call for training data
+		c.logDecision(map[string]any{
+			"stage":    "extract",
+			"pass":     "summarize",
+			"chunk":    i,
+			"prompt":   messagesToStrings(messages),
+			"response": response,
+			"parsed":   summary,
+		})
+
 		// Enrich with chunk metadata
 		summary.ChunkIndex = i
 		summary.EventIDs = eventIDs(chunk)
@@ -211,6 +221,8 @@ func (c *LLMConsolidator) synthesizeArc(ctx context.Context, summaries []extract
 	c.logDecision(map[string]any{
 		"stage":           "extract",
 		"pass":            "arc",
+		"prompt":          messagesToStrings(messages),
+		"response":        response,
 		"session_outcome": arc.SessionOutcome,
 		"themes":          arc.Themes,
 	})
@@ -225,6 +237,14 @@ func (c *LLMConsolidator) extractFromChunk(ctx context.Context, chunk []events.E
 	if err != nil {
 		return nil, fmt.Errorf("extract from chunk: %w", err)
 	}
+
+	// Log successful LLM call for training data
+	c.logDecision(map[string]any{
+		"stage":    "extract",
+		"pass":     "extract",
+		"prompt":   messagesToStrings(messages),
+		"response": response,
+	})
 
 	var resp extractResponse
 	if err := json.Unmarshal([]byte(llm.ExtractJSON(response)), &resp); err != nil {
