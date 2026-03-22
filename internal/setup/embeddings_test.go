@@ -107,6 +107,9 @@ func TestDefaultFloopDir(t *testing.T) {
 	if !filepath.IsAbs(dir) {
 		t.Errorf("expected absolute path, got %q", dir)
 	}
+	if !strings.HasSuffix(dir, ".floop") {
+		t.Errorf("expected DefaultFloopDir to end with .floop, got %q", dir)
+	}
 }
 
 func TestLibraryName(t *testing.T) {
@@ -178,13 +181,6 @@ func TestDetectInstalled_LibDirExistsButNoLibFile(t *testing.T) {
 	result := DetectInstalled(baseDir)
 	if result.LibPath != "" {
 		t.Errorf("expected empty LibPath when lib dir has no library file, got %q", result.LibPath)
-	}
-}
-
-func TestDefaultFloopDir_EndsWith(t *testing.T) {
-	dir := DefaultFloopDir()
-	if !strings.HasSuffix(dir, ".floop") {
-		t.Errorf("expected DefaultFloopDir to end with .floop, got %q", dir)
 	}
 }
 
