@@ -3,6 +3,7 @@
 # f(eedback)loop
 
 [![CI](https://github.com/nvandessel/floop/actions/workflows/ci.yml/badge.svg)](https://github.com/nvandessel/floop/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/github/nvandessel/floop/branch/main/graph/badge.svg)](https://app.codecov.io/github/nvandessel/floop)
 [![Release](https://img.shields.io/github/v/release/nvandessel/floop)](https://github.com/nvandessel/floop/releases/latest)
 [![Go 1.25+](https://img.shields.io/badge/go-1.25%2B-blue.svg)](https://go.dev/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
