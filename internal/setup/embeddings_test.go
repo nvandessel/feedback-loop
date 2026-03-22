@@ -29,10 +29,7 @@ func TestDetectInstalled(t *testing.T) {
 		os.MkdirAll(libDir, 0755)
 
 		// Create a fake library file
-		libName := "libllama.so"
-		if runtime.GOOS == "darwin" {
-			libName = "libllama.dylib"
-		}
+		libName := libraryFileName()
 		os.WriteFile(filepath.Join(libDir, libName), []byte("fake"), 0644)
 
 		result := DetectInstalled(baseDir)
@@ -70,10 +67,7 @@ func TestDetectInstalled(t *testing.T) {
 		os.MkdirAll(libDir, 0755)
 		os.MkdirAll(modelsDir, 0755)
 
-		libName := "libllama.so"
-		if runtime.GOOS == "darwin" {
-			libName = "libllama.dylib"
-		}
+		libName := libraryFileName()
 		os.WriteFile(filepath.Join(libDir, libName), []byte("fake"), 0644)
 		os.WriteFile(filepath.Join(modelsDir, "test.gguf"), []byte("fake"), 0644)
 
@@ -120,7 +114,8 @@ func TestLibraryName(t *testing.T) {
 	if name == "" {
 		t.Error("expected non-empty library filename")
 	}
-	// On linux should be .so, on darwin .dylib
+
+	// Verify platform-specific extension
 	switch runtime.GOOS {
 	case "linux":
 		if name != "libllama.so" {
@@ -130,6 +125,31 @@ func TestLibraryName(t *testing.T) {
 		if name != "libllama.dylib" {
 			t.Errorf("expected libllama.dylib on darwin, got %q", name)
 		}
+	case "windows":
+		if name != "libllama.dll" {
+			t.Errorf("expected libllama.dll on windows, got %q", name)
+		}
+	default:
+		t.Logf("untested platform %q, got library name %q", runtime.GOOS, name)
+	}
+
+	// Verify the name has a recognized extension
+	validExts := []string{".so", ".dylib", ".dll"}
+	idx := strings.LastIndex(name, ".")
+	if idx < 0 {
+		t.Errorf("library filename %q has no extension", name)
+		return
+	}
+	ext := name[idx:]
+	found := false
+	for _, valid := range validExts {
+		if ext == valid {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("library filename %q has unrecognized extension %q", name, ext)
 	}
 }
 
