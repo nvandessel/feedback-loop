@@ -6,6 +6,8 @@
 [![Release](https://img.shields.io/github/v/release/nvandessel/floop)](https://github.com/nvandessel/floop/releases/latest)
 [![Go 1.25+](https://img.shields.io/badge/go-1.25%2B-blue.svg)](https://go.dev/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/nvandessel/floop)](https://goreportcard.com/report/github.com/nvandessel/floop)
+[![Go Reference](https://pkg.go.dev/badge/github.com/nvandessel/floop.svg)](https://pkg.go.dev/github.com/nvandessel/floop)
 
 Every correction you give an AI agent is a lesson that dies at the end of the session. floop makes it stick.
 
