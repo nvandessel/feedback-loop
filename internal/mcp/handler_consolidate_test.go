@@ -148,8 +148,8 @@ func TestHandleFloopConsolidate_WithSinceFilter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("handleFloopConsolidate failed: %v", err)
 	}
-	if output.EventsProcessed < 1 {
-		t.Errorf("EventsProcessed = %d, want >= 1", output.EventsProcessed)
+	if output.EventsProcessed != 1 {
+		t.Errorf("EventsProcessed = %d, want 1", output.EventsProcessed)
 	}
 }
 

@@ -45,27 +45,6 @@ func TestHandleFloopPackInstall_PathOutsideAllowed(t *testing.T) {
 	}
 }
 
-func TestHandleFloopPackInstall_LocalPathRestriction(t *testing.T) {
-	server, _ := setupTestServer(t)
-	defer server.Close()
-
-	ctx := context.Background()
-	req := &sdk.CallToolRequest{}
-
-	// Attempt to install from outside ~/.floop/packs/
-	args := FloopPackInstallInput{
-		Source: "/tmp/evil.fpack",
-	}
-
-	_, _, err := server.handleFloopPackInstall(ctx, req, args)
-	if err == nil {
-		t.Fatal("Expected error for path outside ~/.floop/packs/")
-	}
-	if !strings.Contains(err.Error(), "pack install path rejected") {
-		t.Errorf("error = %q, want to contain 'pack install path rejected'", err.Error())
-	}
-}
-
 func TestHandleFloopPackInstall_DeprecatedFilePath(t *testing.T) {
 	server, _ := setupTestServer(t)
 	defer server.Close()
@@ -116,7 +95,6 @@ func TestHandleFloopPackInstall_LocalFileNotFound(t *testing.T) {
 	server, _ := setupTestServer(t)
 	defer server.Close()
 
-	// Create the packs dir under the isolated home
 	ctx := context.Background()
 	req := &sdk.CallToolRequest{}
 

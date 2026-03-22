@@ -18,16 +18,24 @@ func addTestBehavior(t *testing.T, s *Server, id string) {
 		ID:   id,
 		Kind: "behavior",
 		Content: map[string]interface{}{
-			"name":    "test-behavior-" + id,
-			"kind":    string(models.BehaviorKindDirective),
-			"content": models.BehaviorContent{Canonical: "Test behavior " + id},
+			"name": "test-behavior-" + id,
+			"kind": string(models.BehaviorKindDirective),
+			"content": map[string]interface{}{
+				"canonical": "Test behavior " + id,
+			},
+			"when": map[string]interface{}{},
 			"provenance": models.Provenance{
 				SourceType: models.SourceTypeLearned,
 				CreatedAt:  time.Now(),
 			},
+			"requires":  []string{},
+			"overrides": []string{},
+			"conflicts": []string{},
 		},
 		Metadata: map[string]interface{}{
 			"confidence": 0.9,
+			"priority":   1,
+			"stats":      models.BehaviorStats{},
 		},
 	}
 	if _, err := s.store.AddNode(ctx, node); err != nil {
@@ -66,6 +74,30 @@ func TestHandleFloopFeedback_Confirmed(t *testing.T) {
 	}
 	if output.Message == "" {
 		t.Error("Message is empty")
+	}
+
+	// Verify state persistence: stats should reflect the confirmed signal
+	node, err := server.store.GetNode(ctx, "fb-test-1")
+	if err != nil {
+		t.Fatalf("GetNode failed: %v", err)
+	}
+	if node == nil {
+		t.Fatal("node fb-test-1 not found after feedback")
+	}
+	stats, _ := node.Metadata["stats"].(map[string]interface{})
+	if tc, ok := stats["times_confirmed"]; ok {
+		switch v := tc.(type) {
+		case int:
+			if v != 1 {
+				t.Errorf("times_confirmed = %d, want 1", v)
+			}
+		case float64:
+			if int(v) != 1 {
+				t.Errorf("times_confirmed = %v, want 1", v)
+			}
+		}
+	} else {
+		t.Error("times_confirmed not found in stats after confirmed feedback")
 	}
 }
 
