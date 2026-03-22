@@ -32,8 +32,8 @@ Two runtime dependencies are downloaded to `~/.floop/` (~130 MB total):
 
 | Component | Size | Location |
 |-----------|------|----------|
-| llama.cpp shared libraries | ~50 MB | `~/.floop/lib/` |
-| nomic-embed-text-v1.5 (Q4_K_M) | ~81 MB | `~/.floop/models/` |
+| llama.cpp shared libraries | ~50 MB | `~/.floop/lib/` (`%USERPROFILE%\.floop\lib\` on Windows) |
+| nomic-embed-text-v1.5 (Q4_K_M) | ~81 MB | `~/.floop/models/` (`%USERPROFILE%\.floop\models\` on Windows) |
 
 Downloads happen once and are cached. Subsequent `floop init --embeddings` calls detect existing installations and skip re-downloading.
 
