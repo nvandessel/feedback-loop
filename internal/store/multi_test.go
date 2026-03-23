@@ -1200,9 +1200,8 @@ func TestMultiGraphStore_RemoveEdge(t *testing.T) {
 
 	// RemoveEdge on non-existent edge in both stores should still succeed
 	// (both stores return nil for "not found")
-	err = m.RemoveEdge(ctx, "x", "y", EdgeKindRequires)
-	// This may or may not error depending on implementation — both stores just
-	// try to remove, and if neither has it, the result depends on store semantics.
+	// Both stores just try to remove; result depends on store semantics.
+	_ = m.RemoveEdge(ctx, "x", "y", EdgeKindRequires)
 }
 
 func TestMultiGraphStore_Traverse(t *testing.T) {
