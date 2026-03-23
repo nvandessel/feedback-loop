@@ -45,6 +45,13 @@ func TestNewConsolidator_Local(t *testing.T) {
 	}
 }
 
+func TestNewConsolidator_LLMWithNilClient(t *testing.T) {
+	c := NewConsolidator("llm", nil, nil, "test-model")
+	if _, ok := c.(*HeuristicConsolidator); !ok {
+		t.Errorf("expected *HeuristicConsolidator when LLM client is nil, got %T", c)
+	}
+}
+
 func TestLLMConsolidator_DelegatesToHeuristic(t *testing.T) {
 	mock := llm.NewMockClient()
 	c := NewLLMConsolidator(mock, nil, DefaultLLMConsolidatorConfig())
