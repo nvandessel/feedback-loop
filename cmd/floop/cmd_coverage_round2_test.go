@@ -5958,7 +5958,7 @@ func TestRunDedupOnStoreDryRunWithDups(t *testing.T) {
 	}
 	output := buf.String()
 	if !strings.Contains(output, "dry_run") {
-		t.Logf("output: %s", output)
+		t.Errorf("output: %s", output)
 	}
 }
 
@@ -7605,7 +7605,7 @@ func TestLearnCmdScopeGlobalR4(t *testing.T) {
 }
 
 // deprecate cmd with --json not found
-func TestDeprecateCmdNotFoundJSONR4(t *testing.T) {
+func TestDeprecateCmdMissingReasonFlagJSON(t *testing.T) {
 	tmpDir, _ := setupQueryTest(t)
 
 	rootCmd := newTestRootCmd()
@@ -7662,7 +7662,7 @@ func TestValidateCmdBothScopeLocalOnlyR4(t *testing.T) {
 
 	// Should have warning about global not initialized
 	if !strings.Contains(errBuf.String(), "global") {
-		t.Logf("stderr: %s, stdout: %s", errBuf.String(), buf.String())
+		t.Errorf("stderr: %s, stdout: %s", errBuf.String(), buf.String())
 	}
 }
 
@@ -7692,7 +7692,7 @@ func TestValidateCmdBothScopeGlobalOnlyR4(t *testing.T) {
 
 	// Should have warning about local not initialized
 	if !strings.Contains(errBuf.String(), "local") {
-		t.Logf("stderr: %s, stdout: %s", errBuf.String(), buf.String())
+		t.Errorf("stderr: %s, stdout: %s", errBuf.String(), buf.String())
 	}
 }
 
@@ -8035,7 +8035,7 @@ func TestReprocessCmdAllProcessedR4(t *testing.T) {
 	})
 
 	if !strings.Contains(out, "processed") {
-		t.Logf("output: %s", out)
+		t.Errorf("output: %s", out)
 	}
 }
 
@@ -8088,7 +8088,7 @@ func TestReprocessCmdNoCorrectionsFileR4(t *testing.T) {
 	})
 
 	if !strings.Contains(out, "No corrections") {
-		t.Logf("output: %s", out)
+		t.Errorf("output: %s", out)
 	}
 }
 
@@ -8106,7 +8106,7 @@ func TestSummarizeCmdNoBehaviorsTextR4(t *testing.T) {
 	})
 
 	if !strings.Contains(out, "No behaviors") {
-		t.Logf("output: %s", out)
+		t.Errorf("output: %s", out)
 	}
 }
 
@@ -8142,7 +8142,7 @@ func TestPackShowCmdR4(t *testing.T) {
 	})
 
 	if !strings.Contains(out, "not found") {
-		t.Logf("output: %s", out)
+		t.Errorf("output: %s", out)
 	}
 }
 
