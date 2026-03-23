@@ -8133,7 +8133,8 @@ func TestPackShowCmdR4(t *testing.T) {
 	out := captureStdout(t, func() {
 		rootCmd := newTestRootCmd()
 		rootCmd.AddCommand(newPackCmd())
-		rootCmd.SetArgs([]string{"pack", "info", "nonexistent-pack", "--root", tmpDir})
+		// Pack IDs must match namespace/name pattern — use valid format
+		rootCmd.SetArgs([]string{"pack", "info", "test-org/nonexistent-pack", "--root", tmpDir})
 		rootCmd.Execute()
 	})
 
