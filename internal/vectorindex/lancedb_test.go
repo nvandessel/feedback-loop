@@ -465,7 +465,7 @@ func TestLanceDBIndex_NewReopenExistingTable(t *testing.T) {
 	}
 	mustAdd(t, idx, context.Background(), "b1", []float32{1, 0, 0, 0, 0, 0, 0, 0})
 	if err := idx.Close(); err != nil {
-		t.Errorf("idx.Close(): %v", err)
+		t.Fatalf("idx.Close(): %v", err)
 	}
 
 	// Reopen with same dims — should succeed and find existing data.
