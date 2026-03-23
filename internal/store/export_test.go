@@ -566,12 +566,18 @@ func TestSQLiteGraphStore_AutoImport_WithEdgesJSONL(t *testing.T) {
 	nodesFile := filepath.Join(floopDir, "nodes.jsonl")
 	edgesFile := filepath.Join(floopDir, "edges.jsonl")
 
-	nf, _ := os.Create(nodesFile)
+	nf, err := os.Create(nodesFile)
+	if err != nil {
+		t.Fatalf("Create(nodesFile) error = %v", err)
+	}
 	json.NewEncoder(nf).Encode(Node{ID: "n1", Kind: NodeKindBehavior, Content: map[string]interface{}{"name": "n1", "kind": "directive", "content": map[string]interface{}{"canonical": "node n1"}}})
 	json.NewEncoder(nf).Encode(Node{ID: "n2", Kind: NodeKindBehavior, Content: map[string]interface{}{"name": "n2", "kind": "directive", "content": map[string]interface{}{"canonical": "node n2"}}})
 	nf.Close()
 
-	ef, _ := os.Create(edgesFile)
+	ef, err := os.Create(edgesFile)
+	if err != nil {
+		t.Fatalf("Create(edgesFile) error = %v", err)
+	}
 	json.NewEncoder(ef).Encode(Edge{Source: "n1", Target: "n2", Kind: EdgeKindRequires, Weight: 0.9, CreatedAt: time.Now()})
 	ef.Close()
 

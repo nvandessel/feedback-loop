@@ -488,27 +488,9 @@ func TestTruncateForError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Fill with 'a' for readability
-			input := tt.input
-			if tt.name == "exactly 100" {
-				input = ""
-				for i := 0; i < 100; i++ {
-					input += "a"
-				}
-			}
-			if tt.name == "over 100" {
-				input = ""
-				for i := 0; i < 150; i++ {
-					input += "a"
-				}
-			}
-
-			got := truncateForError(input)
-			if tt.name == "short string" && got != "hello" {
-				t.Errorf("truncateForError(%q) = %q, want %q", input, got, "hello")
-			}
-			if tt.name == "over 100" && len(got) != 103 { // 100 + "..."
-				t.Errorf("truncateForError() len = %d, want 103", len(got))
+			got := truncateForError(tt.input)
+			if got != tt.want {
+				t.Errorf("truncateForError(%d chars) = %q, want %q", len(tt.input), got, tt.want)
 			}
 		})
 	}
