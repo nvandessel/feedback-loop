@@ -6963,7 +6963,9 @@ func TestActiveCmdTextModeWithFileR4(t *testing.T) {
 	})
 
 	// Text mode output goes to os.Stdout
-	_ = out // Just exercising the code path
+	if len(out) == 0 {
+		t.Error("expected non-empty output")
+	}
 }
 
 func TestActiveCmdTextModeWithTaskR4(t *testing.T) {
@@ -6976,7 +6978,9 @@ func TestActiveCmdTextModeWithTaskR4(t *testing.T) {
 		rootCmd.Execute()
 	})
 
-	_ = out
+	if len(out) == 0 {
+		t.Error("expected non-empty output")
+	}
 }
 
 // --- show command text mode ---
@@ -7008,7 +7012,9 @@ func TestEventsCmdTextModeR4(t *testing.T) {
 		rootCmd.Execute()
 	})
 
-	_ = out // exercising text output path
+	if len(out) == 0 {
+		t.Error("expected non-empty output")
+	}
 }
 
 // --- consolidate text mode dry-run ---
@@ -7023,7 +7029,9 @@ func TestConsolidateCmdTextModeDryRunR4(t *testing.T) {
 		rootCmd.Execute()
 	})
 
-	_ = out
+	if len(out) == 0 {
+		t.Error("expected non-empty output")
+	}
 }
 
 // --- derive-edges text mode ---
@@ -7038,7 +7046,9 @@ func TestDeriveEdgesCmdTextModeR4(t *testing.T) {
 		rootCmd.Execute()
 	})
 
-	_ = out
+	if len(out) == 0 {
+		t.Error("expected non-empty output")
+	}
 }
 
 // --- reprocess text mode ---
@@ -7053,7 +7063,9 @@ func TestReprocessCmdTextModeR4(t *testing.T) {
 		rootCmd.Execute()
 	})
 
-	_ = out
+	if len(out) == 0 {
+		t.Error("expected non-empty output")
+	}
 }
 
 // --- summarize text mode ---
@@ -7083,7 +7095,9 @@ func TestSummarizeCmdMissingOnly(t *testing.T) {
 		rootCmd.Execute()
 	})
 
-	_ = out
+	if len(out) == 0 {
+		t.Error("expected non-empty output")
+	}
 }
 
 // --- connect text mode ---
@@ -7160,7 +7174,9 @@ func TestBackupCmdTextModeR4(t *testing.T) {
 		rootCmd.Execute()
 	})
 
-	_ = out
+	if len(out) == 0 {
+		t.Error("expected non-empty output")
+	}
 }
 
 // --- resolveVersion ---
@@ -7237,7 +7253,9 @@ func TestConfigSetTextModeR4(t *testing.T) {
 		rootCmd.Execute()
 	})
 
-	_ = out
+	if len(out) == 0 {
+		t.Error("expected non-empty output")
+	}
 }
 
 // --- upgrade text mode ---
@@ -7252,7 +7270,9 @@ func TestUpgradeCmdTextModeR4(t *testing.T) {
 		rootCmd.Execute()
 	})
 
-	_ = out
+	if len(out) == 0 {
+		t.Error("expected non-empty output")
+	}
 }
 
 // --- graph html mode ---
@@ -7489,7 +7509,9 @@ func TestInitCmdHooksInjectionOnlyR4(t *testing.T) {
 		rootCmd.Execute()
 	})
 
-	_ = out
+	if len(out) == 0 {
+		t.Error("expected non-empty output")
+	}
 }
 
 // upgrade with --scope global
@@ -7625,14 +7647,26 @@ func TestLearnCmdScopeGlobalR4(t *testing.T) {
 	rootCmd := newTestRootCmd()
 	rootCmd.AddCommand(newInitCmd())
 	rootCmd.SetArgs([]string{"init", "--global", "--root", tmpDir})
-	rootCmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("init --global: %v", err)
+	}
+
+	// Also init local — learn requires both
+	rootCmdLocal := newTestRootCmd()
+	rootCmdLocal.AddCommand(newInitCmd())
+	rootCmdLocal.SetArgs([]string{"init", "--root", tmpDir})
+	if err := rootCmdLocal.Execute(); err != nil {
+		t.Fatalf("init: %v", err)
+	}
 
 	rootCmd2 := newTestRootCmd()
 	rootCmd2.AddCommand(newLearnCmd())
 	buf := &bytes.Buffer{}
 	rootCmd2.SetOut(buf)
 	rootCmd2.SetArgs([]string{"learn", "--right", "always use snake_case", "--scope", "global", "--json", "--root", tmpDir})
-	rootCmd2.Execute()
+	if err := rootCmd2.Execute(); err != nil {
+		t.Fatalf("learn --scope global: %v", err)
+	}
 }
 
 // deprecate cmd: --reason flag is required; omitting it returns a flag error before any lookup
@@ -8076,7 +8110,9 @@ func TestReprocessCmdWithCorrectionsR4(t *testing.T) {
 		rootCmd2.SetArgs([]string{"reprocess", "--root", tmpDir})
 		rootCmd2.Execute()
 	})
-	_ = out
+	if len(out) == 0 {
+		t.Error("expected non-empty output")
+	}
 }
 
 // reprocess with all-processed corrections
@@ -8139,7 +8175,9 @@ func TestReprocessCmdDryRunWithCorrectionsR4(t *testing.T) {
 		rootCmd2.SetArgs([]string{"reprocess", "--dry-run", "--root", tmpDir})
 		rootCmd2.Execute()
 	})
-	_ = out
+	if len(out) == 0 {
+		t.Error("expected non-empty output")
+	}
 }
 
 // reprocess no corrections file
