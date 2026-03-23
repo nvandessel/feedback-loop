@@ -3882,25 +3882,35 @@ func TestGraphCmdServeNoOpen(t *testing.T) {
 
 	tmpDir, _ := setupQueryTest(t)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	rootCmd := newTestRootCmd()
+	rootCmd.SetContext(ctx)
 	rootCmd.AddCommand(newGraphCmd())
 	rootCmd.SetOut(&bytes.Buffer{})
 	rootCmd.SetArgs([]string{"graph", "--serve", "--no-open", "--root", tmpDir})
 
-	// Run briefly - this will start the server
-	// The server test is tricky - just verify it doesn't panic immediately
 	done := make(chan error, 1)
 	go func() {
-		done <- rootCmd.Execute()
+		done <- rootCmd.ExecuteContext(ctx)
 	}()
 
 	select {
 	case <-time.After(2 * time.Second):
-		// Server started successfully, this is expected
+		// Server started successfully — cancel context to shut it down
+		cancel()
 	case err := <-done:
 		if err != nil {
 			t.Fatalf("graph --serve failed: %v", err)
 		}
+	}
+
+	// Wait for the goroutine to finish after cancellation
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Error("server goroutine did not exit after context cancellation")
 	}
 }
 
@@ -4313,9 +4323,9 @@ func TestFindDuplicatePairsExactMatch(t *testing.T) {
 	}
 	cfg := dedup.DeduplicatorConfig{SimilarityThreshold: 0.5}
 	pairs := findDuplicatePairs(behaviors, cfg, nil)
-	// Exact match should have high similarity
+	// Two identical behaviors should always match at any threshold
 	if len(pairs) == 0 {
-		t.Log("exact match pair not found at 0.5 threshold (depends on similarity algorithm)")
+		t.Errorf("exact match pair not found at 0.5 threshold — two identical behaviors must always match")
 	}
 }
 
@@ -4350,7 +4360,8 @@ func TestRunDedupOnStoreNoBehaviorsText(t *testing.T) {
 	cfg := dedup.DeduplicatorConfig{SimilarityThreshold: 0.9}
 
 	old := os.Stdout
-	_, w, _ := os.Pipe()
+	devNull, w, _ := os.Pipe()
+	defer devNull.Close()
 	os.Stdout = w
 
 	err := runDedupOnStore(context.Background(), s, cfg, nil, false, false)
@@ -4430,7 +4441,8 @@ func TestRunDedupOnStoreWithBehaviorsDryRunText(t *testing.T) {
 	cfg := dedup.DeduplicatorConfig{SimilarityThreshold: 0.9}
 
 	old := os.Stdout
-	_, w, _ := os.Pipe()
+	devNull, w, _ := os.Pipe()
+	defer devNull.Close()
 	os.Stdout = w
 
 	err := runDedupOnStore(ctx, s, cfg, nil, true, false)
@@ -5772,7 +5784,8 @@ func TestMergeDuplicatePairsWithPairs(t *testing.T) {
 	}
 
 	old := os.Stdout
-	_, w, _ := os.Pipe()
+	devNull, w, _ := os.Pipe()
+	defer devNull.Close()
 	os.Stdout = w
 
 	count := mergeDuplicatePairs(ctx, s, pairs, nil, false)
@@ -5825,7 +5838,8 @@ func TestMergeDuplicatePairsAlreadyMerged(t *testing.T) {
 	}
 
 	old := os.Stdout
-	_, w, _ := os.Pipe()
+	devNull, w, _ := os.Pipe()
+	defer devNull.Close()
 	os.Stdout = w
 
 	count := mergeDuplicatePairs(ctx, s, pairs, nil, false)
@@ -5865,7 +5879,8 @@ func TestRunDedupOnStoreMergeMode(t *testing.T) {
 	cfg := dedup.DeduplicatorConfig{SimilarityThreshold: 0.5, AutoMerge: true}
 
 	old := os.Stdout
-	_, w, _ := os.Pipe()
+	devNull, w, _ := os.Pipe()
+	defer devNull.Close()
 	os.Stdout = w
 
 	err := runDedupOnStore(ctx, s, cfg, nil, false, false)
@@ -5986,7 +6001,8 @@ func TestRunDedupOnStoreDryRunWithDupsText(t *testing.T) {
 	cfg := dedup.DeduplicatorConfig{SimilarityThreshold: 0.5}
 
 	old := os.Stdout
-	_, w, _ := os.Pipe()
+	devNull, w, _ := os.Pipe()
+	defer devNull.Close()
 	os.Stdout = w
 
 	err := runDedupOnStore(ctx, s, cfg, nil, true, false)
@@ -6562,7 +6578,12 @@ func captureStdout(t *testing.T, fn func()) string {
 	if err != nil {
 		t.Fatalf("os.Pipe: %v", err)
 	}
+	defer r.Close()
 	os.Stdout = w
+	defer func() {
+		w.Close()
+		os.Stdout = old
+	}()
 	fn()
 	w.Close()
 	os.Stdout = old
@@ -7763,11 +7784,8 @@ func TestMigrateCmdWithProjectIDR4(t *testing.T) {
 	buf := &bytes.Buffer{}
 	rootCmd.SetOut(buf)
 	rootCmd.SetArgs([]string{"migrate", "--merge-local-to-global", "--root", tmpDir})
-	rootCmd.Execute()
-
-	output := buf.String()
-	if strings.Contains(output, "Project ID:") {
-		t.Log("Project ID was included in output")
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("migrate --merge-local-to-global failed: %v", err)
 	}
 }
 
@@ -7779,7 +7797,9 @@ func TestStatsCmdSortConfidenceR4(t *testing.T) {
 	buf := &bytes.Buffer{}
 	rootCmd.SetOut(buf)
 	rootCmd.SetArgs([]string{"stats", "--json", "--sort", "confidence", "--root", tmpDir})
-	rootCmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("stats --sort confidence failed: %v", err)
+	}
 }
 
 func TestStatsCmdSortPriorityR4(t *testing.T) {
@@ -7789,7 +7809,9 @@ func TestStatsCmdSortPriorityR4(t *testing.T) {
 	buf := &bytes.Buffer{}
 	rootCmd.SetOut(buf)
 	rootCmd.SetArgs([]string{"stats", "--json", "--sort", "priority", "--root", tmpDir})
-	rootCmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("stats --sort priority failed: %v", err)
+	}
 }
 
 func TestStatsCmdSortFollowedR4(t *testing.T) {
@@ -7799,7 +7821,9 @@ func TestStatsCmdSortFollowedR4(t *testing.T) {
 	buf := &bytes.Buffer{}
 	rootCmd.SetOut(buf)
 	rootCmd.SetArgs([]string{"stats", "--json", "--sort", "followed", "--root", tmpDir})
-	rootCmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("stats --sort followed failed: %v", err)
+	}
 }
 
 func TestStatsCmdSortRateR4(t *testing.T) {
@@ -7809,7 +7833,9 @@ func TestStatsCmdSortRateR4(t *testing.T) {
 	buf := &bytes.Buffer{}
 	rootCmd.SetOut(buf)
 	rootCmd.SetArgs([]string{"stats", "--json", "--sort", "rate", "--root", tmpDir})
-	rootCmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("stats --sort rate failed: %v", err)
+	}
 }
 
 func TestStatsCmdSortActivationsR4(t *testing.T) {
@@ -7819,7 +7845,9 @@ func TestStatsCmdSortActivationsR4(t *testing.T) {
 	buf := &bytes.Buffer{}
 	rootCmd.SetOut(buf)
 	rootCmd.SetArgs([]string{"stats", "--json", "--sort", "activations", "--root", tmpDir})
-	rootCmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("stats --sort activations failed: %v", err)
+	}
 }
 
 func TestStatsCmdTopNR4(t *testing.T) {
@@ -7838,7 +7866,9 @@ func TestStatsCmdTopNR4(t *testing.T) {
 	buf := &bytes.Buffer{}
 	rootCmd.SetOut(buf)
 	rootCmd.SetArgs([]string{"stats", "--json", "--top", "2", "--root", tmpDir})
-	rootCmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("stats --top 2 failed: %v", err)
+	}
 }
 
 // list with --global and --corrections flags
@@ -8032,8 +8062,8 @@ func TestReprocessCmdAllProcessedR4(t *testing.T) {
 		rootCmd2.Execute()
 	})
 
-	if !strings.Contains(out, "processed") {
-		t.Errorf("output: %s", out)
+	if !strings.Contains(out, "already been processed") && !strings.Contains(out, "all_processed") {
+		t.Errorf("expected 'already been processed' or 'all_processed' in output, got: %s", out)
 	}
 }
 
