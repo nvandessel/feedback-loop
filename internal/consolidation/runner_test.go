@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,20 @@ import (
 	"github.com/nvandessel/floop/internal/logging"
 	"github.com/nvandessel/floop/internal/store"
 )
+
+// failOnSessionConsolidator wraps HeuristicConsolidator but fails Extract
+// when it sees events from a specific session ID.
+type failOnSessionConsolidator struct {
+	HeuristicConsolidator
+	failSession string
+}
+
+func (f *failOnSessionConsolidator) Extract(ctx context.Context, evts []events.Event) ([]Candidate, error) {
+	if len(evts) > 0 && evts[0].SessionID == f.failSession {
+		return nil, fmt.Errorf("simulated failure for session %s", f.failSession)
+	}
+	return f.HeuristicConsolidator.Extract(ctx, evts)
+}
 
 func TestRunner_DryRun(t *testing.T) {
 	h := NewHeuristicConsolidator()
@@ -417,5 +432,47 @@ func TestRunner_RunIDThreadedToDecisionLog(t *testing.T) {
 	}
 	if lines == 0 {
 		t.Fatal("expected at least one decision log entry")
+	}
+}
+
+func TestRunner_MultiSession_PartialFailure(t *testing.T) {
+	// Session 1 should succeed, session 2 should fail.
+	// Verify that session 1's SourceEventIDs are preserved in the result.
+	c := &failOnSessionConsolidator{failSession: "sess-fail"}
+	runner := NewRunner(c)
+
+	evts := []events.Event{
+		{ID: "e1", SessionID: "sess-ok", Actor: "user", Kind: "correction", Content: "do X not Y"},
+		{ID: "e2", SessionID: "sess-ok", Actor: "agent", Kind: "message", Content: "ok"},
+		{ID: "e3", SessionID: "sess-fail", Actor: "user", Kind: "correction", Content: "fail here"},
+	}
+
+	result, err := runner.Run(context.Background(), evts, nil, RunOptions{DryRun: true})
+	if err == nil {
+		t.Fatal("expected error from failing session")
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result with prior session's data")
+	}
+	// Session 1's event IDs should be preserved
+	if len(result.SourceEventIDs) != 2 {
+		t.Errorf("expected 2 source event IDs from successful session, got %d", len(result.SourceEventIDs))
+	}
+	if result.RunID == "" {
+		t.Error("expected RunID from successful first session")
+	}
+}
+
+func TestRunner_EmptyInput_RunID(t *testing.T) {
+	h := NewHeuristicConsolidator()
+	runner := NewRunner(h)
+
+	result, err := runner.Run(context.Background(), nil, nil, RunOptions{})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	// With no sessions, RunID should be empty (no runSession called)
+	if result.RunID != "" {
+		t.Errorf("expected empty RunID for no-session input, got %q", result.RunID)
 	}
 }
