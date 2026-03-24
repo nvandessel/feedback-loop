@@ -78,6 +78,7 @@ func (r *Runner) Run(ctx context.Context, evts []events.Event, s store.GraphStor
 	aggregated := &RunResult{}
 	for _, sessionEvts := range groups {
 		if ctx.Err() != nil {
+			aggregated.Duration = time.Since(start)
 			return aggregated, ctx.Err()
 		}
 
