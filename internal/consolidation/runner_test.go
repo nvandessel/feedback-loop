@@ -228,6 +228,140 @@ func TestRunner_MultiSession(t *testing.T) {
 	}
 }
 
+func TestGroupBySession_Empty(t *testing.T) {
+	groups := groupBySession(nil)
+	if len(groups) != 0 {
+		t.Fatalf("expected 0 groups for nil input, got %d", len(groups))
+	}
+
+	groups = groupBySession([]events.Event{})
+	if len(groups) != 0 {
+		t.Fatalf("expected 0 groups for empty input, got %d", len(groups))
+	}
+}
+
+func TestRunner_EmptyInput(t *testing.T) {
+	h := NewHeuristicConsolidator()
+	runner := NewRunner(h)
+
+	result, err := runner.Run(context.Background(), nil, nil, RunOptions{})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if len(result.Candidates) != 0 {
+		t.Errorf("expected 0 candidates, got %d", len(result.Candidates))
+	}
+	if len(result.SourceEventIDs) != 0 {
+		t.Errorf("expected 0 source event IDs, got %d", len(result.SourceEventIDs))
+	}
+}
+
+func TestRunner_MultiSession_MixedSignal(t *testing.T) {
+	h := NewHeuristicConsolidator()
+	runner := NewRunner(h)
+	ctx := context.Background()
+	s := store.NewInMemoryGraphStore()
+
+	evts := []events.Event{
+		{
+			ID:        "evt-1",
+			SessionID: "sess-1",
+			Actor:     events.ActorUser,
+			Kind:      events.KindMessage,
+			Content:   "No, don't do that. Instead use fmt.Errorf to wrap errors.",
+			ProjectID: "proj-1",
+		},
+		{
+			// sess-2 has no correction signal — should produce no candidates
+			ID:        "evt-2",
+			SessionID: "sess-2",
+			Actor:     events.ActorUser,
+			Kind:      events.KindMessage,
+			Content:   "Here is the code you requested.",
+			ProjectID: "proj-1",
+		},
+		{
+			ID:        "evt-3",
+			SessionID: "sess-3",
+			Actor:     events.ActorUser,
+			Kind:      events.KindMessage,
+			Content:   "That's wrong, use context.WithTimeout instead.",
+			ProjectID: "proj-2",
+		},
+	}
+
+	result, err := runner.Run(ctx, evts, s, RunOptions{})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	// sess-1 and sess-3 should produce candidates; sess-2 should not
+	if len(result.Candidates) != 2 {
+		t.Fatalf("expected 2 candidates (sess-1 + sess-3), got %d", len(result.Candidates))
+	}
+
+	if result.Promoted != 2 {
+		t.Errorf("expected 2 promoted, got %d", result.Promoted)
+	}
+
+	// All 3 events should be marked as source (even the no-signal one)
+	if len(result.SourceEventIDs) != 3 {
+		t.Errorf("expected 3 source event IDs, got %d", len(result.SourceEventIDs))
+	}
+}
+
+func TestRunner_MultiSession_SessionContextPreserved(t *testing.T) {
+	h := NewHeuristicConsolidator()
+	runner := NewRunner(h)
+	ctx := context.Background()
+
+	evts := []events.Event{
+		{
+			ID:        "evt-1",
+			SessionID: "sess-alpha",
+			Actor:     events.ActorUser,
+			Kind:      events.KindMessage,
+			Content:   "No, don't do that. Instead use fmt.Errorf to wrap errors.",
+			ProjectID: "proj-A",
+		},
+		{
+			ID:        "evt-2",
+			SessionID: "sess-beta",
+			Actor:     events.ActorUser,
+			Kind:      events.KindMessage,
+			Content:   "That's wrong, use context.WithTimeout instead.",
+			ProjectID: "proj-B",
+		},
+	}
+
+	result, err := runner.Run(ctx, evts, nil, RunOptions{DryRun: true})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if len(result.Classified) != 2 {
+		t.Fatalf("expected 2 classified, got %d", len(result.Classified))
+	}
+
+	// Verify each classified memory has the correct session context
+	for _, mem := range result.Classified {
+		sid, _ := mem.SessionContext["session_id"].(string)
+		pid, _ := mem.SessionContext["project_id"].(string)
+		switch sid {
+		case "sess-alpha":
+			if pid != "proj-A" {
+				t.Errorf("sess-alpha: expected project_id=proj-A, got %q", pid)
+			}
+		case "sess-beta":
+			if pid != "proj-B" {
+				t.Errorf("sess-beta: expected project_id=proj-B, got %q", pid)
+			}
+		default:
+			t.Errorf("unexpected session_id %q in classified memory", sid)
+		}
+	}
+}
+
 func TestRunner_RunIDThreadedToDecisionLog(t *testing.T) {
 	dir := t.TempDir()
 	dl := logging.NewDecisionLogger(dir, "debug")
