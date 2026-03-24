@@ -530,13 +530,14 @@ Analyzes all behaviors in the store, identifies duplicates based on semantic sim
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--dry-run` | bool | `false` | Show duplicates without merging |
-| `--threshold` | float64 | `0.9` | Similarity threshold for duplicate detection (0.0-1.0) |
+| `--threshold` | float64 | `0.9` | Final similarity threshold for merging duplicates (0.0-1.0) |
 | `--scope` | string | `"both"` | Store scope: `local`, `global`, or `both` |
+| `--embedding-threshold` | float64 | `0.7` | Cosine-similarity pre-filter threshold for the embedding tier (0.0-1.0) |
 
 **Examples:**
 
 ```bash
-# Find and merge duplicates in local store
+# Find and merge duplicates (both stores by default)
 floop deduplicate
 
 # Preview duplicates without merging
@@ -757,7 +758,6 @@ Displays usage statistics for learned behaviors including activation counts, fol
 |------|------|---------|-------------|
 | `--top` | int | `0` | Show only top N behaviors (0 = all) |
 | `--sort` | string | `"score"` | Sort by: `score`, `activations`, `followed`, `rate`, `confidence`, `priority` |
-| `--scope` | string | `"local"` | Scope: `local`, `global`, or `both` |
 | `--budget` | int | `2000` | Token budget for injection simulation |
 
 **Examples:**

@@ -45,7 +45,19 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
-      - run: go test ./...
+      - name: Run tests
+        if: matrix.os != 'ubuntu-latest'
+        run: go test ./...
+      - name: Run tests with coverage
+        if: matrix.os == 'ubuntu-latest'
+        run: go test -coverprofile=coverage.txt -covermode=atomic -coverpkg=./... ./...
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad # v5.5.3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.txt
+          fail_ci_if_error: false
 
   lint:
     name: Lint

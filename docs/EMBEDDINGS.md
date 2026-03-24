@@ -32,8 +32,8 @@ Two runtime dependencies are downloaded to `~/.floop/` (~130 MB total):
 
 | Component | Size | Location |
 |-----------|------|----------|
-| llama.cpp shared libraries | ~50 MB | `~/.floop/lib/` |
-| nomic-embed-text-v1.5 (Q4_K_M) | ~81 MB | `~/.floop/models/` |
+| llama.cpp shared libraries | ~50 MB | `~/.floop/lib/` (`%USERPROFILE%\.floop\lib\` on Windows) |
+| nomic-embed-text-v1.5 (Q4_K_M) | ~81 MB | `~/.floop/models/` (`%USERPROFILE%\.floop\models\` on Windows) |
 
 Downloads happen once and are cached. Subsequent `floop init --embeddings` calls detect existing installations and skip re-downloading.
 
@@ -154,8 +154,15 @@ otool -L ./floop | grep lancedb
 Verify dependencies are installed:
 
 ```bash
+# Linux/macOS
 ls ~/.floop/lib/libllama.*    # Should show libllama.so or libllama.dylib
 ls ~/.floop/models/*.gguf      # Should show the model file
+```
+
+```powershell
+# Windows (PowerShell)
+dir $env:USERPROFILE\.floop\lib\libllama.*    # Should show libllama.dll
+dir $env:USERPROFILE\.floop\models\*.gguf
 ```
 
 If missing, re-run setup:
@@ -169,6 +176,7 @@ floop init --embeddings
 Check that the library path matches your platform:
 - **Linux:** `libllama.so` in `~/.floop/lib/`
 - **macOS:** `libllama.dylib` in `~/.floop/lib/`
+- **Windows:** `libllama.dll` in `%USERPROFILE%\.floop\lib\`
 
 ### High memory usage
 
