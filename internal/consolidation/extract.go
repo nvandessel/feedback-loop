@@ -223,6 +223,7 @@ func (c *LLMConsolidator) synthesizeArc(ctx context.Context, summaries []extract
 		"pass":            "arc",
 		"prompt":          messagesToStrings(messages),
 		"response":        response,
+		"parsed":          arc,
 		"session_outcome": arc.SessionOutcome,
 		"themes":          arc.Themes,
 	})
