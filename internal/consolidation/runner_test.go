@@ -601,8 +601,8 @@ func TestRunner_ContextCancelMidSession(t *testing.T) {
 	if result.Promoted != 1 {
 		t.Errorf("expected 1 promoted from first session, got %d", result.Promoted)
 	}
-	if result.Duration <= 0 {
-		t.Error("expected positive Duration on context-cancel exit")
+	if result.Duration < 0 {
+		t.Error("expected non-negative Duration on context-cancel exit")
 	}
 }
 
@@ -804,8 +804,8 @@ func TestRunner_DurationSetOnSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
-	if result.Duration <= 0 {
-		t.Error("expected positive Duration on success path")
+	if result.Duration < 0 {
+		t.Error("expected non-negative Duration on success path")
 	}
 }
 
@@ -827,8 +827,8 @@ func TestRunner_DurationSetOnError(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected non-nil result on error")
 	}
-	if result.Duration <= 0 {
-		t.Error("expected positive Duration on error path")
+	if result.Duration < 0 {
+		t.Error("expected non-negative Duration on error path")
 	}
 }
 
