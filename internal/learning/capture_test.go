@@ -71,6 +71,7 @@ func TestCorrectionCapture_MightBeCorrection(t *testing.T) {
 		{"empty string", "", false},
 		{"partial match inside word", "nothing special here", false},
 		{"partial match donate", "donate to charity", false},
+		{"broken is not broke", "the build is broken", false},
 	}
 
 	for _, tt := range tests {

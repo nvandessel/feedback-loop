@@ -265,7 +265,7 @@ func newHookDetectCorrectionCmd() *cobra.Command {
 			// Ensure .floop exists
 			floopDir := filepath.Join(root, ".floop")
 			if _, err := os.Stat(floopDir); os.IsNotExist(err) {
-				hookLog(root, "detect-correction", "store", "floop_dir_missing", nil)
+				fmt.Fprintf(os.Stderr, "detect-correction: floop_dir_missing (root=%s)\n", root)
 				return nil
 			}
 

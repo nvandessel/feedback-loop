@@ -48,7 +48,7 @@ func NewCorrectionCapture() CorrectionCapture {
 			// Frustration / repeated correction patterns
 			"i told you", "i said ", "remember to", "make sure",
 			// Error indication patterns
-			"broke", "fix this", "that's not ",
+			"broke ", "fix this", "that's not ",
 			"is wrong", "went wrong",
 			// Implicit correction patterns
 			"why did you", "not what i", "quit ",
