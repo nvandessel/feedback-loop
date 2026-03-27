@@ -28,6 +28,10 @@ import (
 // correction extraction. Set to 15s to accommodate SubagentClient cold
 // starts (subprocess spawn + auth + API call). The SubagentClient default
 // is 30s; 15s balances responsiveness with reliability.
+//
+// Context cancellation is honoured end-to-end: SubagentClient.Complete passes
+// the context to runSubagent, which creates a context.WithTimeout and uses
+// exec.CommandContext — so the subprocess is killed if the deadline expires.
 var hookDetectCorrectionTimeout = 15 * time.Second
 
 // newHookCmd creates the parent 'hook' command with subcommands for each

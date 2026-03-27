@@ -48,6 +48,9 @@ func NewCorrectionCapture() CorrectionCapture {
 			// Frustration / repeated correction patterns
 			"i told you", "i said ", "remember to", "make sure",
 			// Error indication patterns
+			// "broke " uses a trailing space to avoid false-positives on "broken".
+			// This misses end-of-sentence uses like "broke." or "broke!" but the
+			// LLM post-filter handles precision, so the trade-off is acceptable.
 			"broke ", "fix this", "that's not ",
 			"is wrong", "went wrong",
 			// Implicit correction patterns
