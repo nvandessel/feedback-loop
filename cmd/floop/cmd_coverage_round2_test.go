@@ -5956,8 +5956,8 @@ func TestRunDedupOnStoreDryRunWithDups(t *testing.T) {
 		ID:   "b-dr-2",
 		Kind: store.NodeKindBehavior,
 		Content: map[string]interface{}{
-			"name":    "use parameterized queries",
-			"content": map[string]interface{}{"canonical": "use parameterized queries"},
+			"name":    "always use parameterized queries for safety",
+			"content": map[string]interface{}{"canonical": "always use parameterized queries for safety"},
 		},
 	})
 

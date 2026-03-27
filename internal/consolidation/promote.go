@@ -3,6 +3,7 @@ package consolidation
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -107,6 +108,20 @@ func (c *LLMConsolidator) Promote(ctx context.Context, memories []ClassifiedMemo
 
 		node := c.buildPromoteNode(mem, c.runID, baseTS, i)
 		if _, err := s.AddNode(ctx, node); err != nil {
+			if errors.Is(err, store.ErrDuplicateContent) {
+				// Map pending ID to the existing node so co-occurrence edges
+				// referencing this memory are preserved instead of silently dropped.
+				if existingID := extractDuplicateNodeID(err); existingID != "" {
+					pendingToActual[pendingID] = existingID
+				}
+				slog.Info("skipping duplicate content", "node_id", node.ID, "error", err)
+				cl.LogPromote("skip", 0, map[string]any{
+					"reason":      "duplicate_content",
+					"memory_kind": string(mem.Kind),
+					"node_id":     node.ID,
+				})
+				continue
+			}
 			return PromoteResult{}, fmt.Errorf("adding consolidated node: %w", err)
 		}
 		pendingToActual[pendingID] = node.ID
@@ -283,6 +298,9 @@ func (c *LLMConsolidator) executeSupersede(ctx context.Context, merge MergePropo
 	node.ID = newID
 
 	if _, err := s.AddNode(ctx, node); err != nil {
+		if errors.Is(err, store.ErrDuplicateContent) {
+			return fmt.Errorf("superseding node is a duplicate: %w", err)
+		}
 		return fmt.Errorf("creating superseding node: %w", err)
 	}
 
@@ -353,6 +371,9 @@ func (c *LLMConsolidator) executeSupplement(ctx context.Context, merge MergeProp
 	node.Metadata["provenance"] = prov
 
 	if _, err := s.AddNode(ctx, node); err != nil {
+		if errors.Is(err, store.ErrDuplicateContent) {
+			return fmt.Errorf("supplement node is a duplicate: %w", err)
+		}
 		return fmt.Errorf("creating supplement node: %w", err)
 	}
 
@@ -455,4 +476,26 @@ func persistRun(ctx context.Context, s store.GraphStore, model string, rec Conso
 	); err != nil {
 		slog.Warn("failed to persist consolidation run", "run_id", runID, "error", err)
 	}
+}
+
+// extractDuplicateNodeID parses the existing node ID from an ErrDuplicateContent
+// error. The store returns errors in the format:
+//
+//	"duplicate content: behavior <ID> has identical canonical content: ..."
+//
+// Returns the empty string if the ID cannot be extracted.
+func extractDuplicateNodeID(err error) string {
+	msg := err.Error()
+	const prefix = "duplicate content: behavior "
+	const suffix = " has identical canonical content"
+	start := strings.Index(msg, prefix)
+	if start < 0 {
+		return ""
+	}
+	rest := msg[start+len(prefix):]
+	end := strings.Index(rest, suffix)
+	if end < 0 {
+		return ""
+	}
+	return rest[:end]
 }
