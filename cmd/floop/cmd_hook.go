@@ -170,13 +170,19 @@ func formatCorrectionCapturedMessage(correctionID string) string {
 	return fmt.Sprintf("### Correction Captured\nfloop auto-detected a correction from your message (id: %s)", correctionID)
 }
 
+// floopDirExists checks whether the .floop directory exists under root.
+func floopDirExists(root string) bool {
+	_, err := os.Stat(filepath.Join(root, ".floop"))
+	return !os.IsNotExist(err)
+}
+
 // hookLog appends a structured JSON log entry to .floop/hook-debug.log.
 // Silently no-ops if the .floop directory doesn't exist (pre-init state).
 func hookLog(root, hookName, stage, outcome string, extra map[string]interface{}) {
-	floopDir := filepath.Join(root, ".floop")
-	if _, err := os.Stat(floopDir); os.IsNotExist(err) {
+	if !floopDirExists(root) {
 		return
 	}
+	floopDir := filepath.Join(root, ".floop")
 	logPath := filepath.Join(floopDir, "hook-debug.log")
 	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
@@ -274,8 +280,7 @@ func runDetectCorrection(cmd *cobra.Command, root, prompt string, client llm.Cli
 	right := sanitize.SanitizeBehaviorContent(result.Right)
 
 	// Ensure .floop exists
-	floopDir := filepath.Join(root, ".floop")
-	if _, err := os.Stat(floopDir); os.IsNotExist(err) {
+	if !floopDirExists(root) {
 		fmt.Fprintf(os.Stderr, "detect-correction: floop_dir_missing (root=%s)\n", root)
 		return nil
 	}
@@ -310,7 +315,7 @@ func runDetectCorrection(cmd *cobra.Command, root, prompt string, client llm.Cli
 	processedAt := time.Now()
 	correction.ProcessedAt = &processedAt
 
-	correctionsPath := filepath.Join(floopDir, "corrections.jsonl")
+	correctionsPath := filepath.Join(root, ".floop", "corrections.jsonl")
 	f, err := os.OpenFile(correctionsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err == nil {
 		json.NewEncoder(f).Encode(correction)
@@ -340,8 +345,7 @@ This applies to: explicit corrections, preferences, "don't do X", repeated feedb
 // Used by session-start and first-prompt hooks.
 func runHookPrompt(cmd *cobra.Command, root string) error {
 	// Check initialization silently
-	floopDir := filepath.Join(root, ".floop")
-	if _, err := os.Stat(floopDir); os.IsNotExist(err) {
+	if !floopDirExists(root) {
 		return nil
 	}
 
@@ -406,8 +410,7 @@ func runHookPrompt(cmd *cobra.Command, root string) error {
 // for hook usage (always markdown, silent on errors).
 func runHookActivate(cmd *cobra.Command, root, file, task string, tokenBudget int, sessionID string) error {
 	// Check initialization silently
-	floopDir := filepath.Join(root, ".floop")
-	if _, err := os.Stat(floopDir); os.IsNotExist(err) {
+	if !floopDirExists(root) {
 		return nil
 	}
 
