@@ -394,7 +394,7 @@ func (c *SubagentClient) ensureLogger() {
 
 // DetectAndCreate attempts to create a SubagentClient if running in a CLI session.
 // Returns nil if not in a CLI session or if detection fails.
-func DetectAndCreate() *SubagentClient {
+func DetectAndCreate() Client {
 	client := NewSubagentClient(DefaultSubagentConfig())
 	if client.Available() {
 		return client

@@ -24,6 +24,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// hookDetectCorrectionTimeout is the maximum time allowed for LLM-based
+// correction extraction. Set to 15s to accommodate SubagentClient cold
+// starts (subprocess spawn + auth + API call). The SubagentClient default
+// is 30s; 15s balances responsiveness with reliability.
+var hookDetectCorrectionTimeout = 15 * time.Second
+
 // newHookCmd creates the parent 'hook' command with subcommands for each
 // Claude Code hook event. These replace the previously extracted .sh scripts.
 func newHookCmd() *cobra.Command {
@@ -154,6 +160,38 @@ func newHookDynamicContextCmd() *cobra.Command {
 	}
 }
 
+// formatCorrectionCapturedMessage formats a brief markdown confirmation
+// for stdout when the detect-correction hook successfully captures a correction.
+func formatCorrectionCapturedMessage(correctionID string) string {
+	return fmt.Sprintf("### Correction Captured\nfloop auto-detected a correction from your message (id: %s)", correctionID)
+}
+
+// hookLog appends a structured JSON log entry to .floop/hook-debug.log.
+// Silently no-ops if the .floop directory doesn't exist (pre-init state).
+func hookLog(root, hookName, stage, outcome string, extra map[string]interface{}) {
+	floopDir := filepath.Join(root, ".floop")
+	if _, err := os.Stat(floopDir); os.IsNotExist(err) {
+		return
+	}
+	logPath := filepath.Join(floopDir, "hook-debug.log")
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	entry := map[string]interface{}{
+		"timestamp": time.Now().Format(time.RFC3339),
+		"hook":      hookName,
+		"stage":     stage,
+		"outcome":   outcome,
+	}
+	for k, v := range extra {
+		entry[k] = v
+	}
+	json.NewEncoder(f).Encode(entry)
+}
+
 // newHookDetectCorrectionCmd creates the 'hook detect-correction' subcommand.
 // It reads the user prompt from stdin and runs correction detection with a timeout.
 func newHookDetectCorrectionCmd() *cobra.Command {
@@ -168,90 +206,130 @@ func newHookDetectCorrectionCmd() *cobra.Command {
 				Prompt string `json:"prompt"`
 			}
 			if err := json.NewDecoder(cmd.InOrStdin()).Decode(&input); err != nil {
+				hookLog(root, "detect-correction", "stdin_decode", "json_error", map[string]interface{}{"error": err.Error()})
 				return nil
 			}
 
 			if input.Prompt == "" {
+				hookLog(root, "detect-correction", "stdin_decode", "empty_prompt", nil)
 				return nil
 			}
 
-			// Fast pattern check
-			capture := learning.NewCorrectionCapture()
-			if !capture.MightBeCorrection(input.Prompt) {
-				return nil
-			}
-
-			// Try LLM extraction with timeout
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-
-			client := llm.DetectAndCreate()
-			if client == nil {
-				return nil
-			}
-
-			prompt := learning.CorrectionExtractionPrompt(input.Prompt)
-			response, err := client.Complete(ctx, []llm.Message{{Role: "user", Content: prompt}})
-			if err != nil {
-				return nil
-			}
-			result, err := learning.ParseCorrectionExtractionResponse(response)
-			if err != nil || !result.IsCorrection || result.Wrong == "" || result.Right == "" {
-				return nil
-			}
-
-			if result.Confidence < 0.6 {
-				return nil
-			}
-
-			// Sanitize extracted values
-			wrong := sanitize.SanitizeBehaviorContent(result.Wrong)
-			right := sanitize.SanitizeBehaviorContent(result.Right)
-
-			// Ensure .floop exists
-			floopDir := filepath.Join(root, ".floop")
-			if _, err := os.Stat(floopDir); os.IsNotExist(err) {
-				return nil
-			}
-
-			// Open graph store and process
-			graphStore, err := store.NewMultiGraphStore(root)
-			if err != nil {
-				return nil
-			}
-			defer graphStore.Close()
-
-			now := time.Now()
-			correction := models.Correction{
-				ID:              fmt.Sprintf("c-%d", now.UnixNano()),
-				Timestamp:       now,
-				Context:         models.ContextSnapshot{Timestamp: now},
-				AgentAction:     wrong,
-				CorrectedAction: right,
-				Processed:       false,
-			}
-
-			loop := learning.NewLearningLoop(graphStore, nil)
-			_, processErr := loop.ProcessCorrection(ctx, correction)
-			if processErr != nil {
-				return nil
-			}
-
-			// Mark processed and append to corrections log
-			correction.Processed = true
-			processedAt := time.Now()
-			correction.ProcessedAt = &processedAt
-
-			correctionsPath := filepath.Join(floopDir, "corrections.jsonl")
-			f, err := os.OpenFile(correctionsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
-			if err == nil {
-				json.NewEncoder(f).Encode(correction)
-				f.Close()
-			}
-
-			return nil
+			return runDetectCorrection(cmd, root, input.Prompt, llm.DetectAndCreate())
 		},
 	}
+}
+
+// runDetectCorrection contains the core correction detection logic, extracted
+// from the command handler to allow dependency injection of the LLM client for testing.
+func runDetectCorrection(cmd *cobra.Command, root, prompt string, client llm.Client) error {
+	// Fast pattern check
+	capture := learning.NewCorrectionCapture()
+	if !capture.MightBeCorrection(prompt) {
+		hookLog(root, "detect-correction", "pattern_check", "pattern_miss", nil)
+		return nil
+	}
+	hookLog(root, "detect-correction", "pattern_check", "pattern_match", nil)
+
+	// Try LLM extraction with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), hookDetectCorrectionTimeout)
+	defer cancel()
+
+	if client == nil {
+		hookLog(root, "detect-correction", "llm_client", "client_unavailable", nil)
+		return nil
+	}
+
+	extractionPrompt := learning.CorrectionExtractionPrompt(prompt)
+	response, err := client.Complete(ctx, []llm.Message{{Role: "user", Content: extractionPrompt}})
+	if err != nil {
+		hookLog(root, "detect-correction", "llm_extract", "llm_error", map[string]interface{}{"error": err.Error()})
+		return nil
+	}
+	result, err := learning.ParseCorrectionExtractionResponse(response)
+	if err != nil {
+		hookLog(root, "detect-correction", "llm_parse", "parse_error", map[string]interface{}{"error": err.Error()})
+		return nil
+	}
+	if !result.IsCorrection {
+		hookLog(root, "detect-correction", "llm_parse", "not_correction", nil)
+		return nil
+	}
+	if result.Wrong == "" || result.Right == "" {
+		hookLog(root, "detect-correction", "llm_parse", "missing_fields", nil)
+		return nil
+	}
+
+	if result.Confidence < 0.6 {
+		hookLog(root, "detect-correction", "confidence", "below_threshold", map[string]interface{}{"confidence": result.Confidence})
+		return nil
+	}
+
+	// Sanitize extracted values
+	wrong := sanitize.SanitizeBehaviorContent(result.Wrong)
+	right := sanitize.SanitizeBehaviorContent(result.Right)
+
+	// Ensure .floop exists
+	floopDir := filepath.Join(root, ".floop")
+	if _, err := os.Stat(floopDir); os.IsNotExist(err) {
+		fmt.Fprintf(os.Stderr, "detect-correction: floop_dir_missing (root=%s)\n", root)
+		return nil
+	}
+
+	// Open graph store and process
+	graphStore, err := store.NewMultiGraphStore(root)
+	if err != nil {
+		hookLog(root, "detect-correction", "store", "store_open_error", map[string]interface{}{"error": err.Error()})
+		return nil
+	}
+	defer graphStore.Close()
+
+	now := time.Now()
+	correction := models.Correction{
+		ID:              fmt.Sprintf("c-%d", now.UnixNano()),
+		Timestamp:       now,
+		Context:         models.ContextSnapshot{Timestamp: now},
+		AgentAction:     wrong,
+		CorrectedAction: right,
+		Processed:       false,
+	}
+
+	loop := learning.NewLearningLoop(graphStore, nil)
+	_, processErr := loop.ProcessCorrection(ctx, correction)
+	if processErr != nil {
+		hookLog(root, "detect-correction", "process", "process_error", map[string]interface{}{"error": processErr.Error()})
+		return nil
+	}
+
+	// Mark processed and append to corrections log
+	correction.Processed = true
+	processedAt := time.Now()
+	correction.ProcessedAt = &processedAt
+
+	correctionsPath := filepath.Join(floopDir, "corrections.jsonl")
+	f, err := os.OpenFile(correctionsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err == nil {
+		json.NewEncoder(f).Encode(correction)
+		f.Close()
+	}
+
+	hookLog(root, "detect-correction", "complete", "correction_captured", map[string]interface{}{"correction_id": correction.ID})
+	fmt.Fprint(cmd.OutOrStdout(), formatCorrectionCapturedMessage(correction.ID))
+	return nil
+}
+
+// floopLearnDirective returns a markdown directive instructing Claude to use
+// floop_learn for corrections rather than alternative memory systems.
+func floopLearnDirective() string {
+	return `
+**IMPORTANT — Capturing Corrections:**
+When the user corrects you, IMMEDIATELY call floop_learn:
+` + "```" + `
+mcp__floop__floop_learn(right="what to do instead", wrong="what you did")
+` + "```" + `
+Do NOT use auto-memory or Write to save corrections — use floop_learn.
+This applies to: explicit corrections, preferences, "don't do X", repeated feedback.
+`
 }
 
 // runHookPrompt generates a markdown prompt with all active behaviors.
@@ -277,6 +355,8 @@ func runHookPrompt(cmd *cobra.Command, root string) error {
 	}
 
 	if len(behaviors) == 0 {
+		// No behaviors to inject, but still output the learn directive
+		fmt.Fprint(cmd.OutOrStdout(), floopLearnDirective())
 		return nil
 	}
 
@@ -298,6 +378,8 @@ func runHookPrompt(cmd *cobra.Command, root string) error {
 	resolved := resolver.Resolve(matches)
 
 	if len(resolved.Active) == 0 {
+		// No active behaviors, but still output the learn directive
+		fmt.Fprint(cmd.OutOrStdout(), floopLearnDirective())
 		return nil
 	}
 
@@ -310,11 +392,8 @@ func runHookPrompt(cmd *cobra.Command, root string) error {
 		WithFormat(assembly.FormatMarkdown)
 	compiled := compiler.CompileTiered(plan)
 
-	if compiled.Text == "" {
-		return nil
-	}
-
-	fmt.Fprint(cmd.OutOrStdout(), compiled.Text)
+	output := compiled.Text + floopLearnDirective()
+	fmt.Fprint(cmd.OutOrStdout(), output)
 	return nil
 }
 
