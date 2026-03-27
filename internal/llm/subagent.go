@@ -147,14 +147,12 @@ func (c *SubagentClient) detectAvailability() bool {
 	inSession := c.inCLISession()
 	if !inSession {
 		c.logger.Debug("subagent not available: no CLI session env vars")
-		if c.decisions != nil {
-			c.decisions.Log(map[string]any{
-				"event":     "llm_availability",
-				"provider":  "subagent",
-				"available": false,
-				"reason":    "no CLI session env vars",
-			})
-		}
+		c.logDecision(map[string]any{
+			"event":     "llm_availability",
+			"provider":  "subagent",
+			"available": false,
+			"reason":    "no CLI session env vars",
+		})
 		return false
 	}
 
@@ -162,27 +160,23 @@ func (c *SubagentClient) detectAvailability() bool {
 	cliPath := c.findCLI()
 	if cliPath == "" {
 		c.logger.Debug("subagent not available: CLI not found")
-		if c.decisions != nil {
-			c.decisions.Log(map[string]any{
-				"event":     "llm_availability",
-				"provider":  "subagent",
-				"available": false,
-				"reason":    "CLI executable not found",
-			})
-		}
+		c.logDecision(map[string]any{
+			"event":     "llm_availability",
+			"provider":  "subagent",
+			"available": false,
+			"reason":    "CLI executable not found",
+		})
 		return false
 	}
 
 	c.cliPath = cliPath
 	c.logger.Debug("subagent available", "cli_path", cliPath)
-	if c.decisions != nil {
-		c.decisions.Log(map[string]any{
-			"event":     "llm_availability",
-			"provider":  "subagent",
-			"available": true,
-			"cli_path":  cliPath,
-		})
-	}
+	c.logDecision(map[string]any{
+		"event":     "llm_availability",
+		"provider":  "subagent",
+		"available": true,
+		"cli_path":  cliPath,
+	})
 	return true
 }
 
@@ -295,14 +289,12 @@ func (c *SubagentClient) runSubagent(ctx context.Context, prompt string) (string
 	start := time.Now()
 
 	c.logger.Debug("subagent request", "model", c.model, "prompt_len", len(prompt))
-	if c.decisions != nil {
-		c.decisions.Log(map[string]any{
-			"event":      "llm_request",
-			"operation":  "subagent",
-			"model":      c.model,
-			"prompt_len": len(prompt),
-		})
-	}
+	c.logDecision(map[string]any{
+		"event":      "llm_request",
+		"operation":  "subagent",
+		"model":      c.model,
+		"prompt_len": len(prompt),
+	})
 
 	// At trace level, log full prompt content
 	c.logger.Log(ctx, logging.LevelTrace, "subagent prompt content", "prompt", prompt)
@@ -334,15 +326,13 @@ func (c *SubagentClient) runSubagent(ctx context.Context, prompt string) (string
 	if err := cmd.Run(); err != nil {
 		duration := time.Since(start)
 		c.logger.Debug("subagent failed", "duration_ms", duration.Milliseconds(), "error", err)
-		if c.decisions != nil {
-			c.decisions.Log(map[string]any{
-				"event":       "llm_response",
-				"operation":   "subagent",
-				"duration_ms": duration.Milliseconds(),
-				"success":     false,
-				"error":       err.Error(),
-			})
-		}
+		c.logDecision(map[string]any{
+			"event":       "llm_response",
+			"operation":   "subagent",
+			"duration_ms": duration.Milliseconds(),
+			"success":     false,
+			"error":       err.Error(),
+		})
 
 		if ctx.Err() == context.DeadlineExceeded {
 			return "", fmt.Errorf("subagent timed out after %v", c.timeout)
@@ -355,28 +345,24 @@ func (c *SubagentClient) runSubagent(ctx context.Context, prompt string) (string
 
 	if response == "" {
 		c.logger.Debug("subagent empty response", "duration_ms", duration.Milliseconds())
-		if c.decisions != nil {
-			c.decisions.Log(map[string]any{
-				"event":       "llm_response",
-				"operation":   "subagent",
-				"duration_ms": duration.Milliseconds(),
-				"success":     false,
-				"error":       "empty response",
-			})
-		}
+		c.logDecision(map[string]any{
+			"event":       "llm_response",
+			"operation":   "subagent",
+			"duration_ms": duration.Milliseconds(),
+			"success":     false,
+			"error":       "empty response",
+		})
 		return "", fmt.Errorf("subagent returned empty response")
 	}
 
 	c.logger.Debug("subagent response", "duration_ms", duration.Milliseconds(), "response_len", len(response))
-	if c.decisions != nil {
-		c.decisions.Log(map[string]any{
-			"event":        "llm_response",
-			"operation":    "subagent",
-			"duration_ms":  duration.Milliseconds(),
-			"response_len": len(response),
-			"success":      true,
-		})
-	}
+	c.logDecision(map[string]any{
+		"event":        "llm_response",
+		"operation":    "subagent",
+		"duration_ms":  duration.Milliseconds(),
+		"response_len": len(response),
+		"success":      true,
+	})
 
 	// At trace level, log full response content
 	c.logger.Log(ctx, logging.LevelTrace, "subagent response content", "response", response)
@@ -389,6 +375,13 @@ func (c *SubagentClient) runSubagent(ctx context.Context, prompt string) (string
 func (c *SubagentClient) ensureLogger() {
 	if c.logger == nil {
 		c.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+}
+
+// logDecision logs a decision event if the decision logger is configured.
+func (c *SubagentClient) logDecision(fields map[string]any) {
+	if c.decisions != nil {
+		c.decisions.Log(fields)
 	}
 }
 
