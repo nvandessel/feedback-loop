@@ -140,8 +140,11 @@ func (c *LLMConsolidator) logDecision(fields map[string]any) {
 		return
 	}
 	// Bounds check: prevent integer overflow in size computation (CodeQL go/allocation-size-overflow).
+	// Subtract 2 because logDecision adds "run_id" and "model" before passing to Log(),
+	// which has its own maxFields guard. Without this adjustment, maps with 9999–10000
+	// entries would pass here but be silently dropped downstream.
 	const maxFields = 10_000
-	if len(fields) > maxFields {
+	if len(fields) > maxFields-2 {
 		return
 	}
 	merged := make(map[string]any, len(fields)+2)

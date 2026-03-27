@@ -6,6 +6,7 @@ package logging
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -93,6 +94,7 @@ func (dl *DecisionLogger) Log(event map[string]any) {
 	// Bounds check: prevent integer overflow in size computation (CodeQL go/allocation-size-overflow).
 	const maxFields = 10_000
 	if len(event) > maxFields {
+		fmt.Fprintf(os.Stderr, "floop: decision log entry dropped: %d fields exceeds limit of %d\n", len(event), maxFields)
 		return
 	}
 	// Copy to avoid mutating caller's map

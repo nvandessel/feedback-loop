@@ -3,6 +3,7 @@ package logging
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -242,6 +243,49 @@ func TestNewDecisionLogger_CreatesDir(t *testing.T) {
 	path := filepath.Join(nestedDir, "decisions.jsonl")
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("decisions.jsonl should exist after dir creation: %v", err)
+	}
+}
+
+func TestDecisionLogger_Log_ExceedsMaxFields(t *testing.T) {
+	dir := t.TempDir()
+	dl := NewDecisionLogger(dir, "debug")
+	defer dl.Close()
+
+	// Build a map exceeding the 10,000-field limit
+	huge := make(map[string]any, 10_001)
+	for i := range 10_001 {
+		huge[fmt.Sprintf("key_%d", i)] = i
+	}
+
+	// Capture stderr to verify the warning
+	origStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	dl.Log(huge)
+
+	w.Close()
+	os.Stderr = origStderr
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	stderr := buf.String()
+
+	if !strings.Contains(stderr, "decision log entry dropped") {
+		t.Errorf("expected stderr warning about dropped entry, got: %q", stderr)
+	}
+	if !strings.Contains(stderr, "10001") {
+		t.Errorf("expected stderr to mention field count 10001, got: %q", stderr)
+	}
+
+	// Verify nothing was written to the file
+	path := filepath.Join(dir, "decisions.jsonl")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read decisions.jsonl: %v", err)
+	}
+	if len(strings.TrimSpace(string(data))) > 0 {
+		t.Error("expected no entries written for oversized event")
 	}
 }
 
